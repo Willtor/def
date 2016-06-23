@@ -1,7 +1,7 @@
 TARGET = defc
 
 SRC = ast.ml defparse.mly deflex.mll main.ml
-GENERATED = defparse.ml defparse.mli deflex.ml deflex.mli
+GENERATED = ast.mli defparse.ml defparse.mli deflex.ml deflex.mli
 
 FILES1 = $(SRC:.mly=.ml)
 FILES2 = $(FILES1:.mll=.ml)

@@ -26,9 +26,9 @@ statement:
 expr:
 | i = INTEGER { ExprAtom (AtomInt i) }
 | LPAREN e = expr RPAREN { e }
-| e1 = expr PLUS e2 = expr { ExprBinary ("+", e1, e2) }
-| e1 = expr MINUS e2 = expr { ExprBinary ("-", e1, e2) }
-| e1 = expr MULT e2 = expr { ExprBinary ("*", e1, e2) }
-| e1 = expr DIV e2 = expr { ExprBinary ("/", e1, e2) }
-| MINUS e = expr %prec NEGATIVE { ExprPreUnary ("-", e) }
+| e1 = expr PLUS e2 = expr { ExprBinary (OperPlus, e1, e2) }
+| e1 = expr MINUS e2 = expr { ExprBinary (OperMinus, e1, e2) }
+| e1 = expr MULT e2 = expr { ExprBinary (OperMult, e1, e2) }
+| e1 = expr DIV e2 = expr { ExprBinary (OperDiv, e1, e2) }
+| MINUS e = expr %prec NEGATIVE { ExprPreUnary (OperMinus, e) }
 
