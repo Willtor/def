@@ -1,6 +1,17 @@
 
 type operator =
-  | OperPlus | OperMinus | OperMult | OperDiv
+  | OperIncr | OperDecr
+  | OperMinus | OperPlus
+  | OperLogicalNot | OperBitwiseNot
+  | OperMult | OperDiv | OperRemainder
+  | OperLShift | OperRShift
+  | OperLT | OperGT | OperLTE | OperGTE | OperEquals
+  | OperBitwiseAnd | OperBitwiseXor | OperBitwiseOr
+  | OperLogicalAnd | OperLogicalOr
+  | OperAssign | OperPlusAssign | OperMinusAssign
+  | OperMultAssign | OperDivAssign | OperRemAssign
+  | OperLShiftAssign | OperRShiftAssign | OperBAndAssign
+  | OperBXorAssign | OperBOrAssign
 
 type atom =
   | AtomInt of int
@@ -15,10 +26,38 @@ type stmt =
   | StmtExpr of expr
 
 let operator2string = function
-  | OperPlus -> "+"
+  | OperIncr -> "++"
+  | OperDecr -> "--"
   | OperMinus -> "-"
+  | OperPlus -> "+"
+  | OperLogicalNot -> "!"
+  | OperBitwiseNot -> "~"
   | OperMult -> "*"
   | OperDiv -> "/"
+  | OperRemainder -> "%"
+  | OperLShift -> "<<"
+  | OperRShift -> ">>"
+  | OperLT -> "<"
+  | OperGT -> ">"
+  | OperLTE -> "<="
+  | OperGTE -> ">="
+  | OperEquals -> "="
+  | OperBitwiseAnd -> "&"
+  | OperBitwiseXor -> "^"
+  | OperBitwiseOr -> "|"
+  | OperLogicalAnd -> "&&"
+  | OperLogicalOr -> "||"
+  | OperAssign -> "="
+  | OperPlusAssign -> "+="
+  | OperMinusAssign -> "-="
+  | OperMultAssign -> "*="
+  | OperDivAssign -> "/="
+  | OperRemAssign -> "%="
+  | OperLShiftAssign -> "<<="
+  | OperRShiftAssign -> ">>="
+  | OperBAndAssign -> "&="
+  | OperBXorAssign -> "^="
+  | OperBOrAssign -> "|="
 
 let atom2string = function
   | AtomInt i -> (string_of_int i)
