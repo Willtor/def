@@ -5,9 +5,9 @@
 %token <int> INTEGER
 
 (* Operators *)
-%token PLUSPLUS MINUSMINUS PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS
+%token INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS
 %token PERCENTEQUALS DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS
-%token VBAREQUALS CARATEQUALS (*DOT*) BANG TILDE AMPERSAND STAR SLASH PERCENT
+%token VBAREQUALS CARATEQUALS (*DOT*) LNOT BNOT AMPERSAND STAR SLASH PERCENT
 %token PLUS MINUS DBLLANGLE DBLRANGLE LEQ LANGLE GEQ RANGLE
 %token EQUALSEQUALS BANGEQUALS CARAT VBAR DBLAMPERSAND DBLVBAR (*QMARK*)
 %token (*COLON*) EQUALS (*COMMA*)
@@ -19,10 +19,10 @@
 %start <stmt list> defparse
 
 (* Operator precedence. *)
-%left PLUSPLUS MINUSMINUS (*DOT*)
+%left INCREMENT DECREMENT (*DOT*)
 %nonassoc PREINCR PREDECR
 %nonassoc POSITIVE NEGATIVE
-%right BANG TILDE
+%right LNOT BNOT
 (* Need to figure out pointers. dereference, addr-of *)
 %left STAR SLASH PERCENT
 %left PLUS MINUS
@@ -50,14 +50,14 @@ statement:
 expr:
 | i = INTEGER { ExprAtom (AtomInt i) }
 | LPAREN e = expr RPAREN { e }
-| e = expr PLUSPLUS { ExprPostUnary (OperIncr, e) }
-| e = expr MINUSMINUS { ExprPostUnary (OperDecr, e) }
-| PLUSPLUS e = expr %prec PREINCR { ExprPreUnary (OperIncr, e) }
-| MINUSMINUS e = expr %prec PREDECR { ExprPreUnary (OperDecr, e) }
+| e = expr INCREMENT { ExprPostUnary (OperIncr, e) }
+| e = expr DECREMENT { ExprPostUnary (OperDecr, e) }
+| INCREMENT e = expr %prec PREINCR { ExprPreUnary (OperIncr, e) }
+| DECREMENT e = expr %prec PREDECR { ExprPreUnary (OperDecr, e) }
 | MINUS e = expr %prec NEGATIVE { ExprPreUnary (OperMinus, e) }
 | PLUS e = expr %prec POSITIVE { ExprPreUnary (OperPlus, e) }
-| BANG e = expr { ExprPreUnary (OperLogicalNot, e) }
-| TILDE e = expr { ExprPreUnary (OperBitwiseNot, e) }
+| LNOT e = expr { ExprPreUnary (OperLogicalNot, e) }
+| BNOT e = expr { ExprPreUnary (OperBitwiseNot, e) }
 | e1 = expr STAR e2 = expr { ExprBinary (OperMult, e1, e2) }
 | e1 = expr SLASH e2 = expr { ExprBinary (OperDiv, e1, e2) }
 | e1 = expr PERCENT e2 = expr { ExprBinary (OperRemainder, e1, e2) }

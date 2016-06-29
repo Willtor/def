@@ -10,8 +10,8 @@ rule deflex = parse
 | ['0'-'9']+ as i_str
     { INTEGER (int_of_string i_str) }
 (* Operators. *)
-| "++" { PLUSPLUS }
-| "--" { MINUSMINUS }
+| "++" { INCREMENT }
+| "--" { DECREMENT }
 | "+=" { PLUSEQUALS }
 | "-=" { MINUSEQUALS }
 | "*=" { STAREQUALS }
@@ -23,8 +23,8 @@ rule deflex = parse
 | "|=" { VBAREQUALS }
 | "^=" { CARATEQUALS }
 (*| '.' { DOT }*)
-| '!' { BANG }
-| '~' { TILDE }
+| '!' { LNOT }
+| '~' { BNOT }
 | '&' { AMPERSAND }
 | '*' { STAR }
 | '/' { SLASH }
