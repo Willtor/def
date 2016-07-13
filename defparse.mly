@@ -3,14 +3,17 @@
 %}
 
 %token <int> INTEGER
+%token <string> IDENT
+%token DEF RETURN BEGIN END
 
 (* Operators *)
+%token RARROW
 %token INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS
 %token PERCENTEQUALS DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS
 %token VBAREQUALS CARATEQUALS (*DOT*) LNOT BNOT AMPERSAND STAR SLASH PERCENT
 %token PLUS MINUS DBLLANGLE DBLRANGLE LEQ LANGLE GEQ RANGLE
 %token EQUALSEQUALS BANGEQUALS CARAT VBAR DBLAMPERSAND DBLVBAR (*QMARK*)
-%token (*COLON*) EQUALS (*COMMA*)
+%token (*COLON*) EQUALS COMMA
 
 %token LPAREN RPAREN
 %token SEMICOLON
@@ -36,7 +39,7 @@
 %left DBLVBAR
 (* Ternary conditional "a ? b : c" *)
 %right EQUALS PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS CARATEQUALS VBAREQUALS
-(* %left COMMA *)
+(*%left COMMA*)
 
 %%
 
@@ -44,11 +47,43 @@ defparse:
 | stmt = statement EOF { [stmt] }
 | stmt = statement rest = defparse { stmt :: rest }
 
+statementlist:
+| stmt = statement slist = statementlist { stmt :: slist }
+| stmt = statement { [stmt] }
+
+block:
+| BEGIN slist = statementlist END { Block slist }
+
 statement:
+| f = fcndef EQUALS e = expr SEMICOLON { DefFcn (f, StmtExpr e) }
+| f = fcndef stmt = block { DefFcn (f, stmt) }
 | e = expr SEMICOLON { StmtExpr e }
+| RETURN e = expr SEMICOLON { Return e }
+
+fcntype:
+| LPAREN RPAREN RARROW ret = deftype
+    { ([], ret) }
+| LPAREN plist = parameterlist RPAREN RARROW ret = deftype
+    { (plist, ret) }
+
+deftype:
+| s = IDENT { VarType s }
+
+parameterlist:
+| p = variabledecl { [p] }
+| p = variabledecl COMMA plist = parameterlist { p :: plist }
+
+variabledecl:
+| s = IDENT t = deftype { (s, t) }
+
+fcndef:
+| DEF ident = IDENT ftype = fcntype
+    { match ftype with
+    | (plist, ret) -> NamedFunction (ident, plist, ret) }
 
 expr:
 | i = INTEGER { ExprAtom (AtomInt i) }
+| ident = IDENT { ExprAtom (AtomVar ident) }
 | LPAREN e = expr RPAREN { e }
 | e = expr INCREMENT { ExprPostUnary (OperIncr, e) }
 | e = expr DECREMENT { ExprPostUnary (OperDecr, e) }

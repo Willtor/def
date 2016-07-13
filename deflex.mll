@@ -9,7 +9,14 @@ rule deflex = parse
     { deflex lexbuf }
 | ['0'-'9']+ as i_str
     { INTEGER (int_of_string i_str) }
+| "begin" { BEGIN }
+| "end" { END }
+| "def" { DEF }
+| "return" { RETURN }
+| ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
+    { IDENT ident }
 (* Operators. *)
+| "->" { RARROW }
 | "++" { INCREMENT }
 | "--" { DECREMENT }
 | "+=" { PLUSEQUALS }
@@ -46,7 +53,7 @@ rule deflex = parse
 (*| '?' { QMARK }*)
 (*| ':' { COLON }*)
 | '=' { EQUALS }
-(*| ',' { COMMA }*)
+| ',' { COMMA }
 | '(' { LPAREN }
 | ')' { RPAREN }
 | ';' { SEMICOLON }
