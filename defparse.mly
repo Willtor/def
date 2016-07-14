@@ -4,6 +4,7 @@
 
 %token <int> INTEGER
 %token <string> IDENT
+%token <string> STRING
 %token DEF RETURN BEGIN END
 
 (* Operators *)
@@ -81,8 +82,17 @@ fcndef:
     { match ftype with
     | (plist, ret) -> NamedFunction (ident, plist, ret) }
 
+exprlist:
+| e = expr COMMA elist = exprlist { e :: elist }
+| e = expr { [e] }
+
 expr:
 | i = INTEGER { ExprAtom (AtomInt i) }
+| str = STRING { ExprString str }
+| ident = IDENT LPAREN RPAREN
+    { ExprFcnCall (ident, []) }
+| ident = IDENT LPAREN elist = exprlist RPAREN
+    { ExprFcnCall (ident, elist) }
 | ident = IDENT { ExprAtom (AtomVar ident) }
 | LPAREN e = expr RPAREN { e }
 | e = expr INCREMENT { ExprPostUnary (OperIncr, e) }

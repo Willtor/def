@@ -18,6 +18,8 @@ type atom =
   | AtomVar of string
 
 type expr =
+  | ExprFcnCall of string * expr list
+  | ExprString of string
   | ExprBinary of operator * expr * expr
   | ExprPreUnary of operator * expr
   | ExprPostUnary of operator * expr
@@ -74,6 +76,13 @@ let atom2string = function
   | AtomVar s -> s
 
 let rec expr2string = function
+  | ExprFcnCall (nm, elist) ->
+     let rec printlist = function
+       | [] -> ""
+       | [e] -> expr2string e
+       | e :: rest -> (expr2string e) ^ ", " ^ (printlist rest)
+     in nm ^ "(" ^ (printlist elist) ^ ")"
+  | ExprString str -> str
   | ExprBinary (op, e1, e2) ->
      "(" ^ (operator2string op) ^ " " ^ (expr2string e1)
      ^ " " ^ (expr2string e2) ^ ")"

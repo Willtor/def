@@ -13,6 +13,7 @@ rule deflex = parse
 | "end" { END }
 | "def" { DEF }
 | "return" { RETURN }
+| ['"'][^'"']*['"'] as str { STRING str }
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
     { IDENT ident }
 (* Operators. *)
