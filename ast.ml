@@ -21,7 +21,7 @@ type atom =
 
 type expr =
   | ExprFcnCall of position * string * expr list
-  | ExprString of string
+  | ExprString of position * string
   | ExprBinary of operator * expr * expr
   | ExprPreUnary of operator * expr
   | ExprPostUnary of operator * expr
@@ -88,7 +88,7 @@ let rec expr2string = function
        | [e] -> expr2string e
        | e :: rest -> (expr2string e) ^ ", " ^ (printlist rest)
      in nm ^ "(" ^ (printlist elist) ^ ")"
-  | ExprString str -> str
+  | ExprString (_, str) -> str
   | ExprBinary (op, e1, e2) ->
      "(" ^ (operator2string op) ^ " " ^ (expr2string e1)
      ^ " " ^ (expr2string e2) ^ ")"

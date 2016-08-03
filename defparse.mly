@@ -5,7 +5,7 @@
 
 %token <Lexing.position * int> INTEGER
 %token <Lexing.position * string> IDENT
-%token <string> STRING
+%token <Lexing.position * string> STRING
 %token DEF RETURN BEGIN END
 
 (* Operators *)
@@ -92,7 +92,7 @@ exprlist:
 
 expr:
 | i = INTEGER { let (pos, n) = i in ExprAtom (AtomInt (pos, n)) }
-| str = STRING { ExprString str }
+| str = STRING { let (pos, s) = str in ExprString (pos, s) }
 | s = IDENT LPAREN RPAREN
     { let (pos, ident) = s in ExprFcnCall (pos, ident, []) }
 | s = IDENT LPAREN elist = exprlist RPAREN

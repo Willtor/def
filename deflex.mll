@@ -15,7 +15,7 @@ rule deflex = parse
 | "end" { END }
 | "def" { DEF }
 | "return" { RETURN }
-| ['"'][^'"']*['"'] as str { STRING str }
+| ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf, str) }
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
     { IDENT (lexeme_start_p lexbuf, ident) }
 (* Operators. *)
