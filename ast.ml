@@ -1,4 +1,6 @@
 
+open Lexing
+
 type operator =
   | OperIncr | OperDecr
   | OperMinus | OperPlus
@@ -14,11 +16,11 @@ type operator =
   | OperBXorAssign | OperBOrAssign
 
 type atom =
-  | AtomInt of int
-  | AtomVar of string
+  | AtomInt of position * int
+  | AtomVar of position * string
 
 type expr =
-  | ExprFcnCall of string * expr list
+  | ExprFcnCall of position * string * expr list
   | ExprString of string
   | ExprBinary of operator * expr * expr
   | ExprPreUnary of operator * expr
@@ -26,10 +28,14 @@ type expr =
   | ExprAtom of atom
 
 type vartype =
-  | VarType of string
+  | VarType of position * string
 
 type deffcn =
-  | NamedFunction of string * (string * vartype) list * vartype
+  | NamedFunction of
+      position
+    * string
+    * (position * string * vartype) list
+    * vartype
 
 type stmt =
   | StmtExpr of expr
@@ -72,11 +78,11 @@ let operator2string = function
   | OperBOrAssign -> "|="
 
 let atom2string = function
-  | AtomInt i -> (string_of_int i)
-  | AtomVar s -> s
+  | AtomInt (_, i) -> (string_of_int i)
+  | AtomVar (_, s) -> s
 
 let rec expr2string = function
-  | ExprFcnCall (nm, elist) ->
+  | ExprFcnCall (_, nm, elist) ->
      let rec printlist = function
        | [] -> ""
        | [e] -> expr2string e
@@ -94,16 +100,16 @@ let rec expr2string = function
      atom2string a
 
 let vartype2string = function
-  | VarType s -> s
+  | VarType (_, s) -> s
 
 let rec plist2string = function
   | [] -> ""
-  | [(nm, t)] -> nm ^ ": " ^ (vartype2string t)
-  | (nm, t) :: rest -> nm ^ ": " ^ (vartype2string t) ^ ", "
+  | [(_, nm, t)] -> nm ^ ": " ^ (vartype2string t)
+  | (_, nm, t) :: rest -> nm ^ ": " ^ (vartype2string t) ^ ", "
      ^ (plist2string rest)
 
 let deffcn2string = function
-  | NamedFunction (nm, plist, ret) ->
+  | NamedFunction (_, nm, plist, ret) ->
      "function " ^ nm ^ "{" ^ (plist2string  plist) ^ "} -> "
      ^ (vartype2string ret)
 

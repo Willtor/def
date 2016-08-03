@@ -1,21 +1,23 @@
 {
   open Defparse
+  open Lexing
 
   exception LexError of string
 }
 
 rule deflex = parse
-| [' ' '\t' '\n']+
+| [' ' '\t']+
     { deflex lexbuf }
+| '\n' { new_line lexbuf; deflex lexbuf }
 | ['0'-'9']+ as i_str
-    { INTEGER (int_of_string i_str) }
+    { INTEGER (lexeme_start_p lexbuf, int_of_string i_str) }
 | "begin" { BEGIN }
 | "end" { END }
 | "def" { DEF }
 | "return" { RETURN }
 | ['"'][^'"']*['"'] as str { STRING str }
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
-    { IDENT ident }
+    { IDENT (lexeme_start_p lexbuf, ident) }
 (* Operators. *)
 | "->" { RARROW }
 | "++" { INCREMENT }

@@ -1,9 +1,10 @@
 %{
   open Ast
+  open Lexing
 %}
 
-%token <int> INTEGER
-%token <string> IDENT
+%token <Lexing.position * int> INTEGER
+%token <Lexing.position * string> IDENT
 %token <string> STRING
 %token DEF RETURN BEGIN END
 
@@ -68,32 +69,36 @@ fcntype:
     { (plist, ret) }
 
 deftype:
-| s = IDENT { VarType s }
+| s = IDENT { let (pos, ident) = s in VarType (pos, ident) }
 
 parameterlist:
 | p = variabledecl { [p] }
 | p = variabledecl COMMA plist = parameterlist { p :: plist }
 
 variabledecl:
-| s = IDENT t = deftype { (s, t) }
+| s = IDENT t = deftype { let (pos, ident) = s in (pos, ident, t) }
 
 fcndef:
-| DEF ident = IDENT ftype = fcntype
-    { match ftype with
-    | (plist, ret) -> NamedFunction (ident, plist, ret) }
+| DEF s = IDENT ftype = fcntype
+    {
+      let (plist, ret) = ftype
+      and (pos, ident) = s in
+      NamedFunction (pos, ident, plist, ret)
+    }
 
 exprlist:
 | e = expr COMMA elist = exprlist { e :: elist }
 | e = expr { [e] }
 
 expr:
-| i = INTEGER { ExprAtom (AtomInt i) }
+| i = INTEGER { let (pos, n) = i in ExprAtom (AtomInt (pos, n)) }
 | str = STRING { ExprString str }
-| ident = IDENT LPAREN RPAREN
-    { ExprFcnCall (ident, []) }
-| ident = IDENT LPAREN elist = exprlist RPAREN
-    { ExprFcnCall (ident, elist) }
-| ident = IDENT { ExprAtom (AtomVar ident) }
+| s = IDENT LPAREN RPAREN
+    { let (pos, ident) = s in ExprFcnCall (pos, ident, []) }
+| s = IDENT LPAREN elist = exprlist RPAREN
+    { let (pos, ident) = s in ExprFcnCall (pos, ident, elist) }
+| s = IDENT
+    { let (pos, ident) = s in ExprAtom (AtomVar (pos, ident)) }
 | LPAREN e = expr RPAREN { e }
 | e = expr INCREMENT { ExprPostUnary (OperIncr, e) }
 | e = expr DECREMENT { ExprPostUnary (OperDecr, e) }
