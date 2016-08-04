@@ -3,6 +3,13 @@
   open Lexing
 
   exception LexError of string
+
+  let lexerror lexbuf =
+    let pos = lexeme_start_p lexbuf in
+    "Error: " ^ pos.pos_fname
+    ^ " (line " ^ (string_of_int pos.pos_lnum)
+    ^ " column " ^ (string_of_int (pos.pos_cnum - pos.pos_bol)) ^ ")\n"
+    ^ "Unexpected char: " ^ (lexeme lexbuf)
 }
 
 rule deflex = parse
@@ -62,5 +69,5 @@ rule deflex = parse
 | ';' { SEMICOLON (lexeme_start_p lexbuf) }
 | eof { EOF }
 | _
-    { raise (LexError "error in the tokenizer.") }
+    { raise (LexError (lexerror lexbuf)) }
 
