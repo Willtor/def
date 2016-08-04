@@ -2,18 +2,22 @@
 open Lexing
 
 type operator =
-  | OperIncr | OperDecr
-  | OperMinus | OperPlus
-  | OperLogicalNot | OperBitwiseNot
-  | OperMult | OperDiv | OperRemainder
-  | OperLShift | OperRShift
-  | OperLT | OperGT | OperLTE | OperGTE | OperEquals
-  | OperBitwiseAnd | OperBitwiseXor | OperBitwiseOr
-  | OperLogicalAnd | OperLogicalOr
-  | OperAssign | OperPlusAssign | OperMinusAssign
-  | OperMultAssign | OperDivAssign | OperRemAssign
-  | OperLShiftAssign | OperRShiftAssign | OperBAndAssign
-  | OperBXorAssign | OperBOrAssign
+  | OperIncr of position | OperDecr of position
+  | OperMinus of position | OperPlus of position
+  | OperLogicalNot of position | OperBitwiseNot of position
+  | OperMult of position | OperDiv of position | OperRemainder of position
+  | OperLShift of position | OperRShift of position
+  | OperLT of position | OperGT of position | OperLTE of position
+  | OperGTE of position | OperEquals of position | OperNEquals of position
+  | OperBitwiseAnd of position | OperBitwiseXor of position
+  | OperBitwiseOr of position
+  | OperLogicalAnd of position | OperLogicalOr of position
+  | OperAssign of position | OperPlusAssign of position
+  | OperMinusAssign of position | OperMultAssign of position
+  | OperDivAssign of position | OperRemAssign of position
+  | OperLShiftAssign of position | OperRShiftAssign of position
+  | OperBAndAssign of position
+  | OperBXorAssign of position | OperBOrAssign of position
 
 type atom =
   | AtomInt of position * int
@@ -44,38 +48,39 @@ type stmt =
   | Return of expr
 
 let operator2string = function
-  | OperIncr -> "++"
-  | OperDecr -> "--"
-  | OperMinus -> "-"
-  | OperPlus -> "+"
-  | OperLogicalNot -> "!"
-  | OperBitwiseNot -> "~"
-  | OperMult -> "*"
-  | OperDiv -> "/"
-  | OperRemainder -> "%"
-  | OperLShift -> "<<"
-  | OperRShift -> ">>"
-  | OperLT -> "<"
-  | OperGT -> ">"
-  | OperLTE -> "<="
-  | OperGTE -> ">="
-  | OperEquals -> "="
-  | OperBitwiseAnd -> "&"
-  | OperBitwiseXor -> "^"
-  | OperBitwiseOr -> "|"
-  | OperLogicalAnd -> "&&"
-  | OperLogicalOr -> "||"
-  | OperAssign -> "="
-  | OperPlusAssign -> "+="
-  | OperMinusAssign -> "-="
-  | OperMultAssign -> "*="
-  | OperDivAssign -> "/="
-  | OperRemAssign -> "%="
-  | OperLShiftAssign -> "<<="
-  | OperRShiftAssign -> ">>="
-  | OperBAndAssign -> "&="
-  | OperBXorAssign -> "^="
-  | OperBOrAssign -> "|="
+  | OperIncr _ -> "++"
+  | OperDecr _ -> "--"
+  | OperMinus _ -> "-"
+  | OperPlus _ -> "+"
+  | OperLogicalNot _ -> "!"
+  | OperBitwiseNot _ -> "~"
+  | OperMult _ -> "*"
+  | OperDiv _ -> "/"
+  | OperRemainder _ -> "%"
+  | OperLShift _ -> "<<"
+  | OperRShift _ -> ">>"
+  | OperLT _ -> "<"
+  | OperGT _ -> ">"
+  | OperLTE _ -> "<="
+  | OperGTE _ -> ">="
+  | OperEquals _ -> "=="
+  | OperNEquals _ -> "!="
+  | OperBitwiseAnd _ -> "&"
+  | OperBitwiseXor _ -> "^"
+  | OperBitwiseOr _ -> "|"
+  | OperLogicalAnd _ -> "&&"
+  | OperLogicalOr _ -> "||"
+  | OperAssign _ -> "="
+  | OperPlusAssign _ -> "+="
+  | OperMinusAssign _ -> "-="
+  | OperMultAssign _ -> "*="
+  | OperDivAssign _ -> "/="
+  | OperRemAssign _ -> "%="
+  | OperLShiftAssign _ -> "<<="
+  | OperRShiftAssign _ -> ">>="
+  | OperBAndAssign _ -> "&="
+  | OperBXorAssign _ -> "^="
+  | OperBOrAssign _ -> "|="
 
 let atom2string = function
   | AtomInt (_, i) -> (string_of_int i)

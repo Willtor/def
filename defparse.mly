@@ -101,41 +101,46 @@ expr:
 | s = IDENT
     { let (pos, ident) = s in ExprAtom (AtomVar (pos, ident)) }
 | LPAREN e = expr RPAREN { e }
-| e = expr INCREMENT { ExprPostUnary (OperIncr, e) }
-| e = expr DECREMENT { ExprPostUnary (OperDecr, e) }
-| INCREMENT e = expr %prec PREINCR { ExprPreUnary (OperIncr, e) }
-| DECREMENT e = expr %prec PREDECR { ExprPreUnary (OperDecr, e) }
-| MINUS e = expr %prec NEGATIVE { ExprPreUnary (OperMinus, e) }
-| PLUS e = expr %prec POSITIVE { ExprPreUnary (OperPlus, e) }
-| LNOT e = expr { ExprPreUnary (OperLogicalNot, e) }
-| BNOT e = expr { ExprPreUnary (OperBitwiseNot, e) }
-| e1 = expr STAR e2 = expr { ExprBinary (OperMult, e1, e2) }
-| e1 = expr SLASH e2 = expr { ExprBinary (OperDiv, e1, e2) }
-| e1 = expr PERCENT e2 = expr { ExprBinary (OperRemainder, e1, e2) }
-| e1 = expr PLUS e2 = expr { ExprBinary (OperPlus, e1, e2) }
-| e1 = expr MINUS e2 = expr { ExprBinary (OperMinus, e1, e2) }
-| e1 = expr DBLLANGLE e2 = expr { ExprBinary (OperLShift, e1, e2) }
-| e1 = expr DBLRANGLE e2 = expr { ExprBinary (OperRShift, e1, e2) }
-| e1 = expr LANGLE e2 = expr { ExprBinary (OperLT, e1, e2) }
-| e1 = expr RANGLE e2 = expr { ExprBinary (OperGT, e1, e2) }
-| e1 = expr LEQ e2 = expr { ExprBinary (OperLTE, e1, e2) }
-| e1 = expr GEQ e2 = expr { ExprBinary (OperGTE, e1, e2) }
-| e1 = expr EQUALSEQUALS e2 = expr { ExprBinary (OperEquals, e1, e2) }
-| e1 = expr BANGEQUALS e2 = expr
-    { ExprPreUnary (OperLogicalNot, (ExprBinary (OperEquals, e1, e2))) }
-| e1 = expr AMPERSAND e2 = expr { ExprBinary (OperBitwiseAnd, e1, e2) }
-| e1 = expr CARAT e2 = expr { ExprBinary (OperBitwiseXor, e1, e2) }
-| e1 = expr VBAR e2 = expr { ExprBinary (OperBitwiseOr, e1, e2) }
-| e1 = expr DBLAMPERSAND e2 = expr { ExprBinary (OperLogicalAnd, e1, e2) }
-| e1 = expr DBLVBAR e2 = expr { ExprBinary (OperLogicalOr, e1, e2) }
-| e1 = expr EQUALS e2 = expr { ExprBinary (OperAssign, e1, e2) }
-| e1 = expr PLUSEQUALS e2 = expr { ExprBinary (OperPlusAssign, e1, e2) }
-| e1 = expr MINUSEQUALS e2 = expr { ExprBinary (OperMinusAssign, e1, e2) }
-| e1 = expr STAREQUALS e2 = expr { ExprBinary (OperMultAssign, e1, e2) }
-| e1 = expr SLASHEQUALS e2 = expr { ExprBinary (OperDivAssign, e1, e2) }
-| e1 = expr PERCENTEQUALS e2 = expr { ExprBinary (OperRemAssign, e1, e2) }
-| e1 = expr DBLLANGLEEQUALS e2 = expr { ExprBinary (OperLShiftAssign, e1, e2) }
-| e1 = expr DBLRANGLEEQUALS e2 = expr { ExprBinary (OperRShiftAssign, e1, e2) }
-| e1 = expr AMPERSANDEQUALS e2 = expr { ExprBinary (OperBAndAssign, e1, e2) }
-| e1 = expr CARATEQUALS e2 = expr { ExprBinary (OperBXorAssign, e1, e2) }
-| e1 = expr VBAREQUALS e2 = expr { ExprBinary (OperBOrAssign, e1, e2) }
+| e = expr p = INCREMENT { ExprPostUnary (OperIncr p, e) }
+| e = expr p = DECREMENT { ExprPostUnary (OperDecr p, e) }
+| p = INCREMENT e = expr %prec PREINCR { ExprPreUnary (OperIncr p, e) }
+| p = DECREMENT e = expr %prec PREDECR { ExprPreUnary (OperDecr p, e) }
+| p = MINUS e = expr %prec NEGATIVE { ExprPreUnary (OperMinus p, e) }
+| p = PLUS e = expr %prec POSITIVE { ExprPreUnary (OperPlus p, e) }
+| p = LNOT e = expr { ExprPreUnary (OperLogicalNot p, e) }
+| p = BNOT e = expr { ExprPreUnary (OperBitwiseNot p, e) }
+| e1 = expr p = STAR e2 = expr { ExprBinary (OperMult p, e1, e2) }
+| e1 = expr p = SLASH e2 = expr { ExprBinary (OperDiv p, e1, e2) }
+| e1 = expr p = PERCENT e2 = expr { ExprBinary (OperRemainder p, e1, e2) }
+| e1 = expr p = PLUS e2 = expr { ExprBinary (OperPlus p, e1, e2) }
+| e1 = expr p = MINUS e2 = expr { ExprBinary (OperMinus p, e1, e2) }
+| e1 = expr p = DBLLANGLE e2 = expr { ExprBinary (OperLShift p, e1, e2) }
+| e1 = expr p = DBLRANGLE e2 = expr { ExprBinary (OperRShift p, e1, e2) }
+| e1 = expr p = LANGLE e2 = expr { ExprBinary (OperLT p, e1, e2) }
+| e1 = expr p = RANGLE e2 = expr { ExprBinary (OperGT p, e1, e2) }
+| e1 = expr p = LEQ e2 = expr { ExprBinary (OperLTE p, e1, e2) }
+| e1 = expr p = GEQ e2 = expr { ExprBinary (OperGTE p, e1, e2) }
+| e1 = expr p = EQUALSEQUALS e2 = expr { ExprBinary (OperEquals p, e1, e2) }
+| e1 = expr p = BANGEQUALS e2 = expr { ExprBinary (OperNEquals p, e1, e2) }
+| e1 = expr p = AMPERSAND e2 = expr { ExprBinary (OperBitwiseAnd p, e1, e2) }
+| e1 = expr p = CARAT e2 = expr { ExprBinary (OperBitwiseXor p, e1, e2) }
+| e1 = expr p = VBAR e2 = expr { ExprBinary (OperBitwiseOr p, e1, e2) }
+| e1 = expr p = DBLAMPERSAND e2 = expr
+    { ExprBinary (OperLogicalAnd p, e1, e2) }
+| e1 = expr p = DBLVBAR e2 = expr { ExprBinary (OperLogicalOr p, e1, e2) }
+| e1 = expr p = EQUALS e2 = expr { ExprBinary (OperAssign p, e1, e2) }
+| e1 = expr p = PLUSEQUALS e2 = expr { ExprBinary (OperPlusAssign p, e1, e2) }
+| e1 = expr p = MINUSEQUALS e2 = expr
+    { ExprBinary (OperMinusAssign p, e1, e2) }
+| e1 = expr p = STAREQUALS e2 = expr { ExprBinary (OperMultAssign p, e1, e2) }
+| e1 = expr p = SLASHEQUALS e2 = expr { ExprBinary (OperDivAssign p, e1, e2) }
+| e1 = expr p = PERCENTEQUALS e2 = expr
+    { ExprBinary (OperRemAssign p, e1, e2) }
+| e1 = expr p = DBLLANGLEEQUALS e2 = expr
+    { ExprBinary (OperLShiftAssign p, e1, e2) }
+| e1 = expr p = DBLRANGLEEQUALS e2 = expr
+    { ExprBinary (OperRShiftAssign p, e1, e2) }
+| e1 = expr p = AMPERSANDEQUALS e2 = expr
+    { ExprBinary (OperBAndAssign p, e1, e2) }
+| e1 = expr p = CARATEQUALS e2 = expr { ExprBinary (OperBXorAssign p, e1, e2) }
+| e1 = expr p = VBAREQUALS e2 = expr { ExprBinary (OperBOrAssign p, e1, e2) }
