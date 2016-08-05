@@ -58,7 +58,14 @@ block:
 | BEGIN slist = statementlist END { Block slist }
 
 statement:
-| f = fcndef EQUALS e = expr SEMICOLON { DefFcn (f, StmtExpr e) }
+| f = fcndef EQUALS e = expr SEMICOLON {
+  (* If it's an expression, it may need to be returned.  Check to see
+     whether the return type is void.  If not, return it. *)
+  DefFcn (f,
+          match f with
+          | NamedFunction (_, _, _, VarType (_, "void")) -> StmtExpr e
+          | _ -> Return e)
+}
 | f = fcndef stmt = block { DefFcn (f, stmt) }
 | e = expr SEMICOLON { StmtExpr e }
 | RETURN e = expr SEMICOLON { Return e }
