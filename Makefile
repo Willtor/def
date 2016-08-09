@@ -27,5 +27,11 @@ clean:
 %.ml: %.mly
 	menhir $<
 
-%.mli: %.ml
+ast.mli: ast.ml
+	ocamlfind ocamlopt -i $< > $@
+
+defparse.mli: defparse.ml
+	ocamlfind ocamlopt -i $< > $@
+
+deflex.mli: deflex.ml
 	ocamlfind ocamlopt -i $< > $@
