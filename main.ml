@@ -3,6 +3,7 @@ open Defparse
 open Deflex
 open Lexing
 open Unparse
+open Verify
 
 let set_fname file lexbuf =
   lexbuf.lex_start_p <- { pos_fname = file;
@@ -23,12 +24,14 @@ let main () =
     let infile = try open_in Sys.argv.(1)
       with _ -> print_endline "Unable to open input file."; exit 1
     in
-    try
-      let lexbuf = set_fname Sys.argv.(1) (Lexing.from_channel infile) in
-      let stmts = ((defparse deflex) lexbuf)
-      in unparse stmts; close_in infile
-    with LexError err ->
-      print_endline err; exit 1
+    let stmts =
+      try let lexbuf = set_fname Sys.argv.(1) (Lexing.from_channel infile)
+          in ((defparse deflex) lexbuf)
+      with LexError err -> print_endline err; exit 1
+    in
+    let verified_stmts = verify_ast stmts
+    in
+    unparse verified_stmts; close_in infile
 
-let _ = main ()
+let () = main ()
 
