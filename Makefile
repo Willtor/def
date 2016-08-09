@@ -10,16 +10,16 @@ OBJ = $(FILES2:.ml=.cmx)
 INTERFACE_OBJ = $(FILES2:.ml=.cmi)
 
 $(TARGET): $(INTERFACE_OBJ) $(OBJ)
-	ocamlopt -o $@ $(OBJ)
+	ocamlfind ocamlopt -o $@ $(OBJ)
 
 clean:
 	rm -f $(TARGET) $(OBJ) $(GENERATED) *.cmx *.cmi *.o
 
 %.cmx: %.ml
-	ocamlopt -c $<
+	ocamlfind ocamlopt -c $<
 
 %.cmi: %.mli
-	ocamlopt -c $<
+	ocamlfind ocamlopt -c $<
 
 %.ml: %.mll
 	ocamllex $<
@@ -28,4 +28,4 @@ clean:
 	menhir $<
 
 %.mli: %.ml
-	ocamlopt -i $< > $@
+	ocamlfind ocamlopt -i $< > $@
