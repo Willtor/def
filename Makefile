@@ -1,6 +1,6 @@
 TARGET = defc
 
-SRC = ast.ml verify.ml defparse.mly deflex.mll unparse.ml main.ml
+SRC = util.ml ast.ml defparse.mly deflex.mll unparse.ml main.ml
 GENERATED = ast.mli defparse.ml defparse.mli deflex.ml deflex.mli
 
 FILES1 = $(SRC:.mly=.ml)

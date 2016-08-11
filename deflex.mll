@@ -1,14 +1,14 @@
 {
   open Defparse
   open Lexing
+  open Util
 
   exception LexError of string
 
   let lexerror lexbuf =
     let pos = lexeme_start_p lexbuf in
-    "Error: " ^ pos.pos_fname
-    ^ " (line " ^ (string_of_int pos.pos_lnum)
-    ^ " column " ^ (string_of_int (pos.pos_cnum - pos.pos_bol)) ^ ")\n"
+    "Error: " ^ (format_position pos) ^ "\n"
+    ^ (show_source pos) ^ "\n"
     ^ "Unexpected char: " ^ (lexeme lexbuf)
 }
 
