@@ -7,7 +7,7 @@
 
   let lexerror lexbuf =
     let pos = lexeme_start_p lexbuf in
-    "Error: " ^ (format_position pos) ^ "\n"
+    "Lexing Error: " ^ (format_position pos) ^ "\n"
     ^ (show_source pos) ^ "\n"
     ^ "Unexpected char: " ^ (lexeme lexbuf)
 }
