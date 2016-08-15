@@ -1,6 +1,10 @@
 TARGET = defc
 
-SRC = util.ml ast.ml defparse.mly deflex.mll unparse.ml main.ml
+OCAMLC = ocamlfind ocamlopt
+PACKAGE = -package llvm,llvm.analysis
+LINKPKG = -linkpkg $(PACKAGE)
+
+SRC = util.ml ast.ml irfactory.ml defparse.mly deflex.mll main.ml
 GENERATED = ast.mli defparse.ml defparse.mli deflex.ml deflex.mli
 
 FILES1 = $(SRC:.mly=.ml)
@@ -10,16 +14,16 @@ OBJ = $(FILES2:.ml=.cmx)
 INTERFACE_OBJ = $(FILES2:.ml=.cmi)
 
 $(TARGET): $(INTERFACE_OBJ) $(OBJ)
-	ocamlfind ocamlopt -o $@ $(OBJ)
+	$(OCAMLC) -o $@ $(LINKPKG) $(OBJ)
 
 clean:
 	rm -f $(TARGET) $(OBJ) $(GENERATED) *.cmx *.cmi *.o
 
 %.cmx: %.ml
-	ocamlfind ocamlopt -c $<
+	$(OCAMLC) $(PACKAGE) -c $<
 
 %.cmi: %.mli
-	ocamlfind ocamlopt -c $<
+	$(OCAMLC) -c $<
 
 %.ml: %.mll
 	ocamllex $<
@@ -28,10 +32,10 @@ clean:
 	menhir $<
 
 ast.mli: ast.ml
-	ocamlfind ocamlopt -i $< > $@
+	$(OCAMLC) -i $< > $@
 
 defparse.mli: defparse.ml
-	ocamlfind ocamlopt -i $< > $@
+	$(OCAMLC) -i $< > $@
 
 deflex.mli: deflex.ml
-	ocamlfind ocamlopt -i $< > $@
+	$(OCAMLC) -i $< > $@

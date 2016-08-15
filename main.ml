@@ -2,7 +2,7 @@ open Ast
 open Defparse
 open Deflex
 open Lexing
-open Unparse
+open Irfactory
 
 let set_fname file lexbuf =
   lexbuf.lex_start_p <- { pos_fname = file;
@@ -28,7 +28,8 @@ let main () =
           in ((defparse deflex) lexbuf)
       with LexError err -> print_endline err; exit 1
     in
-    unparse stmts; close_in infile
+    close_in infile;
+    process_ast "t.llvm" Sys.argv.(1) stmts
 
 let () = main ()
 
