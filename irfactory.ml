@@ -2,6 +2,8 @@ open Ast
 open Llvm
 open Util
 
+exception ProcessingError of string
+
 type llvm_data =
   { ctx  : llcontext;
     mdl  : llmodule;
@@ -10,12 +12,24 @@ type llvm_data =
 (** Gather the global names and types.  For simpler mutual recursion, DEF
     does not require them to be declared in order *)
 let global_decls fcntable =
+  let report_redefinition name pos1 pos2 =
+    let errstr = "Error: redefinition of \"" ^ name ^ "\": "
+      ^ (format_position pos2) ^ ".\n"
+      ^ "Original definition: " ^ (format_position pos1) ^ "."
+    in fatal_error errstr
+  in
   let decl = function
     | DefFcn (profile, _) ->
-       let get_name = function
-         | NamedFunction (_, name, _, _) -> name
+       let get_pos_name = function
+         | NamedFunction (pos, name, _, _) -> (pos, name)
        in
-       add_symbol fcntable (get_name profile) profile
+       let (pos, name) = get_pos_name profile in
+       begin match lookup_symbol fcntable name with
+       | None ->
+          add_symbol fcntable name profile
+       | Some (NamedFunction (oldpos, _, _, _)) ->
+          report_redefinition name oldpos pos
+       end
     | _ -> ()
   in List.iter decl
 

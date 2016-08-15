@@ -26,6 +26,12 @@ let show_source pos =
     ^ (String.make (pos.pos_cnum - pos.pos_bol) ' ') ^ "^"
   with _ -> "(Err: Unable to read from " ^ pos.pos_fname ^ ")"
 
+(** Report a fatal error with the input string and exit with an error
+    condition. *)
+let fatal_error err =
+  prerr_endline err;
+  exit 1
+
 (****************************************************************************)
 (*                          Symbol Table Functions                          *)
 (****************************************************************************)

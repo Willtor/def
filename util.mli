@@ -9,6 +9,10 @@ val format_position : Lexing.position -> string
     a line with a carat underneath the offending column. *)
 val show_source : Lexing.position -> string
 
+(** Report a fatal error with the input string and exit with an error
+    condition. *)
+val fatal_error : string -> unit
+
 (****************************************************************************)
 (*                          Symbol Table Functions                          *)
 (****************************************************************************)
