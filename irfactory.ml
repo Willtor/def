@@ -11,7 +11,7 @@ type llvm_data =
   }
 
 type scope_data =
-  { fcntable : (Lexing.position * vartype) symtab;
+  { fcntable : (Lexing.position * vartype * llvalue) symtab;
     typemap  : lltype symtab
   }
 
@@ -54,17 +54,54 @@ let global_decls data scope =
     | DefFcn (pos, name, tp, _) ->
        begin match lookup_symbol_local scope.fcntable name with
        | None ->
-          begin
-            add_symbol scope.fcntable name (pos, tp);
-            let _ =
-              declare_function name (deftype2llvmtype scope tp) data.mdl
-            in ()
-          end
-       | Some (oldpos, _) ->
+          let llfnc =
+            declare_function name (deftype2llvmtype scope tp) data.mdl
+          in
+          add_symbol scope.fcntable name (pos, tp, llfnc);
+       | Some (oldpos, _, _) ->
           report_redefinition name oldpos pos
        end
     | _ -> ()
   in List.iter decl
+
+let process_atom data scope = function
+  | AtomInt (_, i) ->
+     const_int (the (lookup_symbol scope.typemap "i32")) i
+  | _ -> failwith "process_atom not fully implemented."
+
+let process_expr data scope =
+  let llvm_operator = function
+    | OperMult _ -> (build_mul, "mult")
+    | _ -> failwith "llvm_operator not fully implemented"
+  in
+  let rec expr_gen = function
+    | ExprAtom atom -> process_atom data scope atom
+    | ExprBinary (op, left, right) ->
+       let e1 = expr_gen left
+       and e2 = expr_gen right
+       and (func, ident) = llvm_operator op in
+       func e1 e2 ident data.bldr
+    | _ -> failwith "expr_gen not fully implemented."
+  in expr_gen
+
+let rec process_stmt data scope bb = function
+  | Block stmts ->
+     List.fold_left (process_stmt data scope) bb stmts
+  | Return e ->
+     let ret = process_expr data scope e in
+     let _ = build_ret ret data.bldr in
+     bb
+  | _ -> failwith "process_stmt not fully implemented."
+
+let toplevel_stmt data scope = function
+  | DefFcn (_, name, tp, body) ->
+     let (_, _, llfcn) = the (lookup_symbol scope.fcntable name) in
+     let bb = append_block data.ctx "entry" llfcn in
+     let () = position_at_end bb data.bldr in
+     (* FIXME: Need to push a scope and add parameters. *)
+     let _ = process_stmt data scope bb body
+     in ()
+  | _ -> failwith "toplevel_stmt: not fully implemented."
 
 (** process_ast -> outfile -> module_name -> Ast.stmts
     Generate LLVM IR code for the given module and dump it to the specified
@@ -78,4 +115,5 @@ let process_ast outfile module_name stmts =
   let typemap = builtin_types ctx in
   let scope = { fcntable = fcntable; typemap = typemap } in
   global_decls data scope stmts;
+  List.iter (toplevel_stmt data scope) stmts;
   print_module outfile mdl

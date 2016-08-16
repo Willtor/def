@@ -32,3 +32,11 @@ val lookup_symbol_local : 'a symtab -> string -> 'a option
 
 (** Lookup a symbol, starting from the deepest scope and working outward. *)
 val lookup_symbol : 'a symtab -> string -> 'a option
+
+
+(****************************************************************************)
+(*                            General Utilities                             *)
+(****************************************************************************)
+
+(** For when an option isn't really an option. *)
+val the : 'a option -> 'a

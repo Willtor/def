@@ -71,3 +71,12 @@ let rec lookup_symbol symtab name =
      | Some _ as ret -> ret
      | None -> lookup_symbol rest name
      end
+
+(****************************************************************************)
+(*                            General Utilities                             *)
+(****************************************************************************)
+
+(** For when an option isn't really an option. *)
+let the = function
+  | Some v -> v
+  | None -> failwith "Internal error.  Expected a value from Util.the."
