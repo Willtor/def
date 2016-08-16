@@ -24,6 +24,7 @@ let builtin_types ctx =
     typemap
   end
 
+(** Convert a named DEF type to its LLVM equivalent. *)
 let deftype2llvmtype scope =
   let rec convert = function
     | FcnType (args, ret) ->
