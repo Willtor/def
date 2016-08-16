@@ -33,18 +33,12 @@ type expr =
 
 type vartype =
   | VarType of position * string
-
-type deffcn =
-  | NamedFunction of
-      position
-    * string
-    * (position * string * vartype) list
-    * vartype
+  | FcnType of (position * string * vartype) list * vartype
 
 type stmt =
   | StmtExpr of expr
   | Block of stmt list
-  | DefFcn of deffcn * stmt
+  | DefFcn of position * string * vartype * stmt
   | Return of expr
 
 let operator2string = function
@@ -104,8 +98,14 @@ let rec expr2string = function
   | ExprAtom a ->
      atom2string a
 
-let vartype2string = function
+let rec vartype2string = function
   | VarType (_, s) -> s
+  | FcnType (args, ret) ->
+     "("
+     ^ (List.fold_left
+          (fun s (_, n, e) ->
+            s ^ (vartype2string e) ^ " " ^ n ^ ", ") "" args)
+     ^ ") -> " ^ (vartype2string ret)
 
 let rec plist2string = function
   | [] -> ""
@@ -113,16 +113,11 @@ let rec plist2string = function
   | (_, nm, t) :: rest -> nm ^ ": " ^ (vartype2string t) ^ ", "
      ^ (plist2string rest)
 
-let deffcn2string = function
-  | NamedFunction (_, nm, plist, ret) ->
-     "function " ^ nm ^ "{" ^ (plist2string  plist) ^ "} -> "
-     ^ (vartype2string ret)
-
 let rec stmt2string = function
   | StmtExpr e -> "StmtExpr: " ^ (expr2string e) ^ "\n"
   | Block slist -> "Block: [\n" ^
      (List.fold_left (fun s stmt -> s ^ (stmt2string stmt)) "" slist) ^ "]\n"
-  | DefFcn (f, s) ->
-     "def" ^ (deffcn2string f) ^ "\n" ^ (stmt2string s)
+  | DefFcn (_, name, tp, s) ->
+     "def " ^ name ^ (vartype2string tp) ^ "\n" ^ (stmt2string s)
   | Return e ->
      "return " ^ (expr2string e) ^ "\n"

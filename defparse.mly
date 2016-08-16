@@ -61,12 +61,14 @@ statement:
 | f = fcndef EQUALS e = expr SEMICOLON {
   (* If it's an expression, it may need to be returned.  Check to see
      whether the return type is void.  If not, return it. *)
-  DefFcn (f,
-          match f with
-          | NamedFunction (_, _, _, VarType (_, "void")) -> StmtExpr e
+  let (pos, name, tp) = f in
+  DefFcn (pos, name, tp,
+          match tp with
+          | VarType (_, "void") -> StmtExpr e
           | _ -> Return e)
 }
-| f = fcndef stmt = block { DefFcn (f, stmt) }
+| f = fcndef stmt = block
+    { let (pos, name, tp) = f in DefFcn (pos, name, tp, stmt) }
 | e = expr SEMICOLON { StmtExpr e }
 | RETURN e = expr SEMICOLON { Return e }
 
@@ -91,7 +93,7 @@ fcndef:
     {
       let (plist, ret) = ftype
       and (pos, ident) = s in
-      NamedFunction (pos, ident, plist, ret)
+      (pos, ident, FcnType (plist, ret))
     }
 
 exprlist:
