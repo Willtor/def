@@ -11,7 +11,7 @@ val show_source : Lexing.position -> string
 
 (** Report a fatal error with the input string and exit with an error
     condition. *)
-val fatal_error : string -> unit
+val fatal_error : string -> 'a
 
 (****************************************************************************)
 (*                          Symbol Table Functions                          *)

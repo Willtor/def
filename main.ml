@@ -1,8 +1,9 @@
 open Ast
 open Defparse
 open Deflex
-open Lexing
 open Irfactory
+open Lexing
+open Util
 
 let set_fname file lexbuf =
   lexbuf.lex_start_p <- { pos_fname = file;
@@ -29,7 +30,9 @@ let main () =
       with LexError err -> print_endline err; exit 1
     in
     close_in infile;
-    process_ast "t.llvm" Sys.argv.(1) stmts
+    try
+      process_ast "t.llvm" Sys.argv.(1) stmts
+    with ProcessingError err -> fatal_error err
 
 let () = main ()
 
