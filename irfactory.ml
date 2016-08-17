@@ -12,7 +12,14 @@ type llvm_data =
 
 type scope_data =
   { fcntable : (Lexing.position * vartype * llvalue) symtab;
+    vartable : (Lexing.position * vartype * llvalue) symtab;
     typemap  : lltype symtab
+  }
+
+let push_scope_data scope =
+  { fcntable = push_symtab_scope scope.fcntable;
+    vartable = push_symtab_scope scope.vartable;
+    typemap  = push_symtab_scope scope.typemap
   }
 
 (** Set up builtin type definitions known to DEF and return them as a global
@@ -67,7 +74,16 @@ let global_decls data scope =
 let process_atom data scope = function
   | AtomInt (_, i) ->
      const_int (the (lookup_symbol scope.typemap "i32")) i
-  | _ -> failwith "process_atom not fully implemented."
+  | AtomVar (pos, v) ->
+     begin
+       match lookup_symbol scope.vartable v with
+       | None ->
+          let errstr = "Undeclared variable \"" ^ v ^ "\" at "
+            ^ (format_position pos) ^ "\n"
+            ^ (show_source pos)
+          in fatal_error errstr
+       | Some (_, _, llvar) -> llvar
+     end
 
 let process_expr data scope =
   let llvm_operator = function
@@ -98,8 +114,21 @@ let toplevel_stmt data scope = function
      let (_, _, llfcn) = the (lookup_symbol scope.fcntable name) in
      let bb = append_block data.ctx "entry" llfcn in
      let () = position_at_end bb data.bldr in
-     (* FIXME: Need to push a scope and add parameters. *)
-     let _ = process_stmt data scope bb body
+     (* Add parameters as variables. *)
+     let deeper_scope = match tp with
+       | FcnType (args, _) ->
+          let ds = push_scope_data scope
+          and llparams = params llfcn in
+          begin
+            List.iteri
+              (fun i (pos, n, tp) ->
+                add_symbol scope.vartable n (pos, tp, llparams.(i)))
+              args;
+            ds
+          end
+       | _ -> failwith "Internal error.  Function had non-function type."
+     in
+     let _ = process_stmt data deeper_scope bb body
      in ()
   | _ -> failwith "toplevel_stmt: not fully implemented."
 
@@ -111,9 +140,14 @@ let process_ast outfile module_name stmts =
   let mdl  = create_module ctx module_name in
   let bldr = builder ctx in
   let data = { ctx = ctx; mdl = mdl; bldr = bldr } in
-  let fcntable = make_symtab () in
-  let typemap = builtin_types ctx in
-  let scope = { fcntable = fcntable; typemap = typemap } in
+  let fcntable = make_symtab ()
+  and vartable = make_symtab ()
+  and typemap = builtin_types ctx in
+  let scope =
+    { fcntable = fcntable;
+      vartable = vartable;
+      typemap  = typemap }
+  in
   global_decls data scope stmts;
   List.iter (toplevel_stmt data scope) stmts;
   print_module outfile mdl
