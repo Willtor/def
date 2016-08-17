@@ -87,7 +87,16 @@ let process_atom data scope = function
 
 let process_expr data scope =
   let llvm_operator = function
+    (* FIXME: Should specify a proper name for intermediate values. *)
     | OperMult _ -> (build_mul, "mult")
+    | OperDiv _ -> (build_sdiv, "sdiv")
+    | OperPlus _ -> (build_add, "add")
+    | OperMinus _ -> (build_sub, "sub")
+    | OperLT _ -> (build_icmp Icmp.Slt, "lt")
+    | OperLTE _ -> (build_icmp Icmp.Sle, "le")
+    | OperGT _ -> (build_icmp Icmp.Sgt, "gt")
+    | OperGTE _ -> (build_icmp Icmp.Sge, "ge")
+    | OperEquals _ -> (build_icmp Icmp.Eq, "eq")
     | _ -> failwith "llvm_operator not fully implemented"
   in
   let rec expr_gen = function
