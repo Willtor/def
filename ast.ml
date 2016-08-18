@@ -39,6 +39,7 @@ type stmt =
   | StmtExpr of expr
   | Block of stmt list
   | DefFcn of position * string * vartype * stmt
+  | IfStmt of expr * stmt list * stmt list option
   | Return of expr
 
 let operator2string = function
@@ -119,5 +120,7 @@ let rec stmt2string = function
      (List.fold_left (fun s stmt -> s ^ (stmt2string stmt)) "" slist) ^ "]\n"
   | DefFcn (_, name, tp, s) ->
      "def " ^ name ^ (vartype2string tp) ^ "\n" ^ (stmt2string s)
+  | IfStmt _ ->
+     "if stmt (not fully unparsed).\n"
   | Return e ->
      "return " ^ (expr2string e) ^ "\n"

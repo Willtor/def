@@ -22,6 +22,10 @@ rule deflex = parse
 | "end" { END (lexeme_start_p lexbuf) }
 | "def" { DEF (lexeme_start_p lexbuf) }
 | "return" { RETURN (lexeme_start_p lexbuf) }
+| "if" { IF (lexeme_start_p lexbuf) }
+| "then" { THEN (lexeme_start_p lexbuf) }
+| "else" { ELSE (lexeme_start_p lexbuf) }
+| "fi"   { FI (lexeme_start_p lexbuf) }
 | ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf, str) }
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
     { IDENT (lexeme_start_p lexbuf, ident) }

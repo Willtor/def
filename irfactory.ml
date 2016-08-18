@@ -116,6 +116,41 @@ let rec process_stmt data scope bb = function
      let ret = process_expr data scope e in
      let _ = build_ret ret data.bldr in
      bb
+  | IfStmt (cond, thenstmts, elsestmts) ->
+     let c = process_expr data scope cond in
+     let cond_val =
+       build_icmp Icmp.Eq
+         c (const_int (the (lookup_symbol scope.typemap "i32")) 0)
+         "cond" data.bldr
+     in
+     let fcn = block_parent bb in
+     let then_begin = append_block data.ctx "then" fcn in
+     let () = position_at_end then_begin data.bldr in
+     let then_end = process_stmt data scope then_begin (Block thenstmts) in
+     let (else_branch_bb, merge_bb) = match elsestmts with
+       | None ->
+          let merge_bb = append_block data.ctx "ifmerge" fcn in
+          (merge_bb, merge_bb)
+       | Some elsestmts ->
+          let else_begin = append_block data.ctx "else" fcn in
+          let merge_bb = append_block data.ctx "ifmerge" fcn in
+          let () = position_at_end else_begin data.bldr in
+          let else_end = process_stmt data scope else_begin (Block elsestmts)
+          in
+          begin
+            position_at_end else_end data.bldr;
+            ignore (build_br merge_bb data.bldr);
+            (else_begin, merge_bb)
+          end
+     in
+     begin
+       position_at_end then_end data.bldr;
+       ignore (build_br merge_bb data.bldr);
+       position_at_end bb data.bldr;
+       ignore (build_cond_br cond_val then_begin else_branch_bb data.bldr);
+       position_at_end merge_bb data.bldr;
+       merge_bb
+     end
   | _ -> failwith "process_stmt not fully implemented."
 
 let toplevel_stmt data scope = function

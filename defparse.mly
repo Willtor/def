@@ -6,7 +6,7 @@
 %token <Lexing.position * int> INTEGER
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
-%token <Lexing.position> DEF RETURN BEGIN END
+%token <Lexing.position> DEF RETURN BEGIN END IF THEN ELSE FI
 
 (* Operators *)
 %token <Lexing.position> RARROW
@@ -70,7 +70,13 @@ statement:
 | f = fcndef stmt = block
     { let (pos, name, tp) = f in DefFcn (pos, name, tp, stmt) }
 | e = expr SEMICOLON { StmtExpr e }
+| IF e = expr THEN slist = statementlist ec = elseclause FI
+    { IfStmt (e, slist, ec) }
 | RETURN e = expr SEMICOLON { Return e }
+
+elseclause:
+| ELSE slist = statementlist { Some slist }
+| { None }
 
 fcntype:
 | LPAREN RPAREN RARROW ret = deftype
