@@ -16,8 +16,45 @@ let position_of_stmt = function
   | Return (pos, _)
   | ReturnVoid pos -> pos
 
+let kill_dead_code =
+  let report_dead_code fcn pos =
+    let warn = "Dead code in function \"" ^ fcn ^ "\": "
+      ^ (format_position pos) ^ "\n" ^ (show_source pos)
+    in warning warn
+  in
+  let rec process name =
+    let rec proc accum = function
+      | [] -> List.rev accum
+      | StmtExpr _ as stmt :: rest ->
+         proc (stmt :: accum) rest
+      | Block (pos, slist) :: rest ->
+         let stmt = Block (pos, proc [] slist) in
+         proc (stmt :: accum) rest
+      | DefFcn (pos, name, tp, body) :: rest ->
+         let stmt = DefFcn (pos, name, tp, process name body) in
+         proc (stmt :: accum) rest
+      | IfStmt (pos, cond, thenblk, maybe_else) :: rest ->
+         let stmt = IfStmt (pos, cond, proc [] thenblk,
+                            match maybe_else with
+                            | None -> None
+                            | Some elseblk -> Some (proc [] elseblk))
+         in proc (stmt :: accum) rest
+      | (Return _ as stmt) :: rest | (ReturnVoid _ as stmt) :: rest ->
+         let () = match rest with
+           | [] -> ()
+           | extra :: rest -> report_dead_code name (position_of_stmt extra)
+         in List.rev (stmt :: accum)
+    in proc []
+  in
+  let toplevel = function
+    | DefFcn (pos, name, tp, body) ->
+       DefFcn (pos, name, tp, process name body)
+    | stmt -> stmt
+  in List.map toplevel
+
 (** Verify that all paths return.  void functions need not have explicit
     returns, but all_paths_return will add them. *)
+(* FIXME: Redo.  Don't worry about dead code anymore.
 let all_paths_return =
   let check_body name tp body =
     let retvoid = match tp with
@@ -79,7 +116,9 @@ let all_paths_return =
        end
     | stmt -> stmt
   in List.map check_fcn
+*)
 
 let scrub stmts =
-  let stmts = all_paths_return stmts in
+  let stmts = kill_dead_code stmts in
+  (* let stmts = all_paths_return stmts in *)
   stmts

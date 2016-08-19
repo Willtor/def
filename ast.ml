@@ -39,7 +39,7 @@ type expr =
 type stmt =
   | StmtExpr of position * expr
   | Block of position * stmt list
-  | DefFcn of position * string * vartype * stmt
+  | DefFcn of position * string * vartype * stmt list
   | IfStmt of position * expr * stmt list * stmt list option
   | Return of position * expr
   | ReturnVoid of position
@@ -122,8 +122,8 @@ let rec stmt2string = function
   | StmtExpr (_, e) -> "StmtExpr: " ^ (expr2string e) ^ "\n"
   | Block (_, slist) -> "Block: [\n" ^
      (List.fold_left (fun s stmt -> s ^ (stmt2string stmt)) "" slist) ^ "]\n"
-  | DefFcn (_, name, tp, s) ->
-     "def " ^ name ^ (vartype2string tp) ^ "\n" ^ (stmt2string s)
+  | DefFcn (_, name, tp, _) ->
+     "def " ^ name ^ (vartype2string tp) ^ "\n"
   | IfStmt _ ->
      "if stmt (not fully unparsed).\n"
   | Return (_, e) ->

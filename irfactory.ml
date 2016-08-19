@@ -174,7 +174,7 @@ let toplevel_stmt data scope = function
           end
        | _ -> failwith "Internal error.  Function had non-function type."
      in
-     let _ = process_stmt data deeper_scope bb body
+     let _ = List.fold_left (process_stmt data deeper_scope) bb body
      in Llvm_analysis.assert_valid_function llfcn
   | _ -> failwith "toplevel_stmt: not fully implemented."
 

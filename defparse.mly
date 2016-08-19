@@ -55,7 +55,7 @@ statementlist:
 | stmt = statement { [stmt] }
 
 block:
-| p = BEGIN slist = statementlist END { Block (p, slist) }
+| p = BEGIN slist = statementlist END { (p, slist) }
 
 statement:
 | f = fcndef EQUALS p_n_e = expr semi_pos = SEMICOLON {
@@ -66,12 +66,14 @@ statement:
   DefFcn (pos, name, tp,
           match tp with
           | VarType (_, "void") ->
-             Block (epos, [StmtExpr (epos, e);
-                           ReturnVoid semi_pos])
-          | _ -> Block (epos, [Return (epos, e)]))
+             [StmtExpr (epos, e);
+              ReturnVoid semi_pos]
+          | _ -> [Return (epos, e)])
 }
-| f = fcndef stmt = block
-    { let (pos, name, tp) = f in DefFcn (pos, name, tp, stmt) }
+| f = fcndef b = block
+    { let (pos, name, tp) = f in
+      let (_, stmts) = b in
+      DefFcn (pos, name, tp, stmts) }
 | p_n_e = expr SEMICOLON { let (pos, e) = p_n_e in StmtExpr (pos, e) }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
