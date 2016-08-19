@@ -58,15 +58,17 @@ block:
 | p = BEGIN slist = statementlist END { Block (p, slist) }
 
 statement:
-| f = fcndef EQUALS p_n_e = expr SEMICOLON {
+| f = fcndef EQUALS p_n_e = expr semi_pos = SEMICOLON {
   (* If it's an expression, it may need to be returned.  Check to see
      whether the return type is void.  If not, return it. *)
   let (pos, name, tp) = f in
   let (epos, e) = p_n_e in
   DefFcn (pos, name, tp,
           match tp with
-          | VarType (_, "void") -> StmtExpr (epos, e)
-          | _ -> Return (epos, e))
+          | VarType (_, "void") ->
+             Block (epos, [StmtExpr (epos, e);
+                           ReturnVoid semi_pos])
+          | _ -> Block (epos, [Return (epos, e)]))
 }
 | f = fcndef stmt = block
     { let (pos, name, tp) = f in DefFcn (pos, name, tp, stmt) }
