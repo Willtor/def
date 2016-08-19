@@ -110,13 +110,13 @@ let process_expr data scope =
   in expr_gen
 
 let rec process_stmt data scope bb = function
-  | Block stmts ->
+  | Block (_, stmts) ->
      List.fold_left (process_stmt data scope) bb stmts
-  | Return e ->
+  | Return (_, e) ->
      let ret = process_expr data scope e in
      let _ = build_ret ret data.bldr in
      bb
-  | IfStmt (cond, thenstmts, elsestmts) ->
+  | IfStmt (pos, cond, thenstmts, elsestmts) ->
      let c = process_expr data scope cond in
      let cond_val =
        build_icmp Icmp.Eq
@@ -126,7 +126,8 @@ let rec process_stmt data scope bb = function
      let fcn = block_parent bb in
      let then_begin = append_block data.ctx "then" fcn in
      let () = position_at_end then_begin data.bldr in
-     let then_end = process_stmt data scope then_begin (Block thenstmts) in
+     let then_end =
+       process_stmt data scope then_begin (Block (pos, thenstmts)) in
      let (else_branch_bb, merge_bb) = match elsestmts with
        | None ->
           let merge_bb = append_block data.ctx "ifmerge" fcn in
@@ -135,7 +136,8 @@ let rec process_stmt data scope bb = function
           let else_begin = append_block data.ctx "else" fcn in
           let merge_bb = append_block data.ctx "ifmerge" fcn in
           let () = position_at_end else_begin data.bldr in
-          let else_end = process_stmt data scope else_begin (Block elsestmts)
+          let else_end =
+            process_stmt data scope else_begin (Block (pos, elsestmts))
           in
           begin
             position_at_end else_end data.bldr;

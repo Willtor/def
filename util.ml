@@ -29,11 +29,11 @@ let show_source pos =
 (** Report a fatal error with the input string and exit with an error
     condition. *)
 let fatal_error err =
-  prerr_endline err;
+  prerr_endline ("Error:\n" ^ err);
   exit 1
 
 (** Report a non-fatal warning. *)
-let warning err = prerr_endline ("Warning: " ^ err)
+let warning warn = prerr_endline ("Warning:\n" ^ warn)
 
 (****************************************************************************)
 (*                          Symbol Table Functions                          *)

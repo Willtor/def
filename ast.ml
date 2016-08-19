@@ -37,12 +37,12 @@ type expr =
   | ExprCast of position * vartype * expr
 
 type stmt =
-  | StmtExpr of expr
-  | Block of stmt list
+  | StmtExpr of position * expr
+  | Block of position * stmt list
   | DefFcn of position * string * vartype * stmt
-  | IfStmt of expr * stmt list * stmt list option
-  | Return of expr
-  | ReturnVoid
+  | IfStmt of position * expr * stmt list * stmt list option
+  | Return of position * expr
+  | ReturnVoid of position
 
 let operator2string = function
   | OperIncr _ -> "++"
@@ -119,14 +119,14 @@ let rec plist2string = function
      ^ (plist2string rest)
 
 let rec stmt2string = function
-  | StmtExpr e -> "StmtExpr: " ^ (expr2string e) ^ "\n"
-  | Block slist -> "Block: [\n" ^
+  | StmtExpr (_, e) -> "StmtExpr: " ^ (expr2string e) ^ "\n"
+  | Block (_, slist) -> "Block: [\n" ^
      (List.fold_left (fun s stmt -> s ^ (stmt2string stmt)) "" slist) ^ "]\n"
   | DefFcn (_, name, tp, s) ->
      "def " ^ name ^ (vartype2string tp) ^ "\n" ^ (stmt2string s)
   | IfStmt _ ->
      "if stmt (not fully unparsed).\n"
-  | Return e ->
+  | Return (_, e) ->
      "return " ^ (expr2string e) ^ "\n"
-  | ReturnVoid ->
+  | ReturnVoid _ ->
      "return\n"
