@@ -13,6 +13,9 @@ val show_source : Lexing.position -> string
     condition. *)
 val fatal_error : string -> 'a
 
+(** Report a non-fatal warning. *)
+val warning : string -> unit
+
 (****************************************************************************)
 (*                          Symbol Table Functions                          *)
 (****************************************************************************)

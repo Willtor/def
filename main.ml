@@ -3,6 +3,7 @@ open Defparse
 open Deflex
 open Irfactory
 open Lexing
+open Scrubber
 open Util
 
 let set_fname file lexbuf =
@@ -30,6 +31,7 @@ let main () =
       with LexError err -> print_endline err; exit 1
     in
     close_in infile;
+    let stmts = scrub stmts in
     try
       process_ast "t.llvm" Sys.argv.(1) stmts
     with ProcessingError err -> fatal_error err

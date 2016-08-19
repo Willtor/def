@@ -32,6 +32,9 @@ let fatal_error err =
   prerr_endline err;
   exit 1
 
+(** Report a non-fatal warning. *)
+let warning err = prerr_endline ("Warning: " ^ err)
+
 (****************************************************************************)
 (*                          Symbol Table Functions                          *)
 (****************************************************************************)

@@ -23,6 +23,10 @@ type atom =
   | AtomInt of position * int
   | AtomVar of position * string
 
+type vartype =
+  | VarType of position * string
+  | FcnType of (position * string * vartype) list * vartype
+
 type expr =
   | ExprFcnCall of position * string * expr list
   | ExprString of position * string
@@ -30,10 +34,7 @@ type expr =
   | ExprPreUnary of operator * expr
   | ExprPostUnary of operator * expr
   | ExprAtom of atom
-
-type vartype =
-  | VarType of position * string
-  | FcnType of (position * string * vartype) list * vartype
+  | ExprCast of position * vartype * expr
 
 type stmt =
   | StmtExpr of expr
@@ -41,6 +42,7 @@ type stmt =
   | DefFcn of position * string * vartype * stmt
   | IfStmt of expr * stmt list * stmt list option
   | Return of expr
+  | ReturnVoid
 
 let operator2string = function
   | OperIncr _ -> "++"
@@ -81,6 +83,15 @@ let atom2string = function
   | AtomInt (_, i) -> (string_of_int i)
   | AtomVar (_, s) -> s
 
+let rec vartype2string = function
+  | VarType (_, s) -> s
+  | FcnType (args, ret) ->
+     "("
+     ^ (List.fold_left
+          (fun s (_, n, e) ->
+            s ^ (vartype2string e) ^ " " ^ n ^ ", ") "" args)
+     ^ ") -> " ^ (vartype2string ret)
+
 let rec expr2string = function
   | ExprFcnCall (_, nm, elist) ->
      let rec printlist = function
@@ -98,15 +109,8 @@ let rec expr2string = function
      "(post " ^ (operator2string op) ^ " " ^ (expr2string e) ^ ")"
   | ExprAtom a ->
      atom2string a
-
-let rec vartype2string = function
-  | VarType (_, s) -> s
-  | FcnType (args, ret) ->
-     "("
-     ^ (List.fold_left
-          (fun s (_, n, e) ->
-            s ^ (vartype2string e) ^ " " ^ n ^ ", ") "" args)
-     ^ ") -> " ^ (vartype2string ret)
+  | ExprCast (_, vt, e) ->
+     "(" ^ (vartype2string vt) ^ ")" ^ (expr2string e)
 
 let rec plist2string = function
   | [] -> ""
@@ -124,3 +128,5 @@ let rec stmt2string = function
      "if stmt (not fully unparsed).\n"
   | Return e ->
      "return " ^ (expr2string e) ^ "\n"
+  | ReturnVoid ->
+     "return\n"

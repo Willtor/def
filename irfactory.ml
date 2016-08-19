@@ -173,7 +173,7 @@ let toplevel_stmt data scope = function
        | _ -> failwith "Internal error.  Function had non-function type."
      in
      let _ = process_stmt data deeper_scope bb body
-     in ()
+     in Llvm_analysis.assert_valid_function llfcn
   | _ -> failwith "toplevel_stmt: not fully implemented."
 
 (** process_ast -> outfile -> module_name -> Ast.stmts
