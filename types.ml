@@ -1,6 +1,8 @@
 open Llvm
 
-let map_builtin_types =
-  [ ("i32", i32_type);
-    ("bool", i1_type) ]
+type typecategory =
+  | SignedInteger
 
+let map_builtin_types =
+  [ ("i32", SignedInteger, i32_type);
+    ("bool", SignedInteger, i1_type) ]
