@@ -1,4 +1,5 @@
 open Ast
+open Cfg
 open Llvm
 open Util
 
@@ -7,23 +8,15 @@ exception ProcessingError of string
 type llvm_data =
   { ctx  : llcontext;
     mdl  : llmodule;
-    bldr : llbuilder
+    bldr : llbuilder;
+    typemap : lltype symtab;
+    prog : program
   }
 
-type scope_data =
-  { fcntable : (Lexing.position * vartype * llvalue) symtab;
-    vartable : (Lexing.position * vartype * llvalue) symtab;
-    typemap  : lltype symtab
-  }
+let get_fcntype = function
+  | FcnType (params, ret) -> params, ret
+  | _ -> fatal_error "Internal error.  Function not of FcnType."
 
-let push_scope_data scope =
-  { fcntable = push_symtab_scope scope.fcntable;
-    vartable = push_symtab_scope scope.vartable;
-    typemap  = push_symtab_scope scope.typemap
-  }
-
-(** Set up builtin type definitions known to DEF and return them as a global
-    struct. *)
 let builtin_types ctx =
   let typemap = make_symtab () in
   begin
@@ -31,14 +24,13 @@ let builtin_types ctx =
     typemap
   end
 
-(** Convert a named DEF type to its LLVM equivalent. *)
-let deftype2llvmtype scope =
+let deftype2llvmtype typemap =
   let rec convert = function
     | FcnType (args, ret) ->
        let llvmargs = List.map (fun (_, _, argtp) -> convert argtp) args in
        function_type (convert ret) (Array.of_list llvmargs)
     | VarType (pos, typename) ->
-       begin match lookup_symbol scope.typemap typename with
+       begin match lookup_symbol typemap typename with
        | Some t -> t
        | None ->
           let errstr = "Unknown type \"" ^ typename ^ "\": "
@@ -48,59 +40,28 @@ let deftype2llvmtype scope =
        end
   in convert
 
-(** Gather the global names and types.  For simpler mutual recursion, DEF
-    does not require them to be declared in order *)
-let global_decls data scope =
-  let report_redefinition name pos1 pos2 =
-    let errstr = "Error: redefinition of \"" ^ name ^ "\": "
-      ^ (format_position pos2) ^ ".\n"
-      ^ "Original definition: " ^ (format_position pos1) ^ "."
-    in raise (ProcessingError errstr)
-  in
-  let decl = function
-    | DefFcn (pos, name, tp, _) ->
-       begin match lookup_symbol_local scope.fcntable name with
-       | None ->
-          let llfnc =
-            declare_function name (deftype2llvmtype scope tp) data.mdl
-          in
-          add_symbol scope.fcntable name (pos, tp, llfnc);
-       | Some (oldpos, _, _) ->
-          report_redefinition name oldpos pos
-       end
-    | _ -> ()
-  in List.iter decl
-
-let process_atom data scope = function
+let process_atom data varmap = function
   | AtomInt (_, i) ->
-     const_int (the (lookup_symbol scope.typemap "i32")) i
-  | AtomVar (pos, v) ->
-     begin
-       match lookup_symbol scope.vartable v with
-       | None ->
-          let errstr = "Undeclared variable \"" ^ v ^ "\" at "
-            ^ (format_position pos) ^ "\n"
-            ^ (show_source pos)
-          in fatal_error errstr
-       | Some (_, _, llvar) -> llvar
-     end
+     const_int (the (lookup_symbol data.typemap "i32")) i
+  | AtomVar (_, v) ->
+     let (_, _, llvar) = the (lookup_symbol varmap v) in llvar
 
-let process_expr data scope =
+let process_expr data varmap =
   let llvm_operator = function
     (* FIXME: Should specify a proper name for intermediate values. *)
-    | OperMult _ -> (build_mul, "mult")
-    | OperDiv _ -> (build_sdiv, "sdiv")
-    | OperPlus _ -> (build_add, "add")
-    | OperMinus _ -> (build_sub, "sub")
-    | OperLT _ -> (build_icmp Icmp.Slt, "lt")
-    | OperLTE _ -> (build_icmp Icmp.Sle, "le")
-    | OperGT _ -> (build_icmp Icmp.Sgt, "gt")
-    | OperGTE _ -> (build_icmp Icmp.Sge, "ge")
-    | OperEquals _ -> (build_icmp Icmp.Eq, "eq")
+    | OperMult _ -> (build_mul, "def_mult")
+    | OperDiv _ -> (build_sdiv, "def_sdiv")
+    | OperPlus _ -> (build_add, "def_add")
+    | OperMinus _ -> (build_sub, "def_sub")
+    | OperLT _ -> (build_icmp Icmp.Slt, "def_lt")
+    | OperLTE _ -> (build_icmp Icmp.Sle, "def_le")
+    | OperGT _ -> (build_icmp Icmp.Sgt, "def_gt")
+    | OperGTE _ -> (build_icmp Icmp.Sge, "def_ge")
+    | OperEquals _ -> (build_icmp Icmp.Eq, "def_eq")
     | _ -> failwith "llvm_operator not fully implemented"
   in
   let rec expr_gen = function
-    | ExprAtom atom -> process_atom data scope atom
+    | ExprAtom atom -> process_atom data varmap atom
     | ExprBinary (op, left, right) ->
        let e1 = expr_gen left
        and e2 = expr_gen right
@@ -109,91 +70,44 @@ let process_expr data scope =
     | _ -> failwith "expr_gen not fully implemented."
   in expr_gen
 
-let rec process_stmt data scope bb = function
-  | Block (_, stmts) ->
-     List.fold_left (process_stmt data scope) bb stmts
-  | Return (_, e) ->
-     let ret = process_expr data scope e in
-     let _ = build_ret ret data.bldr in
-     bb
-  | IfStmt (pos, cond, thenstmts, elsestmts) ->
-     let c = process_expr data scope cond in
-     let cond_val =
-       build_icmp Icmp.Eq
-         c (const_int (the (lookup_symbol scope.typemap "i32")) 0)
-         "cond" data.bldr
-     in
-     let fcn = block_parent bb in
-     let then_begin = append_block data.ctx "then" fcn in
-     let () = position_at_end then_begin data.bldr in
-     let then_end =
-       process_stmt data scope then_begin (Block (pos, thenstmts)) in
-     let (else_branch_bb, merge_bb) = match elsestmts with
-       | None ->
-          let merge_bb = append_block data.ctx "ifmerge" fcn in
-          (merge_bb, merge_bb)
-       | Some elsestmts ->
-          let else_begin = append_block data.ctx "else" fcn in
-          let merge_bb = append_block data.ctx "ifmerge" fcn in
-          let () = position_at_end else_begin data.bldr in
-          let else_end =
-            process_stmt data scope else_begin (Block (pos, elsestmts))
-          in
-          begin
-            position_at_end else_end data.bldr;
-            ignore (build_br merge_bb data.bldr);
-            (else_begin, merge_bb)
-          end
-     in
-     begin
-       position_at_end then_end data.bldr;
-       ignore (build_br merge_bb data.bldr);
-       position_at_end bb data.bldr;
-       ignore (build_cond_br cond_val then_begin else_branch_bb data.bldr);
-       position_at_end merge_bb data.bldr;
-       merge_bb
-     end
-  | _ -> failwith "process_stmt not fully implemented."
+let rec process_body data llfcn varmap scope entry_bb =
+  let process_bb bb = function
+    | BB_Cond conditional ->
+       failwith "FIXME: Not implemented, yet."
+    | BB_Expr (_, expr) ->
+       begin ignore (process_expr data varmap expr); bb end
+    | BB_Scope scope -> process_body data llfcn varmap scope bb
+    | BB_Return (_, expr) ->
+       let ret = process_expr data varmap expr in
+       let _ = build_ret ret data.bldr in
+       bb
+    | BB_ReturnVoid _ ->
+       failwith "FIXME: Not implemented, yet."
+  in
+  List.fold_left process_bb entry_bb scope.bbs
 
-let toplevel_stmt data scope = function
-  | DefFcn (_, name, tp, body) ->
-     let (_, _, llfcn) = the (lookup_symbol scope.fcntable name) in
-     let bb = append_block data.ctx "entry" llfcn in
-     let () = position_at_end bb data.bldr in
-     (* Add parameters as variables. *)
-     let deeper_scope = match tp with
-       | FcnType (args, _) ->
-          let ds = push_scope_data scope
-          and llparams = params llfcn in
-          begin
-            List.iteri
-              (fun i (pos, n, tp) ->
-                add_symbol scope.vartable n (pos, tp, llparams.(i)))
-              args;
-            ds
-          end
-       | _ -> failwith "Internal error.  Function had non-function type."
-     in
-     let _ = List.fold_left (process_stmt data deeper_scope) bb body
-     in Llvm_analysis.assert_valid_function llfcn
-  | _ -> failwith "toplevel_stmt: not fully implemented."
+let process_fcn data fcn =
+  let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
+  let varmap = make_symtab () in
+  let llfcn =
+    declare_function fcn.name
+      (deftype2llvmtype data.typemap profile.tp) data.mdl
+  in
+  let bb = append_block data.ctx "entry" llfcn in
+  position_at_end bb data.bldr;
+  let (args, _) = get_fcntype profile.tp in
+  let llparams = params llfcn in
+  List.iteri (fun i (pos, n, tp) ->
+    add_symbol varmap n (pos, tp, llparams.(i))) args;
+  ignore (process_body data llfcn varmap fcn.body bb);
+  Llvm_analysis.assert_valid_function llfcn
 
-(** process_ast -> outfile -> module_name -> Ast.stmts
-    Generate LLVM IR code for the given module and dump it to the specified
-    output file. *)
-let process_ast outfile module_name stmts =
+let process_cfg outfile module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let bldr = builder ctx in
-  let data = { ctx = ctx; mdl = mdl; bldr = bldr } in
-  let fcntable = make_symtab ()
-  and vartable = make_symtab ()
-  and typemap = builtin_types ctx in
-  let scope =
-    { fcntable = fcntable;
-      vartable = vartable;
-      typemap  = typemap }
-  in
-  global_decls data scope stmts;
-  List.iter (toplevel_stmt data scope) stmts;
+  let typemap = builtin_types ctx in
+  let data = { ctx = ctx; mdl = mdl; bldr = bldr;
+               typemap = typemap; prog = program } in
+  List.iter (process_fcn data) program.fcnlist;
   print_module outfile mdl

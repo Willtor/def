@@ -31,6 +31,7 @@ and decl =
 type function_defn =
   { defn_begin : Lexing.position;
     defn_end   : Lexing.position;
+    name       : string;
     body       : cfg_scope
   }
 

@@ -35,7 +35,7 @@ let main () =
     let stmts = scrub stmts in
     let program = convert_ast stmts in
     try
-      process_ast "t.llvm" Sys.argv.(1) stmts
+      process_cfg "t.llvm" Sys.argv.(1) program
     with ProcessingError err -> fatal_error err
 
 let () = main ()

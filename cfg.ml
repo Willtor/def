@@ -34,12 +34,13 @@ and decl =
 type function_defn =
   { defn_begin : Lexing.position;
     defn_end   : Lexing.position;
+    name       : string;
     body       : cfg_scope
   }
 
 type program =
   { global_decls : decl Util.symtab;
-    fcnlist : function_defn list
+    fcnlist : function_defn list;
   }
 
 let global_decls decltable = function
@@ -131,7 +132,7 @@ let build_bbs name decltable body =
 
 let build_fcns decltable fcns = function
   | DefFcn (pos, name, _, body) ->
-     let fcn = { defn_begin = pos; defn_end = pos;
+     let fcn = { defn_begin = pos; defn_end = pos; name = name;
                  body = build_bbs name decltable body }
      in fcn :: fcns
   | _ -> fcns
