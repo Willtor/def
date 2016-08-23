@@ -19,10 +19,10 @@ let get_fcntype = function
 
 let builtin_types ctx =
   let typemap = make_symtab () in
-  begin
-    add_symbol typemap "i32" (i32_type ctx);
-    typemap
-  end
+  List.iter
+    (fun (name, f) -> add_symbol typemap name (f ctx))
+    Types.map_builtin_types;
+  typemap
 
 let deftype2llvmtype typemap =
   let rec convert = function
