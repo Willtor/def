@@ -1,4 +1,5 @@
 open Ast
+open Cfg
 open Defparse
 open Deflex
 open Irfactory
@@ -32,6 +33,7 @@ let main () =
     in
     close_in infile;
     let stmts = scrub stmts in
+    let program = convert_ast stmts in
     try
       process_ast "t.llvm" Sys.argv.(1) stmts
     with ProcessingError err -> fatal_error err
