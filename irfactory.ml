@@ -75,7 +75,42 @@ let process_expr data varmap =
 let rec process_body data llfcn varmap scope entry_bb =
   let process_bb bb = function
     | BB_Cond conditional ->
-       failwith "FIXME: Not implemented, yet."
+       let cond = process_expr data varmap conditional.cond in
+
+       (* then-branch *)
+       let then_start = append_block data.ctx "then" llfcn in
+       let () = position_at_end then_start data.bldr in
+       let then_end =
+         process_body data llfcn varmap conditional.then_scope then_start in
+
+       (* else-branch *)
+       let else_start = append_block data.ctx "else" llfcn in
+       let () = position_at_end else_start data.bldr in
+       let else_end =
+         process_body data llfcn varmap conditional.else_scope else_start in
+
+       (* conditional *)
+       let () = position_at_end bb data.bldr in
+       let _ = build_cond_br cond then_start else_start in
+
+       if conditional.then_returns && conditional.else_returns then else_end
+       else let merge_bb = append_block data.ctx "merge" llfcn in
+            begin
+              position_at_end merge_bb data.bldr;
+              if not conditional.then_returns then
+                begin
+                  position_at_end then_end data.bldr;
+                  ignore (build_br merge_bb data.bldr)
+                end;
+              if not conditional.else_returns then
+                begin
+                  position_at_end else_end data.bldr;
+                  ignore (build_br merge_bb data.bldr)
+                end;
+              position_at_end merge_bb data.bldr;
+              merge_bb
+            end
+
     | BB_Expr (_, expr) ->
        begin ignore (process_expr data varmap expr); bb end
     | BB_Scope scope -> process_body data llfcn varmap scope bb

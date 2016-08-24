@@ -68,7 +68,7 @@ let global_decls decltable = function
         in
         add_symbol decltable name fcn
      end
-  | _ -> failwith "FIXME: Incomplete implementation."
+  | _ -> failwith "FIXME: Incomplete implementation Cfg.global_decls."
 
 let get_fcntype_profile = function
   | FcnType (params, ret) -> (params, ret)
@@ -114,7 +114,7 @@ let binary_reconcile =
             rtype, Expr_Cast (ltype, rtype, lexpr), rexpr
           else ltype, lexpr, Expr_Cast (rtype, ltype, rexpr)
        end
-    | _ -> failwith "FIXME: Incomplete implementation."
+    | _ -> failwith "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
 
 let convert_expr =
