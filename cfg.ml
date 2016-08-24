@@ -99,21 +99,31 @@ let binary_reconcile =
                 ^ (show_source pos) in
               fatal_error err
   in
+  let docompare pos ltype lexpr rtype rexpr =
+    let lcategory, lwidth = get_type pos ltype
+    and rcategory, rwidth = get_type pos rtype in
+    match lcategory, rcategory with
+    | SignedInteger, SignedInteger ->
+       if lwidth == rwidth then ltype, lexpr, rexpr
+       else if lwidth < rwidth then
+         rtype, Expr_Cast (ltype, rtype, lexpr), rexpr
+       else ltype, lexpr, Expr_Cast (rtype, ltype, rexpr)
+  in
   let reconcile op (ltype, lexpr) (rtype, rexpr) =
     match op with
     | OperPlus pos
     | OperMinus pos
     | OperMult pos
     | OperDiv pos ->
-       let lcategory, lwidth = get_type pos ltype
-       and rcategory, rwidth = get_type pos rtype in
-       begin match lcategory, rcategory with
-       | SignedInteger, SignedInteger ->
-          if lwidth == rwidth then ltype, lexpr, rexpr
-          else if lwidth < rwidth then
-            rtype, Expr_Cast (ltype, rtype, lexpr), rexpr
-          else ltype, lexpr, Expr_Cast (rtype, ltype, rexpr)
-       end
+       docompare pos ltype lexpr rtype rexpr
+    | OperLT pos
+    | OperLTE pos
+    | OperGT pos
+    | OperGTE pos
+    | OperEquals pos
+    | OperNEquals pos ->
+       let _, lexpr, rexpr = docompare pos ltype lexpr rtype rexpr in
+       "bool", lexpr, rexpr
     | _ -> failwith "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
 

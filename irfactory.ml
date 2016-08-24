@@ -91,7 +91,7 @@ let rec process_body data llfcn varmap scope entry_bb =
 
        (* conditional *)
        let () = position_at_end bb data.bldr in
-       let _ = build_cond_br cond then_start else_start in
+       let _ = build_cond_br cond then_start else_start data.bldr in
 
        if conditional.then_returns && conditional.else_returns then else_end
        else let merge_bb = append_block data.ctx "merge" llfcn in
