@@ -20,7 +20,7 @@ let get_fcntype = function
 let builtin_types ctx =
   let typemap = make_symtab () in
   List.iter
-    (fun (name, _, f) -> add_symbol typemap name (f ctx))
+    (fun (name, _, _, f) -> add_symbol typemap name (f ctx))
     Types.map_builtin_types;
   typemap
 
@@ -40,11 +40,12 @@ let deftype2llvmtype typemap =
        end
   in convert
 
-let process_atom data varmap = function
-  | AtomInt (_, i) ->
-     const_int (the (lookup_symbol data.typemap "i32")) i
-  | AtomVar (_, v) ->
-     let (_, _, llvar) = the (lookup_symbol varmap v) in llvar
+let process_literal typemap = function
+  | I32 n -> const_int (the (lookup_symbol typemap "i32")) (Int32.to_int n)
+  | _ -> failwith "Irfactory.process_literal not fully implemented."
+
+let process_variable varmap name =
+  let (_, _, llvar) = the (lookup_symbol varmap name) in llvar
 
 let process_expr data varmap =
   let llvm_operator = function
@@ -61,8 +62,9 @@ let process_expr data varmap =
     | _ -> failwith "llvm_operator not fully implemented"
   in
   let rec expr_gen = function
-    | ExprAtom atom -> process_atom data varmap atom
-    | ExprBinary (op, left, right) ->
+    | Expr_Literal lit -> process_literal data.typemap lit
+    | Expr_Variable name -> process_variable varmap name
+    | Expr_Binary (op, left, right) ->
        let e1 = expr_gen left
        and e2 = expr_gen right
        and (func, ident) = llvm_operator op in

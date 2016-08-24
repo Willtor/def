@@ -4,5 +4,5 @@ type typecategory =
   | SignedInteger
 
 let map_builtin_types =
-  [ ("i32", SignedInteger, i32_type);
-    ("bool", SignedInteger, i1_type) ]
+  [ ("i32", SignedInteger, 32, i32_type);
+    ("bool", SignedInteger, 1, i1_type) ]
