@@ -6,7 +6,7 @@
 %token <Lexing.position * int> INTEGER
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
-%token <Lexing.position> DEF RETURN BEGIN END IF THEN ELSE FI
+%token <Lexing.position> DEF VAR RETURN BEGIN END IF THEN ELSE FI
 
 (* Operators *)
 %token <Lexing.position> RARROW
@@ -75,6 +75,10 @@ statement:
       let (_, stmts) = b in
       DefFcn (pos, name, tp, stmts) }
 | p_n_e = expr SEMICOLON { let (pos, e) = p_n_e in StmtExpr (pos, e) }
+| VAR id = IDENT tp = deftype SEMICOLON
+    { let (pos, name) = id in VarDecl (pos, name, tp, None) }
+| VAR id = IDENT tp = deftype EQUALS e = expr SEMICOLON
+    { let (pos, name) = id in VarDecl (pos, name, tp, Some e) }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
 | p = RETURN p_n_e = expr SEMICOLON

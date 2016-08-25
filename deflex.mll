@@ -21,6 +21,7 @@ rule deflex = parse
 | "begin" { BEGIN (lexeme_start_p lexbuf) }
 | "end" { END (lexeme_start_p lexbuf) }
 | "def" { DEF (lexeme_start_p lexbuf) }
+| "var" { VAR (lexeme_start_p lexbuf) }
 | "return" { RETURN (lexeme_start_p lexbuf) }
 | "if" { IF (lexeme_start_p lexbuf) }
 | "then" { THEN (lexeme_start_p lexbuf) }

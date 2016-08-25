@@ -40,6 +40,7 @@ type stmt =
   | StmtExpr of position * expr
   | Block of position * stmt list
   | DefFcn of position * string * vartype * stmt list
+  | VarDecl of position * string * vartype * (position * expr) option
   | IfStmt of position * expr * stmt list * stmt list option
   | Return of position * expr
   | ReturnVoid of position
@@ -130,3 +131,4 @@ let rec stmt2string = function
      "return " ^ (expr2string e) ^ "\n"
   | ReturnVoid _ ->
      "return\n"
+  | _ -> failwith "Ast.stmt2string not fully implemented."

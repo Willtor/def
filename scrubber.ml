@@ -12,6 +12,7 @@ let position_of_stmt = function
   | StmtExpr (pos, _)
   | Block (pos, _)
   | DefFcn (pos, _, _, _)
+  | VarDecl (pos, _, _, _)
   | IfStmt (pos, _, _, _)
   | Return (pos, _)
   | ReturnVoid pos -> pos
@@ -32,6 +33,8 @@ let kill_dead_code =
          proc (stmt :: accum) rest
       | DefFcn (pos, name, tp, body) :: rest ->
          let stmt = DefFcn (pos, name, tp, process name body) in
+         proc (stmt :: accum) rest
+      | VarDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
       | IfStmt (pos, cond, thenblk, maybe_else) :: rest ->
          let stmt = IfStmt (pos, cond, proc [] thenblk,

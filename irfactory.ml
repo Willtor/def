@@ -45,7 +45,10 @@ let process_literal typemap = function
   | _ -> failwith "Irfactory.process_literal not fully implemented."
 
 let process_variable varmap name =
-  let (_, _, llvar) = the (lookup_symbol varmap name) in llvar
+  match lookup_symbol varmap name with
+  | None -> failwith ("Oh snap!  " ^ name) (* WORKING HERE! *)
+  | Some (_, _, llvar) -> llvar
+(*  let (_, _, llvar) = the (lookup_symbol varmap name) in llvar *)
 
 let process_expr data varmap =
   let llvm_operator = function
@@ -115,7 +118,19 @@ let rec process_body data llfcn varmap scope entry_bb =
 
     | BB_Expr (_, expr) ->
        begin ignore (process_expr data varmap expr); bb end
-    | BB_Scope scope -> process_body data llfcn varmap scope bb
+    | BB_Scope scope ->
+       let varmap = push_symtab_scope varmap in
+       begin
+         List.iter (fun (name, decl) ->
+           let alloc = build_alloca
+             (deftype2llvmtype data.typemap decl.tp) name data.bldr
+           in begin
+             prerr_endline name;
+             add_symbol varmap name (decl.decl_pos, decl.tp, alloc)
+           end)
+           scope.local_vars;
+         process_body data llfcn varmap scope bb
+       end
     | BB_Return (_, expr) ->
        let ret = process_expr data varmap expr in
        let _ = build_ret ret data.bldr in
@@ -123,6 +138,14 @@ let rec process_body data llfcn varmap scope entry_bb =
     | BB_ReturnVoid _ ->
        failwith "FIXME: Not implemented, yet."
   in
+  List.iter (fun (name, decl) ->
+    let alloc = build_alloca
+      (deftype2llvmtype data.typemap decl.tp) name data.bldr
+    in begin
+      prerr_endline name;
+      add_symbol varmap name (decl.decl_pos, decl.tp, alloc)
+    end)
+    scope.local_vars;
   List.fold_left process_bb entry_bb scope.bbs
 
 let process_fcn data fcn =

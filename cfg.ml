@@ -80,6 +80,7 @@ let rec returns_p stmts =
     | StmtExpr _ -> ret
     | Block (_, stmts) -> (returns_p stmts) || ret
     | DefFcn _ -> failwith "FIXME: Unhandled case in Cfg.returns_p"
+    | VarDecl _ -> ret
     | IfStmt (_, _, t, None) -> ret
     | IfStmt (_, _, t, Some e) ->
        ((returns_p t) && (returns_p e)) || ret
@@ -170,7 +171,16 @@ let build_bbs name decltable body =
        decls, BB_Scope { local_vars = local_decls;
                          bbs = List.rev local_bbs } :: bbs
     | DefFcn _ ->
-       failwith "FIXME: Not implemented Cfg.build_bbs"
+       failwith "FIXME: DefFcn not implemented Cfg.build_bbs"
+    | VarDecl (pos, name, tp, initializer_maybe) ->
+       let decl = { decl_pos = pos; declname = name; tp = tp } in
+       begin match initializer_maybe with
+         | None -> (name, decl) :: decls, bbs
+         | Some (pos, expr) ->
+            let (_, expr) = convert_expr expr in
+            ((name, decl) :: decls,
+             BB_Expr (pos, expr) :: bbs)
+       end
     | IfStmt (pos, cond, then_scope, else_block_maybe) ->
        let process_block stmts =
          let local_decls, local_bbs =
@@ -202,6 +212,7 @@ let build_bbs name decltable body =
        decls, BB_ReturnVoid pos :: bbs
   in
   let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
+  List.iter (fun (name, _) -> prerr_endline ("storing " ^ name)) decls;
   { local_vars = decls;
     bbs = List.rev bbs }
 
