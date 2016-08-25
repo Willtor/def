@@ -177,6 +177,7 @@ let build_bbs name decltable body =
        begin match initializer_maybe with
          | None -> (name, decl) :: decls, bbs
          | Some (pos, expr) ->
+            (* FIXME: Need to cast type. *)
             let (_, expr) = convert_expr expr in
             ((name, decl) :: decls,
              BB_Expr (pos, expr) :: bbs)
