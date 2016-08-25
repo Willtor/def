@@ -63,7 +63,9 @@ let process_expr data varmap =
   in
   let rec expr_gen = function
     | Expr_Literal lit -> process_literal data.typemap lit
-    | Expr_Variable name -> process_variable varmap name
+    | Expr_Variable name ->
+       let v = process_variable varmap name in
+       build_load v name data.bldr
     | Expr_Binary (op, left, right) ->
        let e1 = expr_gen left
        and e2 = expr_gen right
@@ -135,7 +137,11 @@ let process_fcn data fcn =
   let (args, _) = get_fcntype profile.tp in
   let llparams = params llfcn in
   List.iteri (fun i (pos, n, tp) ->
-    add_symbol varmap n (pos, tp, llparams.(i))) args;
+    let alloc = build_alloca (deftype2llvmtype data.typemap tp) n data.bldr
+    in begin
+      add_symbol varmap n (pos, tp, alloc);
+      ignore (build_store llparams.(i) alloc data.bldr);
+    end) args;
   ignore (process_body data llfcn varmap fcn.body bb);
   Llvm_analysis.assert_valid_function llfcn
 
