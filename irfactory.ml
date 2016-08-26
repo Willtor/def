@@ -77,7 +77,7 @@ let process_expr data varmap =
     | _ -> failwith "expr_gen not fully implemented."
   in expr_gen
 
-let rec process_body data llfcn varmap scope entry_bb =
+let rec process_body data llfcn varmap cfg_bbs entry_bb =
   let process_bb bb = function
     | BB_Cond conditional ->
        let cond = process_expr data varmap conditional.cond in
@@ -118,19 +118,6 @@ let rec process_body data llfcn varmap scope entry_bb =
 
     | BB_Expr (_, expr) ->
        begin ignore (process_expr data varmap expr); bb end
-    | BB_Scope scope ->
-       let varmap = push_symtab_scope varmap in
-       begin
-         List.iter (fun (name, decl) ->
-           let alloc = build_alloca
-             (deftype2llvmtype data.typemap decl.tp) name data.bldr
-           in begin
-             prerr_endline name;
-             add_symbol varmap name (decl.decl_pos, decl.tp, alloc)
-           end)
-           scope.local_vars;
-         process_body data llfcn varmap scope bb
-       end
     | BB_Return (_, expr) ->
        let ret = process_expr data varmap expr in
        let _ = build_ret ret data.bldr in
@@ -138,15 +125,7 @@ let rec process_body data llfcn varmap scope entry_bb =
     | BB_ReturnVoid _ ->
        failwith "FIXME: Not implemented, yet."
   in
-  List.iter (fun (name, decl) ->
-    let alloc = build_alloca
-      (deftype2llvmtype data.typemap decl.tp) name data.bldr
-    in begin
-      prerr_endline name;
-      add_symbol varmap name (decl.decl_pos, decl.tp, alloc)
-    end)
-    scope.local_vars;
-  List.fold_left process_bb entry_bb scope.bbs
+  List.fold_left process_bb entry_bb cfg_bbs
 
 let process_fcn data fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
@@ -165,7 +144,12 @@ let process_fcn data fcn =
       add_symbol varmap n (pos, tp, alloc);
       ignore (build_store llparams.(i) alloc data.bldr);
     end) args;
-  ignore (process_body data llfcn varmap fcn.body bb);
+  List.iter (fun (name, decl) ->
+    let alloc = build_alloca
+      (deftype2llvmtype data.typemap decl.tp) name data.bldr
+    in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
+    fcn.local_vars;
+  ignore (process_body data llfcn varmap fcn.bbs bb);
   Llvm_analysis.assert_valid_function llfcn
 
 let process_cfg outfile module_name program =

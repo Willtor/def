@@ -17,24 +17,18 @@ type cfg_expr =
 type cfg_basic_block =
   | BB_Cond of conditional_block
   | BB_Expr of Lexing.position * cfg_expr
-  | BB_Scope of cfg_scope
   | BB_Return of Lexing.position * cfg_expr
   | BB_ReturnVoid of Lexing.position
-
-and cfg_scope =
-  { local_vars : (string * decl) list;
-    bbs : cfg_basic_block list
-  }
 
 and conditional_block =
   { if_pos       : Lexing.position;
     fi_pos       : Lexing.position;
     cond         : cfg_expr;
 
-    then_scope   : cfg_scope;
+    then_scope   : cfg_basic_block list;
     then_returns : bool;
 
-    else_scope   : cfg_scope;
+    else_scope   : cfg_basic_block list;
     else_returns : bool
   }
 
@@ -48,7 +42,8 @@ type function_defn =
   { defn_begin : Lexing.position;
     defn_end   : Lexing.position;
     name       : string;
-    body       : cfg_scope
+    local_vars : (string * decl) list;
+    bbs        : cfg_basic_block list
   }
 
 type program =
@@ -164,12 +159,8 @@ let build_bbs name decltable body =
        let _, expr = convert_expr expr in
        decls, BB_Expr (pos, expr) :: bbs
     | Block (_, stmts) ->
-       let local_decls, local_bbs =
-         List.fold_left
-           (process_bb (push_symtab_scope scope)) ([], []) stmts
-       in
-       decls, BB_Scope { local_vars = local_decls;
-                         bbs = List.rev local_bbs } :: bbs
+       List.fold_left
+         (process_bb (push_symtab_scope scope)) (decls, bbs) stmts
     | DefFcn _ ->
        failwith "FIXME: DefFcn not implemented Cfg.build_bbs"
     | VarDecl (pos, name, tp, initializer_maybe) ->
@@ -182,24 +173,23 @@ let build_bbs name decltable body =
             ((name, decl) :: decls,
              BB_Expr (pos, expr) :: bbs)
        end
-    | IfStmt (pos, cond, then_scope, else_block_maybe) ->
-       let process_block stmts =
-         let local_decls, local_bbs =
-           List.fold_left
-             (process_bb (push_symtab_scope scope)) ([], []) stmts
-         in { local_vars = local_decls; bbs = List.rev local_bbs }
+    | IfStmt (pos, cond, then_block, else_block_maybe) ->
+       let process_block decls =
+         List.fold_left
+           (process_bb (push_symtab_scope scope)) (decls, [])
        in
-       let else_scope, else_returns = match else_block_maybe with
-         | None -> { local_vars = []; bbs = [] }, false
-         | Some stmts -> process_block stmts, returns_p stmts
+       let (decls, else_scope), else_returns = match else_block_maybe with
+         | None -> (decls, []), false
+         | Some stmts -> process_block decls stmts, returns_p stmts
        in
+       let decls, then_scope = process_block decls then_block in
        let tp, conv_cond = convert_expr cond in
        let block =
          { if_pos = pos;
            fi_pos = pos; (* FIXME! *)
            cond   = cast tp "bool" conv_cond;
-           then_scope = process_block then_scope;
-           then_returns = returns_p then_scope;
+           then_scope = then_scope;
+           then_returns = returns_p then_block;
            else_scope = else_scope;
            else_returns = else_returns
          }
@@ -213,14 +203,13 @@ let build_bbs name decltable body =
        decls, BB_ReturnVoid pos :: bbs
   in
   let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
-  List.iter (fun (name, _) -> prerr_endline ("storing " ^ name)) decls;
-  { local_vars = decls;
-    bbs = List.rev bbs }
+  decls, List.rev bbs
 
 let build_fcns decltable fcns = function
   | DefFcn (pos, name, _, body) ->
+     let decls, bbs = build_bbs name decltable body in
      let fcn = { defn_begin = pos; defn_end = pos; name = name;
-                 body = build_bbs name decltable body }
+                 local_vars = decls; bbs = bbs }
      in fcn :: fcns
   | _ -> fcns
 

@@ -13,24 +13,18 @@ type cfg_expr =
 type cfg_basic_block =
   | BB_Cond of conditional_block
   | BB_Expr of Lexing.position * cfg_expr
-  | BB_Scope of cfg_scope
   | BB_Return of Lexing.position * cfg_expr
   | BB_ReturnVoid of Lexing.position
-
-and cfg_scope =
-  { local_vars : (string * decl) list;
-    bbs : cfg_basic_block list
-  }
 
 and conditional_block =
   { if_pos       : Lexing.position;
     fi_pos       : Lexing.position;
     cond         : cfg_expr;
 
-    then_scope   : cfg_scope;
+    then_scope   : cfg_basic_block list;
     then_returns : bool;
 
-    else_scope   : cfg_scope;
+    else_scope   : cfg_basic_block list;
     else_returns : bool
   }
 
@@ -44,7 +38,8 @@ type function_defn =
   { defn_begin : Lexing.position;
     defn_end   : Lexing.position;
     name       : string;
-    body       : cfg_scope
+    local_vars : (string * decl) list;
+    bbs        : cfg_basic_block list
   }
 
 type program =
