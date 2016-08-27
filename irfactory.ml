@@ -51,31 +51,33 @@ let process_variable varmap name =
 (*  let (_, _, llvar) = the (lookup_symbol varmap name) in llvar *)
 
 let process_expr data varmap =
-  let llvm_operator = function
-    (* FIXME: Should specify a proper name for intermediate values. *)
-    | OperMult _ -> (build_mul, "def_mult")
-    | OperDiv _ -> (build_sdiv, "def_sdiv")
-    | OperPlus _ -> (build_add, "def_add")
-    | OperMinus _ -> (build_sub, "def_sub")
-    | OperLT _ -> (build_icmp Icmp.Slt, "def_lt")
-    | OperLTE _ -> (build_icmp Icmp.Sle, "def_le")
-    | OperGT _ -> (build_icmp Icmp.Sgt, "def_gt")
-    | OperGTE _ -> (build_icmp Icmp.Sge, "def_ge")
-    | OperEquals _ -> (build_icmp Icmp.Eq, "def_eq")
+  let rec llvm_binop op left right bldr =
+    let standard_op fnc name =
+      fnc (expr_gen true left) (expr_gen true right) name bldr
+    in
+    match op with
+    | OperMult _ -> standard_op build_mul "def_mult"
+    | OperDiv _ -> standard_op build_sdiv "def_sdiv"
+    | OperPlus _ -> standard_op build_add "def_add"
+    | OperMinus _ -> standard_op build_sub "def_sub"
+    | OperLT _ -> standard_op (build_icmp Icmp.Slt) "def_lt"
+    | OperLTE _ -> standard_op (build_icmp Icmp.Sle) "def_le"
+    | OperGT _ -> standard_op (build_icmp Icmp.Sgt) "def_gt"
+    | OperGTE _ -> standard_op (build_icmp Icmp.Sge) "def_ge"
+    | OperEquals _ -> standard_op (build_icmp Icmp.Eq) "def_eq"
+    | OperAssign _ ->
+       build_store (expr_gen true right) (expr_gen false left) bldr
     | _ -> failwith "llvm_operator not fully implemented"
-  in
-  let rec expr_gen = function
+  and expr_gen rvalue_p = function
     | Expr_Literal lit -> process_literal data.typemap lit
     | Expr_Variable name ->
        let v = process_variable varmap name in
-       build_load v name data.bldr
+       if rvalue_p then build_load v name data.bldr
+       else v
     | Expr_Binary (op, left, right) ->
-       let e1 = expr_gen left
-       and e2 = expr_gen right
-       and (func, ident) = llvm_operator op in
-       func e1 e2 ident data.bldr
+       llvm_binop op left right data.bldr
     | _ -> failwith "expr_gen not fully implemented."
-  in expr_gen
+  in expr_gen true
 
 let rec process_body data llfcn varmap cfg_bbs entry_bb =
   let process_bb bb = function

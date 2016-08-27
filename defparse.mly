@@ -75,10 +75,16 @@ statement:
       let (_, stmts) = b in
       DefFcn (pos, name, tp, stmts) }
 | p_n_e = expr SEMICOLON { let (pos, e) = p_n_e in StmtExpr (pos, e) }
+| b = block { let (pos, stmts) = b in Block (pos, stmts) }
 | VAR id = IDENT tp = deftype SEMICOLON
     { let (pos, name) = id in VarDecl (pos, name, tp, None) }
-| VAR id = IDENT tp = deftype EQUALS e = expr SEMICOLON
-    { let (pos, name) = id in VarDecl (pos, name, tp, Some e) }
+| VAR id = IDENT tp = deftype eq = EQUALS p_n_e = expr SEMICOLON
+    { let (pos, name) = id
+      and (_, expr) = p_n_e in
+      let init = ExprBinary (OperAssign (eq),
+                             ExprAtom (AtomVar (pos, name)),
+                             expr) in
+      VarDecl (pos, name, tp, Some (eq, init)) }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
 | p = RETURN p_n_e = expr SEMICOLON

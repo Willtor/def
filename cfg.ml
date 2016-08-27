@@ -1,4 +1,5 @@
 open Ast
+open Lexing
 open Types
 open Util
 
@@ -33,9 +34,9 @@ and conditional_block =
   }
 
 and decl =
-  { decl_pos : Lexing.position;
-    declname : string;
-    tp       : Ast.vartype
+  { decl_pos   : Lexing.position;
+    mappedname : string;
+    tp         : Ast.vartype
   }
 
 type function_defn =
@@ -58,7 +59,7 @@ let global_decls decltable = function
      | None ->
         let fcn =
           { decl_pos = pos;
-            declname = name;
+            mappedname = name;
             tp = tp }
         in
         add_symbol decltable name fcn
@@ -105,6 +106,14 @@ let binary_reconcile =
          rtype, Expr_Cast (ltype, rtype, lexpr), rexpr
        else ltype, lexpr, Expr_Cast (rtype, ltype, rexpr)
   in
+  let docompare_prefer_left pos ltype lexpr rtype rexpr =
+    let lcategory, lwidth = get_type pos ltype
+    and rcategory, rwidth = get_type pos rtype in
+    match lcategory, rcategory with
+    | SignedInteger, SignedInteger ->
+       if lwidth == rwidth then ltype, lexpr, rexpr
+       else ltype, lexpr, Expr_Cast (rtype, ltype, rexpr)
+  in
   let reconcile op (ltype, lexpr) (rtype, rexpr) =
     match op with
     | OperPlus pos
@@ -120,14 +129,17 @@ let binary_reconcile =
     | OperNEquals pos ->
        let _, lexpr, rexpr = docompare pos ltype lexpr rtype rexpr in
        "bool", lexpr, rexpr
+    | OperAssign pos ->
+       docompare_prefer_left pos ltype lexpr rtype rexpr
     | _ -> failwith "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
 
-let convert_expr =
+let convert_expr scope =
   let convert_atom = function
     | AtomInt (pos, i) -> "i32", Expr_Literal (I32 (Int32.of_int i))
     | AtomVar (pos, name) ->
-       "i32", Expr_Variable name (* FIXME! Wrong type. *)
+       let var = the (lookup_symbol scope name) in
+       "i32", Expr_Variable var.mappedname (* FIXME! Wrong type. *)
   in
   let rec convert = function
     | ExprBinary (op, lhs, rhs) ->
@@ -142,6 +154,15 @@ let cast orig target expr =
   if 0 == (String.compare orig target) then expr
   else Expr_Cast (orig, target, expr)
 
+let nonconflicting_name pos scope name =
+  match lookup_symbol_local scope name with
+  | None -> begin match lookup_symbol scope name with
+    | None -> name
+    | _ ->
+       "_def_" ^ name ^ "_" ^ (string_of_int pos.pos_lnum)
+  end
+  | _ -> fatal_error "FIXME: Error message for redeclaring a variable."
+
 let build_bbs name decltable body =
   let fcndecl = the (lookup_symbol decltable name) in
   let (params, _) = get_fcntype_profile fcndecl.tp in
@@ -151,27 +172,29 @@ let build_bbs name decltable body =
   List.iter
     (fun (pos, name, tp) ->
       add_symbol fcnscope name
-        { decl_pos = pos; declname = name; tp = tp })
+        { decl_pos = pos; mappedname = name; tp = tp })
     params;
 
   let rec process_bb scope (decls, bbs) = function
     | StmtExpr (pos, expr) ->
-       let _, expr = convert_expr expr in
+       let _, expr = convert_expr scope expr in
        decls, BB_Expr (pos, expr) :: bbs
-    | Block (_, stmts) ->
+    | Block (_, stmts) -> (* FIXME: scope should shadow new variables. *)
        List.fold_left
          (process_bb (push_symtab_scope scope)) (decls, bbs) stmts
     | DefFcn _ ->
        failwith "FIXME: DefFcn not implemented Cfg.build_bbs"
     | VarDecl (pos, name, tp, initializer_maybe) ->
-       let decl = { decl_pos = pos; declname = name; tp = tp } in
+       let mappedname = nonconflicting_name pos scope name in
+       let decl = { decl_pos = pos; mappedname = mappedname; tp = tp } in
+       add_symbol scope name decl;
        begin match initializer_maybe with
-         | None -> (name, decl) :: decls, bbs
-         | Some (pos, expr) ->
+       | None -> (mappedname, decl) :: decls, bbs
+       | Some (pos, expr) ->
             (* FIXME: Need to cast type. *)
-            let (_, expr) = convert_expr expr in
-            ((name, decl) :: decls,
-             BB_Expr (pos, expr) :: bbs)
+          let (_, expr) = convert_expr scope expr in
+          ((mappedname, decl) :: decls,
+           BB_Expr (pos, expr) :: bbs)
        end
     | IfStmt (pos, cond, then_block, else_block_maybe) ->
        let process_block decls =
@@ -183,7 +206,7 @@ let build_bbs name decltable body =
          | Some stmts -> process_block decls stmts, returns_p stmts
        in
        let decls, then_scope = process_block decls then_block in
-       let tp, conv_cond = convert_expr cond in
+       let tp, conv_cond = convert_expr scope cond in
        let block =
          { if_pos = pos;
            fi_pos = pos; (* FIXME! *)
@@ -197,13 +220,13 @@ let build_bbs name decltable body =
        decls, (BB_Cond block) :: bbs
 
     | Return (pos, expr) ->
-       let _, expr = convert_expr expr in (* FIXME: Verify return type. *)
+       let _, expr = convert_expr scope expr in (* FIXME: Verify return type. *)
        decls, BB_Return (pos, expr) :: bbs
     | ReturnVoid pos ->
        decls, BB_ReturnVoid pos :: bbs
   in
   let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
-  decls, List.rev bbs
+  List.rev decls, List.rev bbs
 
 let build_fcns decltable fcns = function
   | DefFcn (pos, name, _, body) ->

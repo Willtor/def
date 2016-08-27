@@ -29,9 +29,9 @@ and conditional_block =
   }
 
 and decl =
-  { decl_pos : Lexing.position;
-    declname : string;
-    tp       : Ast.vartype
+  { decl_pos   : Lexing.position;
+    mappedname : string;
+    tp         : Ast.vartype
   }
 
 type function_defn =
