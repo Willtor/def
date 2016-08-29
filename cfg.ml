@@ -85,6 +85,7 @@ let rec returns_p stmts =
   in List.fold_left r false stmts
 
 let binary_reconcile =
+  (* FIXME: Need to return an Ast.vartype instead of a string. *)
   let types = Hashtbl.create 32 in
   List.iter (fun (n, category, width, _) ->
     Hashtbl.add types n (category, width))
@@ -134,25 +135,64 @@ let binary_reconcile =
     | _ -> failwith "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
 
+let cast orig target expr =
+(* FIXME: Fake implementation. *)
+  if 0 == (String.compare orig target) then expr
+  else Expr_Cast (orig, target, expr)
+
+let build_fcn_call scope pos name args =
+  match lookup_symbol scope name with
+  | None ->
+     fatal_error ("No such function to call: " ^ name ^ " "
+                  ^ (format_position pos) ^ "\n" ^ (show_source pos))
+  | Some decl ->
+     let match_param_with_arg (_, _, ptype) (atype, expr) =
+     (* FIXME: Stub implementation.  Need to cast the argument or fail. *)
+       expr
+     in
+     begin match decl.tp with
+     | FcnType (params, _ (* FIXME: use rettp *)) ->
+        begin
+          try
+            let casted_args = List.map2 match_param_with_arg params args in
+            "i32", decl.mappedname, casted_args
+          with _ ->
+            fatal_error ("Called function " ^ name ^ " with "
+                         ^ (string_of_int (List.length args))
+                         ^ " arguments at "
+                         ^ (format_position pos) ^ "\n"
+                         ^ (show_source pos) ^ "\n"
+                         ^ "As declared, it requires "
+                         ^ (string_of_int (List.length params))
+                         ^ " arguments.  Declared at "
+                         ^ (format_position decl.decl_pos) ^ "\n"
+                         ^ (show_source decl.decl_pos))
+        end
+     | VarType (dpos, _) ->
+        fatal_error ("Unable to call non-function " ^ name ^ " "
+                     ^ (format_position pos) ^ "\n" ^ (show_source pos) ^ "\n"
+                     ^ "Declared at " ^ (format_position dpos) ^ "\n"
+                     ^ (show_source pos))
+     end
+
 let convert_expr scope =
   let convert_atom = function
     | AtomInt (pos, i) -> "i32", Expr_Literal (I32 (Int32.of_int i))
     | AtomVar (pos, name) ->
-       let var = the (lookup_symbol scope name) in
-       "i32", Expr_Variable var.mappedname (* FIXME! Wrong type. *)
+       let var = the (lookup_symbol scope name)
+       in "i32", Expr_Variable var.mappedname (* FIXME! Wrong type. *)
   in
   let rec convert = function
+    | ExprFcnCall (pos, name, args) ->
+       let converted_args = List.map convert args in
+       let rettp, fcn, cfg_args = build_fcn_call scope pos name converted_args
+       in rettp, Expr_FcnCall (fcn, cfg_args)
     | ExprBinary (op, lhs, rhs) ->
        let tp, lhs, rhs = binary_reconcile op (convert lhs) (convert rhs)
        in tp, Expr_Binary (op, lhs, rhs)
     | ExprAtom atom -> convert_atom atom
     | _ -> failwith "FIXME: Cfg.convert_expr not fully implemented."
   in convert
-
-let cast orig target expr =
-(* FIXME: Fake implementation. *)
-  if 0 == (String.compare orig target) then expr
-  else Expr_Cast (orig, target, expr)
 
 let nonconflicting_name pos scope name =
   match lookup_symbol_local scope name with

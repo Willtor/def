@@ -36,6 +36,9 @@ val lookup_symbol_local : 'a symtab -> string -> 'a option
 (** Lookup a symbol, starting from the deepest scope and working outward. *)
 val lookup_symbol : 'a symtab -> string -> 'a option
 
+(** Iterate through all symbols in a symtab.  This starts with the inner-most
+    scope and proceeds outwards towards global. *)
+val symtab_iter : (string -> 'b -> unit) -> 'b symtab -> unit
 
 (****************************************************************************)
 (*                            General Utilities                             *)

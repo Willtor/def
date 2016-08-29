@@ -69,6 +69,10 @@ let process_expr data varmap =
        build_store (expr_gen true right) (expr_gen false left) bldr
     | _ -> failwith "llvm_operator not fully implemented"
   and expr_gen rvalue_p = function
+    | Expr_FcnCall (name, args) ->
+       let (_, _, callee) = the (lookup_symbol varmap name) in
+       let arg_vals = List.map (expr_gen true) args in
+       build_call callee (Array.of_list arg_vals) "def_call" data.bldr
     | Expr_Literal lit -> process_literal data.typemap lit
     | Expr_Variable name ->
        let v = process_variable varmap name in
@@ -129,13 +133,10 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
   in
   List.fold_left process_bb entry_bb cfg_bbs
 
-let process_fcn data fcn =
+let process_fcn data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
-  let varmap = make_symtab () in
-  let llfcn =
-    declare_function fcn.name
-      (deftype2llvmtype data.typemap profile.tp) data.mdl
-  in
+  let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
+  let varmap = push_symtab_scope symbols in
   let bb = append_block data.ctx "entry" llfcn in
   position_at_end bb data.bldr;
   let (args, _) = get_fcntype profile.tp in
@@ -154,6 +155,14 @@ let process_fcn data fcn =
   ignore (process_body data llfcn varmap fcn.bbs bb);
   Llvm_analysis.assert_valid_function llfcn
 
+let declare_globals data symbols name decl =
+  let llfcn =
+    (* FIXME: Might not be a function.  Need to check decl.tp. *)
+    declare_function decl.mappedname (deftype2llvmtype data.typemap decl.tp)
+      data.mdl
+  in
+  add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llfcn)
+
 let process_cfg outfile module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
@@ -161,5 +170,7 @@ let process_cfg outfile module_name program =
   let typemap = builtin_types ctx in
   let data = { ctx = ctx; mdl = mdl; bldr = bldr;
                typemap = typemap; prog = program } in
-  List.iter (process_fcn data) program.fcnlist;
+  let symbols = make_symtab () in
+  symtab_iter (declare_globals data symbols) program.global_decls;
+  List.iter (process_fcn data symbols) program.fcnlist;
   print_module outfile mdl

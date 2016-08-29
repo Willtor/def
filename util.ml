@@ -75,6 +75,11 @@ let rec lookup_symbol symtab name =
      | None -> lookup_symbol rest name
      end
 
+(** Iterate through all symbols in a symtab.  This starts with the inner-most
+    scope and proceeds outwards towards global. *)
+let symtab_iter f =
+  List.iter (fun table -> Hashtbl.iter f table)
+
 (****************************************************************************)
 (*                            General Utilities                             *)
 (****************************************************************************)
