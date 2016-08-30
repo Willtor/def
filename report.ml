@@ -26,3 +26,12 @@ let err_wrong_number_of_args use_pos decl_pos name n_params n_args =
     ^ " parameters at: " ^ (format_position decl_pos) ^ "\n"
     ^ (show_source decl_pos)
   in fatal_error err
+
+(** Tried to call a variable that was not a function. *)
+let err_called_non_fcn use_pos decl_pos name =
+  let err = "At " ^ (format_position use_pos) ^ ":\n"
+    ^ "  Called " ^ name ^ ", which was not declared as a function.\n"
+    ^ (show_source use_pos) ^ "\n"
+    ^ "  Declared at " ^ (format_position decl_pos) ^ "\n"
+    ^ (show_source decl_pos)
+  in fatal_error err

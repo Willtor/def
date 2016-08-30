@@ -163,11 +163,7 @@ let build_fcn_call scope pos name args =
             Report.err_wrong_number_of_args pos decl.decl_pos name
               (List.length params) (List.length args)
         end
-     | VarType (dpos, _) ->
-        fatal_error ("Unable to call non-function " ^ name ^ " "
-                     ^ (format_position pos) ^ "\n" ^ (show_source pos) ^ "\n"
-                     ^ "Declared at " ^ (format_position dpos) ^ "\n"
-                     ^ (show_source pos))
+     | VarType (dpos, _) -> Report.err_called_non_fcn pos dpos name
      end
 
 let convert_expr scope =
