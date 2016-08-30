@@ -98,16 +98,13 @@ let binary_reconcile =
   List.iter (fun (n, category, width, _) ->
     Hashtbl.add types n (category, width))
     Types.map_builtin_types;
-  let get_type pos name =
+  let get_type pos op name =
     try Hashtbl.find types name
-    with _ -> let err = "Error at " ^ (format_position pos) ^ "\n"
-                ^ "Invalid type \"" ^ name ^ "\" for the operation:\n"
-                ^ (show_source pos) in
-              fatal_error err
+    with _ -> Report.err_invalid_op pos op name
   in
-  let docompare pos ltype lexpr rtype rexpr =
-    let lcategory, lwidth = get_type pos ltype
-    and rcategory, rwidth = get_type pos rtype in
+  let docompare pos op ltype lexpr rtype rexpr =
+    let lcategory, lwidth = get_type pos op ltype
+    and rcategory, rwidth = get_type pos op rtype in
     match lcategory, rcategory with
     | SignedInteger, SignedInteger ->
        if lwidth == rwidth then ltype, lexpr, rexpr
@@ -115,9 +112,9 @@ let binary_reconcile =
          rtype, Expr_Cast (ltype, rtype, lexpr), rexpr
        else ltype, lexpr, Expr_Cast (rtype, ltype, rexpr)
   in
-  let docompare_prefer_left pos ltype lexpr rtype rexpr =
-    let lcategory, lwidth = get_type pos ltype
-    and rcategory, rwidth = get_type pos rtype in
+  let docompare_prefer_left pos op ltype lexpr rtype rexpr =
+    let lcategory, lwidth = get_type pos op ltype
+    and rcategory, rwidth = get_type pos op rtype in
     match lcategory, rcategory with
     | SignedInteger, SignedInteger ->
        if lwidth == rwidth then ltype, lexpr, rexpr
@@ -129,17 +126,17 @@ let binary_reconcile =
     | OperMinus pos
     | OperMult pos
     | OperDiv pos ->
-       docompare pos ltype lexpr rtype rexpr
+       docompare pos op ltype lexpr rtype rexpr
     | OperLT pos
     | OperLTE pos
     | OperGT pos
     | OperGTE pos
     | OperEquals pos
     | OperNEquals pos ->
-       let _, lexpr, rexpr = docompare pos ltype lexpr rtype rexpr in
+       let _, lexpr, rexpr = docompare pos op ltype lexpr rtype rexpr in
        "bool", lexpr, rexpr
     | OperAssign pos ->
-       docompare_prefer_left pos ltype lexpr rtype rexpr
+       docompare_prefer_left pos op ltype lexpr rtype rexpr
     | _ -> failwith "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
 
@@ -150,9 +147,7 @@ let cast orig target expr =
 
 let build_fcn_call scope pos name args =
   match lookup_symbol scope name with
-  | None ->
-     fatal_error ("No such function to call: " ^ name ^ " "
-                  ^ (format_position pos) ^ "\n" ^ (show_source pos))
+  | None -> Report.err_unknown_fcn_call pos name
   | Some decl ->
      let match_param_with_arg (_, _, ptype) (atype, expr) =
      (* FIXME: Stub implementation.  Need to cast the argument or fail. *)
