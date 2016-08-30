@@ -7,6 +7,7 @@
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
 %token <Lexing.position> DEF VAR RETURN BEGIN END IF THEN ELSE FI
+%token <Lexing.position> WHILE DO DONE
 
 (* Operators *)
 %token <Lexing.position> RARROW
@@ -25,24 +26,24 @@
 %start <stmt list> defparse
 
 (* Operator precedence. *)
-%left INCREMENT DECREMENT (*DOT*)
-%nonassoc PREINCR PREDECR
-%nonassoc POSITIVE NEGATIVE
-%right LNOT BNOT
-(* Need to figure out pointers. dereference, addr-of *)
-%left STAR SLASH PERCENT
-%left PLUS MINUS
-%left DBLLANGLE DBLRANGLE
-%left LANGLE LEQ RANGLE GEQ
-%left EQUALSEQUALS BANGEQUALS
-%left AMPERSAND
-%left CARAT
-%left VBAR
-%left DBLAMPERSAND
-%left DBLVBAR
-(* Ternary conditional "a ? b : c" *)
-%right EQUALS PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS CARATEQUALS VBAREQUALS
 (*%left COMMA*)
+%right EQUALS PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS CARATEQUALS VBAREQUALS
+(* Ternary conditional "a ? b : c" *)
+%left DBLVBAR
+%left DBLAMPERSAND
+%left VBAR
+%left CARAT
+%left AMPERSAND
+%left EQUALSEQUALS BANGEQUALS
+%left LANGLE LEQ RANGLE GEQ
+%left DBLLANGLE DBLRANGLE
+%left PLUS MINUS
+%left STAR SLASH PERCENT
+(* Need to figure out pointers. dereference, addr-of *)
+%right LNOT BNOT
+%nonassoc POSITIVE NEGATIVE
+%nonassoc PREINCR PREDECR
+%left INCREMENT DECREMENT (*DOT*)
 
 %%
 
@@ -87,6 +88,8 @@ statement:
       VarDecl (pos, name, tp, Some (eq, init)) }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
+| p = WHILE p_n_e = expr DO slist = statementlist DONE
+    { let (_, e) = p_n_e in WhileLoop (p, e, slist) }
 | p = RETURN p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in Return (p, e) }
 | p = RETURN SEMICOLON { ReturnVoid p }

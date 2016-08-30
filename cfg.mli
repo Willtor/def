@@ -12,6 +12,7 @@ type cfg_expr =
 
 type cfg_basic_block =
   | BB_Cond of conditional_block
+  | BB_Loop of loop_block
   | BB_Expr of Lexing.position * cfg_expr
   | BB_Return of Lexing.position * cfg_expr
   | BB_ReturnVoid of Lexing.position
@@ -19,13 +20,19 @@ type cfg_basic_block =
 and conditional_block =
   { if_pos       : Lexing.position;
     fi_pos       : Lexing.position;
-    cond         : cfg_expr;
+    branch_cond  : cfg_expr;
 
     then_scope   : cfg_basic_block list;
     then_returns : bool;
 
     else_scope   : cfg_basic_block list;
     else_returns : bool
+  }
+
+and loop_block =
+  { while_pos  : Lexing.position;
+    loop_cond  : cfg_expr;
+    body_scope : cfg_basic_block list;
   }
 
 and decl =

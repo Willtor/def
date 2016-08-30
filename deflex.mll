@@ -27,6 +27,9 @@ rule deflex = parse
 | "then" { THEN (lexeme_start_p lexbuf) }
 | "else" { ELSE (lexeme_start_p lexbuf) }
 | "fi"   { FI (lexeme_start_p lexbuf) }
+| "while" { WHILE (lexeme_start_p lexbuf) }
+| "do" { DO (lexeme_start_p lexbuf) }
+| "done" { DONE (lexeme_start_p lexbuf) }
 | ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf, str) }
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
     { IDENT (lexeme_start_p lexbuf, ident) }

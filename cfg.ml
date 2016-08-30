@@ -17,6 +17,7 @@ type cfg_expr =
 
 type cfg_basic_block =
   | BB_Cond of conditional_block
+  | BB_Loop of loop_block
   | BB_Expr of Lexing.position * cfg_expr
   | BB_Return of Lexing.position * cfg_expr
   | BB_ReturnVoid of Lexing.position
@@ -24,13 +25,19 @@ type cfg_basic_block =
 and conditional_block =
   { if_pos       : Lexing.position;
     fi_pos       : Lexing.position;
-    cond         : cfg_expr;
+    branch_cond  : cfg_expr;
 
     then_scope   : cfg_basic_block list;
     then_returns : bool;
 
     else_scope   : cfg_basic_block list;
     else_returns : bool
+  }
+
+and loop_block =
+  { while_pos  : Lexing.position;
+    loop_cond  : cfg_expr;
+    body_scope : cfg_basic_block list;
   }
 
 and decl =
@@ -80,6 +87,7 @@ let rec returns_p stmts =
     | IfStmt (_, _, t, None) -> ret
     | IfStmt (_, _, t, Some e) ->
        ((returns_p t) && (returns_p e)) || ret
+    | WhileLoop _ -> ret
     | Return _ -> true
     | ReturnVoid _ -> true
   in List.fold_left r false stmts
@@ -215,7 +223,10 @@ let build_bbs name decltable body =
         { decl_pos = pos; mappedname = name; tp = tp })
     params;
 
-  let rec process_bb scope (decls, bbs) = function
+  let rec process_block scope decls =
+    List.fold_left
+      (process_bb (push_symtab_scope scope)) (decls, [])
+  and process_bb scope (decls, bbs) = function
     | StmtExpr (pos, expr) ->
        let _, expr = convert_expr scope expr in
        decls, BB_Expr (pos, expr) :: bbs
@@ -237,27 +248,33 @@ let build_bbs name decltable body =
            BB_Expr (pos, expr) :: bbs)
        end
     | IfStmt (pos, cond, then_block, else_block_maybe) ->
-       let process_block decls =
-         List.fold_left
-           (process_bb (push_symtab_scope scope)) (decls, [])
-       in
        let (decls, else_scope), else_returns = match else_block_maybe with
          | None -> (decls, []), false
-         | Some stmts -> process_block decls stmts, returns_p stmts
+         | Some stmts -> process_block scope decls stmts, returns_p stmts
        in
-       let decls, then_scope = process_block decls then_block in
+       let decls, then_scope = process_block scope decls then_block in
        let tp, conv_cond = convert_expr scope cond in
        let block =
          { if_pos = pos;
            fi_pos = pos; (* FIXME! *)
-           cond   = cast tp "bool" conv_cond;
-           then_scope = then_scope;
+           branch_cond = cast tp "bool" conv_cond;
+           then_scope = List.rev then_scope;
            then_returns = returns_p then_block;
-           else_scope = else_scope;
+           else_scope = List.rev else_scope;
            else_returns = else_returns
          }
        in
        decls, (BB_Cond block) :: bbs
+
+    | WhileLoop (pos, cond, body) ->
+       let decls, body_scope = process_block scope decls body in
+       let tp, conv_cond = convert_expr scope cond in
+       let block =
+         { while_pos = pos;
+           loop_cond = cast tp "bool" conv_cond;
+           body_scope = List.rev body_scope
+         }
+       in decls, (BB_Loop block) :: bbs
 
     | Return (pos, expr) ->
        let _, expr = convert_expr scope expr in (* FIXME: Verify return type. *)

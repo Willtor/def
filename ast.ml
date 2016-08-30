@@ -42,6 +42,7 @@ type stmt =
   | DefFcn of position * string * vartype * stmt list
   | VarDecl of position * string * vartype * (position * expr) option
   | IfStmt of position * expr * stmt list * stmt list option
+  | WhileLoop of position * expr * stmt list
   | Return of position * expr
   | ReturnVoid of position
 

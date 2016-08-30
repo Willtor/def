@@ -66,7 +66,9 @@ let process_expr data varmap =
     | OperGTE _ -> standard_op (build_icmp Icmp.Sge) "def_ge"
     | OperEquals _ -> standard_op (build_icmp Icmp.Eq) "def_eq"
     | OperAssign _ ->
-       build_store (expr_gen true right) (expr_gen false left) bldr
+       let rhs = expr_gen true right in
+       let _ = build_store rhs (expr_gen false left) bldr in
+       rhs
     | _ -> failwith "llvm_operator not fully implemented"
   and expr_gen rvalue_p = function
     | Expr_FcnCall (name, args) ->
@@ -86,7 +88,7 @@ let process_expr data varmap =
 let rec process_body data llfcn varmap cfg_bbs entry_bb =
   let process_bb bb = function
     | BB_Cond conditional ->
-       let cond = process_expr data varmap conditional.cond in
+       let cond = process_expr data varmap conditional.branch_cond in
 
        (* then-branch *)
        let then_start = append_block data.ctx "then" llfcn in
@@ -121,6 +123,26 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
               position_at_end merge_bb data.bldr;
               merge_bb
             end
+    | BB_Loop block ->
+       (* New block for the condition. *)
+       let cond_bb = append_block data.ctx "loop" llfcn in
+       let _ = build_br cond_bb data.bldr in
+       let () = position_at_end cond_bb data.bldr in
+       let cond = process_expr data varmap block.loop_cond in
+
+       (* Loop body. *)
+       let body_bb = append_block data.ctx "loop_body" llfcn in
+       let () = position_at_end body_bb data.bldr in
+       let _ =
+         process_body data llfcn varmap block.body_scope body_bb in
+       let _ = build_br cond_bb data.bldr in
+
+       (* Follow block. *)
+       let follow_bb = append_block data.ctx "loop_follow" llfcn in
+       let () = position_at_end cond_bb data.bldr in
+       let _ = build_cond_br cond body_bb follow_bb data.bldr in
+       let () = position_at_end follow_bb data.bldr in
+       follow_bb
 
     | BB_Expr (_, expr) ->
        begin ignore (process_expr data varmap expr); bb end
