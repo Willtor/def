@@ -160,16 +160,8 @@ let build_fcn_call scope pos name args =
             let casted_args = List.map2 match_param_with_arg params args in
             "i32", decl.mappedname, casted_args
           with _ ->
-            fatal_error ("Called function " ^ name ^ " with "
-                         ^ (string_of_int (List.length args))
-                         ^ " arguments at "
-                         ^ (format_position pos) ^ "\n"
-                         ^ (show_source pos) ^ "\n"
-                         ^ "As declared, it requires "
-                         ^ (string_of_int (List.length params))
-                         ^ " arguments.  Declared at "
-                         ^ (format_position decl.decl_pos) ^ "\n"
-                         ^ (show_source decl.decl_pos))
+            Report.err_wrong_number_of_args pos decl.decl_pos name
+              (List.length params) (List.length args)
         end
      | VarType (dpos, _) ->
         fatal_error ("Unable to call non-function " ^ name ^ " "
