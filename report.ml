@@ -35,3 +35,13 @@ let err_called_non_fcn use_pos decl_pos name =
     ^ "  Declared at " ^ (format_position decl_pos) ^ "\n"
     ^ (show_source decl_pos)
   in fatal_error err
+
+(** Declared a new variable with the same name as another one in the same
+    scope. *)
+let err_redeclared_variable pos orig_pos var =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Redeclared variable \"" ^ var ^ "\".\n"
+    ^ (show_source pos) ^ "\n"
+    ^ "  Originally declared at " ^ (format_position orig_pos) ^ "\n"
+    ^ (show_source pos)
+  in fatal_error err

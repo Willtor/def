@@ -192,7 +192,7 @@ let nonconflicting_name pos scope name =
     | _ ->
        "_def_" ^ name ^ "_" ^ (string_of_int pos.pos_lnum)
   end
-  | _ -> fatal_error "FIXME: Error message for redeclaring a variable."
+  | Some decl -> Report.err_redeclared_variable pos decl.decl_pos name
 
 let build_bbs name decltable body =
   let fcndecl = the (lookup_symbol decltable name) in
