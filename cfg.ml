@@ -71,18 +71,20 @@ let global_decls decltable = function
         in
         add_symbol decltable name fcn
      end
-  | _ -> failwith "FIXME: Incomplete implementation Cfg.global_decls."
+  | _ -> Report.err_internal __FILE__ __LINE__
+     "FIXME: Incomplete implementation of Cfg.global_decls."
 
 let get_fcntype_profile = function
   | FcnType (params, ret) -> (params, ret)
-  | _ -> fatal_error "Internal error: Unexpected function type."
+  | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
 (** Return true iff the series of Ast.stmts returns on all paths. *)
 let rec returns_p stmts =
   let r ret = function
     | StmtExpr _ -> ret
     | Block (_, stmts) -> (returns_p stmts) || ret
-    | DefFcn _ -> failwith "FIXME: Unhandled case in Cfg.returns_p"
+    | DefFcn _ -> Report.err_internal __FILE__ __LINE__
+       "FIXME: Unhandled case in Cfg.returns_p"
     | VarDecl _ -> ret
     | IfStmt (_, _, t, None) -> ret
     | IfStmt (_, _, t, Some e) ->
@@ -137,7 +139,8 @@ let binary_reconcile =
        "bool", lexpr, rexpr
     | OperAssign pos ->
        docompare_prefer_left pos op ltype lexpr rtype rexpr
-    | _ -> failwith "FIXME: Incomplete implementation Cfg.reconcile."
+    | _ -> Report.err_internal __FILE__ __LINE__
+       "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
 
 let cast orig target expr =
@@ -182,7 +185,8 @@ let convert_expr scope =
        let tp, lhs, rhs = binary_reconcile op (convert lhs) (convert rhs)
        in tp, Expr_Binary (op, lhs, rhs)
     | ExprAtom atom -> convert_atom atom
-    | _ -> failwith "FIXME: Cfg.convert_expr not fully implemented."
+    | _ -> Report.err_internal __FILE__ __LINE__
+       "FIXME: Cfg.convert_expr not fully implemented."
   in convert
 
 let nonconflicting_name pos scope name =
@@ -217,7 +221,8 @@ let build_bbs name decltable body =
        List.fold_left
          (process_bb (push_symtab_scope scope)) (decls, bbs) stmts
     | DefFcn _ ->
-       failwith "FIXME: DefFcn not implemented Cfg.build_bbs"
+       Report.err_internal __FILE__ __LINE__
+         "FIXME: DefFcn not implemented Cfg.build_bbs"
     | VarDecl (pos, name, tp, initializer_maybe) ->
        let mappedname = nonconflicting_name pos scope name in
        let decl = { decl_pos = pos; mappedname = mappedname; tp = tp } in

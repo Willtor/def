@@ -1,6 +1,13 @@
 open Ast
 open Util
 
+(** Report an internal error. *)
+let err_internal file line msg =
+  let err = "Internal error: file \"" ^ file ^ "\" line "
+    ^ (string_of_int line) ^ ".\n"
+    ^ msg
+  in fatal_error err
+
 (** Error: The operator was invalid for the type being operated on. *)
 let err_invalid_op pos op tpname =
   let err = "At " ^ (format_position pos) ^ ":\n"
