@@ -2,6 +2,17 @@
 open Lexing
 open Types
 
+type literal =
+  | LitBool of Lexing.position * bool
+  (* schar, uchar *)
+  | LitI16 of Lexing.position * int32 
+  | LitU16 of Lexing.position * int32
+  | LitI32 of Lexing.position * int32
+  | LitU32 of Lexing.position * int32
+  | LitI64 of Lexing.position * int64
+  | LitU64 of Lexing.position * int64
+  (* floating point *)
+
 type operator =
   | OperIncr of position | OperDecr of position
   | OperMinus of position | OperPlus of position
@@ -31,7 +42,7 @@ type expr =
   | ExprPreUnary of operator * expr
   | ExprPostUnary of operator * expr
   | ExprVar of position * string
-  | ExprLit of primitive
+  | ExprLit of literal
   | ExprCast of position * vartype * expr
 
 type stmt =

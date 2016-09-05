@@ -1,7 +1,6 @@
 %{
   open Ast
   open Lexing
-  open Types
 %}
 
 %token <Lexing.position * int64> LITERALI64 LITERALU64
@@ -131,13 +130,13 @@ exprlist:
 | e = expr { [e] }
 
 expr:
-| i = LITERALI64 { let (pos, n) = i in pos, ExprLit (PrimI64 (pos, n)) }
-| i = LITERALU64 { let (pos, n) = i in pos, ExprLit (PrimU64 (pos, n)) }
-| i = LITERALI32 { let (pos, n) = i in pos, ExprLit (PrimI32 (pos, n)) }
-| i = LITERALU32 { let (pos, n) = i in pos, ExprLit (PrimU32 (pos, n)) }
-| i = LITERALI16 { let (pos, n) = i in pos, ExprLit (PrimI16 (pos, n)) }
-| i = LITERALU16 { let (pos, n) = i in pos, ExprLit (PrimU16 (pos, n)) }
-| i = LITERALBOOL { let (pos, b) = i in pos, ExprLit (PrimBool (pos, b)) }
+| i = LITERALI64 { let (pos, n) = i in pos, ExprLit (LitI64 (pos, n)) }
+| i = LITERALU64 { let (pos, n) = i in pos, ExprLit (LitU64 (pos, n)) }
+| i = LITERALI32 { let (pos, n) = i in pos, ExprLit (LitI32 (pos, n)) }
+| i = LITERALU32 { let (pos, n) = i in pos, ExprLit (LitU32 (pos, n)) }
+| i = LITERALI16 { let (pos, n) = i in pos, ExprLit (LitI16 (pos, n)) }
+| i = LITERALU16 { let (pos, n) = i in pos, ExprLit (LitU16 (pos, n)) }
+| i = LITERALBOOL { let (pos, b) = i in pos, ExprLit (LitBool (pos, b)) }
 | str = STRING { let (pos, s) = str in pos, ExprString (pos, s) }
 | s = IDENT LPAREN RPAREN
     { let (pos, ident) = s in (pos, ExprFcnCall (pos, ident, [])) }

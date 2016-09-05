@@ -42,7 +42,7 @@ let deftype2llvmtype typemap =
   in convert
 
 let process_literal typemap = function
-  | PrimI32 (_, n) ->
+  | LitI32 (_, n) ->
      const_int (the (lookup_symbol typemap "i32")) (Int32.to_int n)
   | _ -> failwith "Irfactory.process_literal not fully implemented."
 
