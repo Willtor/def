@@ -10,14 +10,16 @@
     "Lexing Error: " ^ (format_position pos) ^ "\n"
     ^ (show_source pos) ^ "\n"
     ^ "Unexpected char: " ^ (lexeme lexbuf)
+
+  let remove_suffix s =
+    let length = String.length s in
+    String.sub s 0 (length - 3)
 }
 
 rule deflex = parse
 | [' ' '\t']+
     { deflex lexbuf }
 | '\n' { new_line lexbuf; deflex lexbuf }
-| ['0'-'9']+ as i_str
-    { INTEGER (lexeme_start_p lexbuf, int_of_string i_str) }
 | "begin" { BEGIN (lexeme_start_p lexbuf) }
 | "end" { END (lexeme_start_p lexbuf) }
 | "def" { DEF (lexeme_start_p lexbuf) }
@@ -31,6 +33,39 @@ rule deflex = parse
 | "do" { DO (lexeme_start_p lexbuf) }
 | "done" { DONE (lexeme_start_p lexbuf) }
 | ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf, str) }
+
+(* Integers. *)
+
+| ['0'-'9']+"I64" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I64" as istr
+    { LITERALI64 (lexeme_start_p lexbuf,
+                  Int64.of_string (remove_suffix istr)) }
+| ['0'-'9']+"U64" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U64" as istr
+    { LITERALU64 (lexeme_start_p lexbuf,
+                  Int64.of_string (remove_suffix istr)) }
+| ['0'-'9']+"I32" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I32" as istr
+    { LITERALI32 (lexeme_start_p lexbuf,
+                  Int32.of_string (remove_suffix istr)) }
+| ['0'-'9']+"U32" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U32" as istr
+    { LITERALU32 (lexeme_start_p lexbuf,
+                  Int32.of_string (remove_suffix istr)) }
+| ['0'-'9']+"I16" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I16" as istr
+    { LITERALI16 (lexeme_start_p lexbuf,
+                  Int32.of_string (remove_suffix istr)) }
+| ['0'-'9']+"U16" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U16" as istr
+    { LITERALU16 (lexeme_start_p lexbuf,
+                  Int32.of_string (remove_suffix istr)) }
+| ['0'-'9']+ as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+ as istr
+    { LITERALI32 (lexeme_start_p lexbuf, Int32.of_string istr) }
+
+| "true" { LITERALBOOL (lexeme_start_p lexbuf, true) }
+| "false" { LITERALBOOL (lexeme_start_p lexbuf, false) }
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
     { IDENT (lexeme_start_p lexbuf, ident) }
 (* Operators. *)

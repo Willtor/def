@@ -1,9 +1,13 @@
 %{
   open Ast
   open Lexing
+  open Types
 %}
 
-%token <Lexing.position * int> INTEGER
+%token <Lexing.position * int64> LITERALI64 LITERALU64
+%token <Lexing.position * int32> LITERALI32 LITERALU32
+%token <Lexing.position * int32> LITERALI16 LITERALU16
+%token <Lexing.position * bool> LITERALBOOL
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
 %token <Lexing.position> DEF VAR RETURN BEGIN END IF THEN ELSE FI
@@ -83,7 +87,7 @@ statement:
     { let (pos, name) = id
       and (_, expr) = p_n_e in
       let init = ExprBinary (OperAssign (eq),
-                             ExprAtom (AtomVar (pos, name)),
+                             ExprVar (pos, name),
                              expr) in
       VarDecl (pos, name, tp, Some (eq, init)) }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
@@ -127,18 +131,24 @@ exprlist:
 | e = expr { [e] }
 
 expr:
-| i = INTEGER { let (pos, n) = i in (pos, ExprAtom (AtomInt (pos, n))) }
-| str = STRING { let (pos, s) = str in (pos, ExprString (pos, s)) }
+| i = LITERALI64 { let (pos, n) = i in pos, ExprLit (PrimI64 (pos, n)) }
+| i = LITERALU64 { let (pos, n) = i in pos, ExprLit (PrimU64 (pos, n)) }
+| i = LITERALI32 { let (pos, n) = i in pos, ExprLit (PrimI32 (pos, n)) }
+| i = LITERALU32 { let (pos, n) = i in pos, ExprLit (PrimU32 (pos, n)) }
+| i = LITERALI16 { let (pos, n) = i in pos, ExprLit (PrimI16 (pos, n)) }
+| i = LITERALU16 { let (pos, n) = i in pos, ExprLit (PrimU16 (pos, n)) }
+| i = LITERALBOOL { let (pos, b) = i in pos, ExprLit (PrimBool (pos, b)) }
+| str = STRING { let (pos, s) = str in pos, ExprString (pos, s) }
 | s = IDENT LPAREN RPAREN
     { let (pos, ident) = s in (pos, ExprFcnCall (pos, ident, [])) }
 | s = IDENT LPAREN pos_n_exprs = exprlist RPAREN
     { let (pos, ident) = s in
       let elist = List.map (fun (_, e) -> e) pos_n_exprs
       in
-      (pos, ExprFcnCall (pos, ident, elist)) }
+      pos, ExprFcnCall (pos, ident, elist) }
 | s = IDENT
-    { let (pos, ident) = s in (pos, ExprAtom (AtomVar (pos, ident))) }
-| pos = LPAREN p_n_e = expr RPAREN { let (_, e) = p_n_e in (pos, e) }
+    { let (pos, ident) = s in pos, ExprVar (pos, ident) }
+| pos = LPAREN p_n_e = expr RPAREN { let (_, e) = p_n_e in pos, e }
 | p_n_e = expr p = INCREMENT
     { let (exprpos, e) = p_n_e in
       (exprpos, ExprPostUnary (OperIncr p, e)) }

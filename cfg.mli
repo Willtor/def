@@ -1,12 +1,8 @@
-type cfg_literal =
-  | I32 of int32
-  | Bool of bool
-
 type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_Binary of Ast.operator * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * cfg_expr * bool
-  | Expr_Literal of cfg_literal
+  | Expr_Literal of Types.primitive
   | Expr_Variable of string
   | Expr_Cast of string * string * cfg_expr
 

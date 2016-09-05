@@ -1,5 +1,6 @@
 
 open Lexing
+open Types
 
 type operator =
   | OperIncr of position | OperDecr of position
@@ -19,10 +20,6 @@ type operator =
   | OperBAndAssign of position
   | OperBXorAssign of position | OperBOrAssign of position
 
-type atom =
-  | AtomInt of position * int
-  | AtomVar of position * string
-
 type vartype =
   | VarType of position * string
   | FcnType of (position * string * vartype) list * vartype
@@ -33,7 +30,8 @@ type expr =
   | ExprBinary of operator * expr * expr
   | ExprPreUnary of operator * expr
   | ExprPostUnary of operator * expr
-  | ExprAtom of atom
+  | ExprVar of position * string
+  | ExprLit of primitive
   | ExprCast of position * vartype * expr
 
 type stmt =
@@ -81,10 +79,6 @@ let operator2string = function
   | OperBXorAssign _ -> "^="
   | OperBOrAssign _ -> "|="
 
-let atom2string = function
-  | AtomInt (_, i) -> (string_of_int i)
-  | AtomVar (_, s) -> s
-
 let rec vartype2string = function
   | VarType (_, s) -> s
   | FcnType (args, ret) ->
@@ -109,8 +103,7 @@ let rec expr2string = function
      "(pre " ^ (operator2string op) ^ " " ^ (expr2string e) ^ ")"
   | ExprPostUnary (op, e) ->
      "(post " ^ (operator2string op) ^ " " ^ (expr2string e) ^ ")"
-  | ExprAtom a ->
-     atom2string a
+  | ExprLit _ | ExprVar _ -> failwith "Not implemented."
   | ExprCast (_, vt, e) ->
      "(" ^ (vartype2string vt) ^ ")" ^ (expr2string e)
 

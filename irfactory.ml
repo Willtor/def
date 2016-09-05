@@ -1,6 +1,7 @@
 open Ast
 open Cfg
 open Llvm
+open Types
 open Util
 
 exception ProcessingError of string
@@ -41,7 +42,8 @@ let deftype2llvmtype typemap =
   in convert
 
 let process_literal typemap = function
-  | I32 n -> const_int (the (lookup_symbol typemap "i32")) (Int32.to_int n)
+  | PrimI32 (_, n) ->
+     const_int (the (lookup_symbol typemap "i32")) (Int32.to_int n)
   | _ -> failwith "Irfactory.process_literal not fully implemented."
 
 let process_variable varmap name =

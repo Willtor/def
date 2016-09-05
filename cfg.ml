@@ -3,15 +3,11 @@ open Lexing
 open Types
 open Util
 
-type cfg_literal =
-  | I32 of int32
-  | Bool of bool
-
 type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_Binary of Ast.operator * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * cfg_expr * bool
-  | Expr_Literal of cfg_literal
+  | Expr_Literal of Types.primitive
   | Expr_Variable of string
   | Expr_Cast of string * string * cfg_expr
 
@@ -170,12 +166,6 @@ let build_fcn_call scope pos name args =
      end
 
 let convert_expr scope =
-  let convert_atom = function
-    | AtomInt (pos, i) -> "i32", Expr_Literal (I32 (Int32.of_int i))
-    | AtomVar (pos, name) ->
-       let var = the (lookup_symbol scope name)
-       in "i32", Expr_Variable var.mappedname (* FIXME! Wrong type. *)
-  in
   let rec convert = function
     | ExprFcnCall (pos, name, args) ->
        let converted_args = List.map convert args in
@@ -184,7 +174,10 @@ let convert_expr scope =
     | ExprBinary (op, lhs, rhs) ->
        let tp, lhs, rhs = binary_reconcile op (convert lhs) (convert rhs)
        in tp, Expr_Binary (op, lhs, rhs)
-    | ExprAtom atom -> convert_atom atom
+    | ExprVar (pos, name) ->
+       let var = the (lookup_symbol scope name)
+       in "i32", Expr_Variable var.mappedname (* FIXME! Wrong type. *)
+    | ExprLit literal -> "i32", Expr_Literal literal (* FIXME! *)
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
   in convert
