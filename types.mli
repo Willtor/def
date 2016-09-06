@@ -20,8 +20,6 @@ val generalize_primitives : primitive -> primitive -> primitive
     the types are identical and non-zero indicates non-identical. *)
 val compare : deftype -> deftype -> int
 
-(** name, kind, bit-width, llvm type *)
-val map_builtin_types : (string
-                         * typecategory
-                         * int
-                         * (Llvm.llcontext -> Llvm.lltype)) list
+(** name, type, llvm type constructor *)
+val map_builtin_types :
+  (string * primitive * (Llvm.llcontext -> Llvm.lltype)) list

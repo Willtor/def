@@ -21,7 +21,7 @@ let get_fcntype = function
 let builtin_types ctx =
   let typemap = make_symtab () in
   List.iter
-    (fun (name, _, _, f) -> add_symbol typemap name (f ctx))
+    (fun (name, _, f) -> add_symbol typemap name (f ctx))
     Types.map_builtin_types;
   typemap
 
@@ -34,6 +34,7 @@ let deftype2llvmtype typemap =
        begin match lookup_symbol typemap typename with
        | Some t -> t
        | None ->
+          (* FIXME: Should be in Report module. *)
           let errstr = "Unknown type \"" ^ typename ^ "\": "
             ^ (format_position pos) ^ "\n"
             ^ (show_source pos)

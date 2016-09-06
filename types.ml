@@ -64,6 +64,13 @@ let compare t1 t2 =
      compare_primitives p1 p2
   | _ -> failwith "Types.compare not fully implemented."
 
+(** name, type, llvm type constructor *)
 let map_builtin_types =
-  [ ("i32", SignedInteger, 32, i32_type);
-    ("bool", SignedInteger, 1, i1_type) ]
+  [ ("bool", PrimBool, i1_type);
+    ("i16", PrimI16, i16_type);
+    ("u16", PrimU16, i16_type);
+    ("i32", PrimI32, i32_type);
+    ("u32", PrimU32, i32_type);
+    ("i64", PrimI64, i64_type);
+    ("u64", PrimU64, i64_type) ]
+
