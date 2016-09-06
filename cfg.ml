@@ -9,7 +9,7 @@ type cfg_expr =
   | Expr_Unary of Ast.operator * cfg_expr * bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
-  | Expr_Cast of string * string * cfg_expr
+  | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
 
 type cfg_basic_block =
   | BB_Cond of conditional_block
@@ -90,33 +90,16 @@ let rec returns_p stmts =
     | ReturnVoid _ -> true
   in List.fold_left r false stmts
 
+let maybe_cast orig cast_as expr =
+  if 0 == (Types.compare orig cast_as) then expr
+  else Expr_Cast (orig, cast_as, expr)
+
 let binary_reconcile =
-  (* FIXME: Need to return an Ast.vartype instead of a string. *)
-  let types = Hashtbl.create 32 in
-  List.iter (fun (n, category, width, _) ->
-    Hashtbl.add types n (category, width))
-    Types.map_builtin_types;
-  let get_type pos op name =
-    try Hashtbl.find types name
-    with _ -> Report.err_invalid_op pos op name
-  in
-  let docompare pos op ltype lexpr rtype rexpr =
-    let lcategory, lwidth = get_type pos op ltype
-    and rcategory, rwidth = get_type pos op rtype in
-    match lcategory, rcategory with
-    | SignedInteger, SignedInteger ->
-       if lwidth == rwidth then ltype, lexpr, rexpr
-       else if lwidth < rwidth then
-         rtype, Expr_Cast (ltype, rtype, lexpr), rexpr
-       else ltype, lexpr, Expr_Cast (rtype, ltype, rexpr)
-  in
-  let docompare_prefer_left pos op ltype lexpr rtype rexpr =
-    let lcategory, lwidth = get_type pos op ltype
-    and rcategory, rwidth = get_type pos op rtype in
-    match lcategory, rcategory with
-    | SignedInteger, SignedInteger ->
-       if lwidth == rwidth then ltype, lexpr, rexpr
-       else ltype, lexpr, Expr_Cast (rtype, ltype, rexpr)
+  let more_general_of pos op ltype rtype =
+    match ltype, rtype with
+    | DefTypePrimitive lprim, DefTypePrimitive rprim ->
+       DefTypePrimitive (generalize_primitives lprim rprim)
+    | _ -> failwith "FIXME: more_general_of incomplete."
   in
   let reconcile op (ltype, lexpr) (rtype, rexpr) =
     match op with
@@ -124,25 +107,23 @@ let binary_reconcile =
     | OperMinus pos
     | OperMult pos
     | OperDiv pos ->
-       docompare pos op ltype lexpr rtype rexpr
+       let tp = more_general_of pos op ltype rtype in
+       tp, (maybe_cast ltype tp lexpr), (maybe_cast rtype tp rexpr)
     | OperLT pos
     | OperLTE pos
     | OperGT pos
     | OperGTE pos
     | OperEquals pos
     | OperNEquals pos ->
-       let _, lexpr, rexpr = docompare pos op ltype lexpr rtype rexpr in
-       "bool", lexpr, rexpr
+       let tp = more_general_of pos op ltype rtype in
+       DefTypePrimitive PrimBool,
+       (maybe_cast ltype tp lexpr),
+       (maybe_cast rtype tp rexpr)
     | OperAssign pos ->
-       docompare_prefer_left pos op ltype lexpr rtype rexpr
+       ltype, lexpr, (maybe_cast rtype ltype rexpr)
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
-
-let cast orig target expr =
-(* FIXME: Fake implementation. *)
-  if 0 == (String.compare orig target) then expr
-  else Expr_Cast (orig, target, expr)
 
 let build_fcn_call scope pos name args =
   match lookup_symbol scope name with
@@ -157,7 +138,7 @@ let build_fcn_call scope pos name args =
         begin
           try
             let casted_args = List.map2 match_param_with_arg params args in
-            "i32", decl.mappedname, casted_args
+            DefTypePrimitive PrimI32, decl.mappedname, casted_args
           with _ ->
             Report.err_wrong_number_of_args pos decl.decl_pos name
               (List.length params) (List.length args)
@@ -176,8 +157,11 @@ let convert_expr scope =
        in tp, Expr_Binary (op, lhs, rhs)
     | ExprVar (pos, name) ->
        let var = the (lookup_symbol scope name)
-       in "i32", Expr_Variable var.mappedname (* FIXME! Wrong type. *)
-    | ExprLit literal -> "i32", Expr_Literal literal (* FIXME! *)
+       and tp = DefTypePrimitive PrimI32
+       in tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
+    | ExprLit literal ->
+       let tp = DefTypePrimitive PrimI32
+       in tp, Expr_Literal literal (* FIXME! *)
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
   in convert
@@ -238,7 +222,7 @@ let build_bbs name decltable body =
        let block =
          { if_pos = pos;
            fi_pos = pos; (* FIXME! *)
-           branch_cond = cast tp "bool" conv_cond;
+           branch_cond = maybe_cast tp (DefTypePrimitive PrimBool) conv_cond;
            then_scope = List.rev then_scope;
            then_returns = returns_p then_block;
            else_scope = List.rev else_scope;
@@ -252,7 +236,7 @@ let build_bbs name decltable body =
        let tp, conv_cond = convert_expr scope cond in
        let block =
          { while_pos = pos;
-           loop_cond = cast tp "bool" conv_cond;
+           loop_cond = maybe_cast tp (DefTypePrimitive PrimBool) conv_cond;
            body_scope = List.rev body_scope
          }
        in decls, (BB_Loop block) :: bbs

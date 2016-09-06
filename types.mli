@@ -13,6 +13,13 @@ type deftype =
 type typecategory =
   | SignedInteger
 
+(** Return the more general of the two primitive types. *)
+val generalize_primitives : primitive -> primitive -> primitive
+
+(** Compare two types for equality.  There is no ordering, so zero indicates
+    the types are identical and non-zero indicates non-identical. *)
+val compare : deftype -> deftype -> int
+
 (** name, kind, bit-width, llvm type *)
 val map_builtin_types : (string
                          * typecategory

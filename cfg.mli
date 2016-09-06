@@ -4,7 +4,7 @@ type cfg_expr =
   | Expr_Unary of Ast.operator * cfg_expr * bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
-  | Expr_Cast of string * string * cfg_expr
+  | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
 
 type cfg_basic_block =
   | BB_Cond of conditional_block

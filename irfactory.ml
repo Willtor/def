@@ -84,6 +84,7 @@ let process_expr data varmap =
        else v
     | Expr_Binary (op, left, right) ->
        llvm_binop op left right data.bldr
+    | Expr_Cast (_, _, _) -> failwith "IRFactory: No expression casting, yet."
     | _ -> failwith "expr_gen not fully implemented."
   in expr_gen true
 
