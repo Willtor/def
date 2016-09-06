@@ -90,10 +90,20 @@ let rec returns_p stmts =
     | ReturnVoid _ -> true
   in List.fold_left r false stmts
 
+(** Return a casted version of the expression, if the original type doesn't
+    match the desired type. *)
 let maybe_cast orig cast_as expr =
   if 0 == (Types.compare orig cast_as) then expr
   else Expr_Cast (orig, cast_as, expr)
 
+let check_castability pos ltype rtype =
+  match ltype, rtype with
+  | DefTypePrimitive lprim, DefTypePrimitive rprim ->
+     ()  (* FIXME: Implement. *)
+  | _ -> failwith "FIXME: check_castability incomplete."
+
+(** Reconcile the types of two subexpressions connected by a binary operator
+    and return the result.  The result may include implicit casts. *)
 let binary_reconcile =
   let more_general_of pos op ltype rtype =
     match ltype, rtype with
@@ -120,7 +130,10 @@ let binary_reconcile =
        (maybe_cast ltype tp lexpr),
        (maybe_cast rtype tp rexpr)
     | OperAssign pos ->
-       ltype, lexpr, (maybe_cast rtype ltype rexpr)
+       begin
+         check_castability pos rtype ltype;
+         ltype, lexpr, (maybe_cast rtype ltype rexpr)
+       end
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
@@ -219,6 +232,7 @@ let build_bbs name decltable body =
        in
        let decls, then_scope = process_block scope decls then_block in
        let tp, conv_cond = convert_expr scope cond in
+       let () = check_castability pos tp (DefTypePrimitive PrimBool) in
        let block =
          { if_pos = pos;
            fi_pos = pos; (* FIXME! *)
@@ -234,6 +248,7 @@ let build_bbs name decltable body =
     | WhileLoop (pos, cond, body) ->
        let decls, body_scope = process_block scope decls body in
        let tp, conv_cond = convert_expr scope cond in
+       let () = check_castability pos tp (DefTypePrimitive PrimBool) in
        let block =
          { while_pos = pos;
            loop_cond = maybe_cast tp (DefTypePrimitive PrimBool) conv_cond;
