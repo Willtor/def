@@ -14,13 +14,6 @@ type llvm_data =
     prog : program
   }
 
-let primitive_names =
-  let hash = Hashtbl.create 16 in
-  List.iter (fun (n, prim, _) ->
-    Hashtbl.add hash prim n)
-    Types.map_builtin_primitives;
-  hash
-
 let get_fcntype = function
   | DefTypeFcn (params, ret) -> params, ret
   | _ -> fatal_error "Internal error.  Function not of DefTypeFcn."
@@ -38,7 +31,7 @@ let deftype2llvmtype typemap =
        let llvmargs = List.map (fun argtp -> convert argtp) args in
        function_type (convert ret) (Array.of_list llvmargs)
     | DefTypePrimitive prim ->
-       let name = Hashtbl.find primitive_names prim in
+       let name = primitive2string prim in
        the (lookup_symbol typemap name)
   in convert
 

@@ -74,3 +74,12 @@ let map_builtin_primitives =
     ("i64", PrimI64, i64_type);
     ("u64", PrimU64, i64_type) ]
 
+(** Convert a primitive type to its string representation. *)
+let primitive2string = function
+  | PrimBool -> "bool"
+  | PrimI16 -> "i16"
+  | PrimU16 -> "u16"
+  | PrimI32 -> "i32"
+  | PrimU32 -> "u32"
+  | PrimI64 -> "i64"
+  | PrimU64 -> "u64"
