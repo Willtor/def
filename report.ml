@@ -52,3 +52,9 @@ let err_redeclared_variable pos orig_pos var =
     ^ "  Originally declared at " ^ (format_position orig_pos) ^ "\n"
     ^ (show_source pos)
   in fatal_error err
+
+let err_unknown_typename pos name =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Unknown type name: " ^ name ^ ".\n"
+    ^ (show_source pos)
+  in fatal_error err

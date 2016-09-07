@@ -34,7 +34,8 @@ and loop_block =
 and decl =
   { decl_pos   : Lexing.position;
     mappedname : string;
-    tp         : Ast.vartype
+    tp         : Types.deftype;
+    params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
   }
 
 type function_defn =

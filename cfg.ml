@@ -39,7 +39,8 @@ and loop_block =
 and decl =
   { decl_pos   : Lexing.position;
     mappedname : string;
-    tp         : Ast.vartype
+    tp         : Types.deftype;
+    params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
   }
 
 type function_defn =
@@ -55,7 +56,35 @@ type program =
     fcnlist : function_defn list;
   }
 
-let global_decls decltable = function
+(** Get the type of an Ast.literal value. *)
+let typeof_literal lit =
+  let t = function
+    | LitBool _ -> PrimBool
+    | LitI16 _ -> PrimI16
+    | LitU16 _ -> PrimU16
+    | LitI32 _ -> PrimI32
+    | LitU32 _ -> PrimU32
+    | LitI64 _ -> PrimI64
+    | LitU64 _ -> PrimU64
+  in DefTypePrimitive (t lit)
+
+let rec convert_type typemap = function
+  | VarType (pos, name) ->
+     begin
+       match lookup_symbol typemap name with
+       | None -> Report.err_unknown_typename pos name
+       | Some t -> t
+     end
+  | FcnType (params, ret) ->
+     DefTypeFcn (List.map (fun (_, _, tp) -> convert_type typemap tp) params,
+                 convert_type typemap ret)
+
+let param_pos_names = function
+  | VarType _ -> []
+  | FcnType (params, _) ->
+     List.map (fun (pos, name, _) -> (pos, name)) params
+
+let global_decls decltable typemap = function
   | DefFcn (pos, name, tp, _) ->
      begin match lookup_symbol decltable name with
      | Some _ -> ()
@@ -63,7 +92,8 @@ let global_decls decltable = function
         let fcn =
           { decl_pos = pos;
             mappedname = name;
-            tp = tp }
+            tp = convert_type typemap tp;
+            params = param_pos_names tp }
         in
         add_symbol decltable name fcn
      end
@@ -71,7 +101,7 @@ let global_decls decltable = function
      "FIXME: Incomplete implementation of Cfg.global_decls."
 
 let get_fcntype_profile = function
-  | FcnType (params, ret) -> (params, ret)
+  | DefTypeFcn (params, ret) -> params, ret
   | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
 (** Return true iff the series of Ast.stmts returns on all paths. *)
@@ -142,21 +172,21 @@ let build_fcn_call scope pos name args =
   match lookup_symbol scope name with
   | None -> Report.err_unknown_fcn_call pos name
   | Some decl ->
-     let match_param_with_arg (_, _, ptype) (atype, expr) =
-     (* FIXME: Stub implementation.  Need to cast the argument or fail. *)
-       expr
+     let match_param_with_arg ptype (atype, expr) =
+       check_castability pos atype ptype;
+       maybe_cast atype ptype expr
      in
      begin match decl.tp with
-     | FcnType (params, _ (* FIXME: use rettp *)) ->
+     | DefTypeFcn (params, rettp) ->
         begin
           try
             let casted_args = List.map2 match_param_with_arg params args in
-            DefTypePrimitive PrimI32, decl.mappedname, casted_args
+            rettp, decl.mappedname, casted_args
           with _ ->
             Report.err_wrong_number_of_args pos decl.decl_pos name
               (List.length params) (List.length args)
         end
-     | VarType (dpos, _) -> Report.err_called_non_fcn pos dpos name
+     | DefTypePrimitive _ -> Report.err_called_non_fcn pos decl.decl_pos name
      end
 
 let convert_expr scope =
@@ -170,11 +200,9 @@ let convert_expr scope =
        in tp, Expr_Binary (op, lhs, rhs)
     | ExprVar (pos, name) ->
        let var = the (lookup_symbol scope name)
-       and tp = DefTypePrimitive PrimI32
-       in tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
+       in var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
     | ExprLit literal ->
-       let tp = DefTypePrimitive PrimI32
-       in tp, Expr_Literal literal (* FIXME! *)
+       (typeof_literal literal), Expr_Literal literal
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
   in convert
@@ -188,17 +216,17 @@ let nonconflicting_name pos scope name =
   end
   | Some decl -> Report.err_redeclared_variable pos decl.decl_pos name
 
-let build_bbs name decltable body =
+let build_bbs name decltable typemap body =
   let fcndecl = the (lookup_symbol decltable name) in
-  let (params, _) = get_fcntype_profile fcndecl.tp in
+  let param_types, _ = get_fcntype_profile fcndecl.tp in
 
   (* Add the function's parameters to the scope table. *)
   let fcnscope = push_symtab_scope decltable in
-  List.iter
-    (fun (pos, name, tp) ->
-      add_symbol fcnscope name
-        { decl_pos = pos; mappedname = name; tp = tp })
-    params;
+  List.iter2 (fun tp (pos, name) ->
+    add_symbol fcnscope name
+      { decl_pos = pos; mappedname = name; tp = tp; params = [] })
+    param_types
+    fcndecl.params;
 
   let rec process_block scope decls =
     List.fold_left
@@ -215,7 +243,10 @@ let build_bbs name decltable body =
          "FIXME: DefFcn not implemented Cfg.build_bbs"
     | VarDecl (pos, name, tp, initializer_maybe) ->
        let mappedname = nonconflicting_name pos scope name in
-       let decl = { decl_pos = pos; mappedname = mappedname; tp = tp } in
+       let decl = { decl_pos = pos;
+                    mappedname = mappedname;
+                    tp = convert_type typemap tp;
+                    params = param_pos_names tp } in
        add_symbol scope name decl;
        begin match initializer_maybe with
        | None -> (mappedname, decl) :: decls, bbs
@@ -265,18 +296,26 @@ let build_bbs name decltable body =
   let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
   List.rev decls, List.rev bbs
 
-let build_fcns decltable fcns = function
+let build_fcns decltable typemap fcns = function
   | DefFcn (pos, name, _, body) ->
-     let decls, bbs = build_bbs name decltable body in
+     let decls, bbs = build_bbs name decltable typemap body in
      let fcn = { defn_begin = pos; defn_end = pos; name = name;
                  local_vars = decls; bbs = bbs }
      in fcn :: fcns
   | _ -> fcns
 
+let builtin_types () =
+  let map = make_symtab () in
+  List.iter (fun (name, tp, _) ->
+    add_symbol map name (DefTypePrimitive tp))
+    Types.map_builtin_primitives;
+  map
+
 let convert_ast stmts =
+  let typemap = builtin_types () in
   let decltable = make_symtab () in
-  List.iter (global_decls decltable) stmts;
-  let fcnlist = List.fold_left (build_fcns decltable) [] stmts
+  List.iter (global_decls decltable typemap) stmts;
+  let fcnlist = List.fold_left (build_fcns decltable typemap) [] stmts
   in
   { global_decls = decltable;
     fcnlist = List.rev fcnlist }

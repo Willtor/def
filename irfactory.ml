@@ -14,32 +14,32 @@ type llvm_data =
     prog : program
   }
 
+let primitive_names =
+  let hash = Hashtbl.create 16 in
+  List.iter (fun (n, prim, _) ->
+    Hashtbl.add hash prim n)
+    Types.map_builtin_primitives;
+  hash
+
 let get_fcntype = function
-  | FcnType (params, ret) -> params, ret
-  | _ -> fatal_error "Internal error.  Function not of FcnType."
+  | DefTypeFcn (params, ret) -> params, ret
+  | _ -> fatal_error "Internal error.  Function not of DefTypeFcn."
 
 let builtin_types ctx =
   let typemap = make_symtab () in
   List.iter
     (fun (name, _, f) -> add_symbol typemap name (f ctx))
-    Types.map_builtin_types;
+    Types.map_builtin_primitives;
   typemap
 
 let deftype2llvmtype typemap =
   let rec convert = function
-    | FcnType (args, ret) ->
-       let llvmargs = List.map (fun (_, _, argtp) -> convert argtp) args in
+    | DefTypeFcn (args, ret) ->
+       let llvmargs = List.map (fun argtp -> convert argtp) args in
        function_type (convert ret) (Array.of_list llvmargs)
-    | VarType (pos, typename) ->
-       begin match lookup_symbol typemap typename with
-       | Some t -> t
-       | None ->
-          (* FIXME: Should be in Report module. *)
-          let errstr = "Unknown type \"" ^ typename ^ "\": "
-            ^ (format_position pos) ^ "\n"
-            ^ (show_source pos)
-          in raise (ProcessingError errstr)
-       end
+    | DefTypePrimitive prim ->
+       let name = Hashtbl.find primitive_names prim in
+       the (lookup_symbol typemap name)
   in convert
 
 let process_literal typemap = function
@@ -167,12 +167,12 @@ let process_fcn data symbols fcn =
   position_at_end bb data.bldr;
   let (args, _) = get_fcntype profile.tp in
   let llparams = params llfcn in
-  List.iteri (fun i (pos, n, tp) ->
+  List.iteri (fun i ((pos, n), tp) ->
     let alloc = build_alloca (deftype2llvmtype data.typemap tp) n data.bldr
     in begin
       add_symbol varmap n (pos, tp, alloc);
       ignore (build_store llparams.(i) alloc data.bldr);
-    end) args;
+    end) (List.combine profile.params args);
   List.iter (fun (name, decl) ->
     let alloc = build_alloca
       (deftype2llvmtype data.typemap decl.tp) name data.bldr
