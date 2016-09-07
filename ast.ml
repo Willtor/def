@@ -90,3 +90,11 @@ let operator2string = function
   | OperBXorAssign _ -> "^="
   | OperBOrAssign _ -> "|="
 
+let literal2primitive = function
+  | LitBool _ -> PrimBool
+  | LitI16 _ -> PrimI16
+  | LitU16 _ -> PrimU16
+  | LitI32 _ -> PrimI32
+  | LitU32 _ -> PrimU32
+  | LitI64 _ -> PrimI64
+  | LitU64 _ -> PrimU64

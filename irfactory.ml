@@ -35,10 +35,21 @@ let deftype2llvmtype typemap =
        the (lookup_symbol typemap name)
   in convert
 
-let process_literal typemap = function
-  | LitI32 (_, n) ->
-     const_int (the (lookup_symbol typemap "i32")) (Int32.to_int n)
-  | _ -> failwith "Irfactory.process_literal not fully implemented."
+let process_literal typemap lit = match lit with
+  | LitBool (_, true) ->
+     const_int (the (lookup_symbol typemap "bool")) 1
+  | LitBool (_, false) ->
+     const_int (the (lookup_symbol typemap "bool")) 0
+  | LitI16 (_, n)
+  | LitU16 (_, n)
+  | LitI32 (_, n)
+  | LitU32 (_, n) ->
+     let typename = primitive2string (literal2primitive lit) in
+     const_int (the (lookup_symbol typemap typename)) (Int32.to_int n)
+  | LitI64 (_, n) ->
+     const_of_int64 (the (lookup_symbol typemap "i64")) n true
+  | LitU64 (_, n) ->
+     const_of_int64 (the (lookup_symbol typemap "i64")) n false
 
 let process_variable varmap name =
   match lookup_symbol varmap name with
