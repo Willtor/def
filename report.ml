@@ -8,6 +8,7 @@ let err_internal file line msg =
     ^ msg
   in fatal_error err
 
+(** Lexing error. *)
 let err_lexing pos character =
   let err = "At " ^ (format_position pos) ^ ":\n"
     ^ "Unexpected character: " ^ character ^ "\n"
