@@ -33,6 +33,8 @@ let deftype2llvmtype typemap =
     | DefTypePrimitive prim ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
+    | DefTypeVoid ->
+       failwith "Irfactory.deftype2llvmtype not fully implemented."
   in convert
 
 let process_literal typemap lit = match lit with
@@ -77,6 +79,67 @@ let process_expr data varmap =
        let _ = build_store rhs (expr_gen false left) bldr in
        rhs
     | _ -> failwith "llvm_operator not fully implemented"
+
+  and build_cast from_tp to_tp e =
+    let build_primitive_cast t1 t2 =
+      let llvm_to_tp =
+        (the (lookup_symbol data.typemap (primitive2string t2))) in
+      let null_cast _ _ _ _ = e in
+      let f = match t1, t2 with
+
+        (* From bool *)
+        | PrimBool, PrimI16 | PrimBool, PrimU16
+        | PrimBool, PrimI32 | PrimBool, PrimU32
+        | PrimBool, PrimI64 | PrimBool, PrimU64 -> build_zext
+
+        (* From i16 *)
+        | PrimI16, PrimBool -> build_trunc
+        | PrimI16, PrimU16 -> null_cast
+        | PrimI16, PrimI32 | PrimI16, PrimI64 -> build_sext
+        | PrimI16, PrimU32 | PrimI16, PrimU64 -> build_zext
+
+        (* From u16 *)
+        | PrimU16, PrimBool -> build_trunc
+        | PrimU16, PrimI16 -> null_cast
+        | PrimU16, PrimI32 | PrimU16, PrimU32
+        | PrimU16, PrimI64 | PrimU16, PrimU64 -> build_zext
+
+        (* From i32 *)
+        | PrimI32, PrimBool
+        | PrimI32, PrimI16 | PrimI32, PrimU16 -> build_trunc
+        | PrimI32, PrimU32 -> null_cast
+        | PrimI32, PrimI64 -> build_sext
+        | PrimI32, PrimU64 -> build_zext
+
+        (* From u32 *)
+        | PrimU32, PrimBool
+        | PrimU32, PrimI16 | PrimU32, PrimU16 -> build_trunc
+        | PrimU32, PrimI32 -> null_cast
+        | PrimU32, PrimI64 | PrimU32, PrimU64 -> build_zext
+
+        (* From i64 *)
+        | PrimI64, PrimBool
+        | PrimI64, PrimI16 | PrimI64, PrimU16
+        | PrimI64, PrimI32 | PrimI64, PrimU32 -> build_trunc
+        | PrimI64, PrimU64 -> null_cast
+
+        (* From u64 *)
+        | PrimU64, PrimBool
+        | PrimU64, PrimI16 | PrimU64, PrimU16
+        | PrimU64, PrimI32 | PrimU64, PrimU32 -> build_trunc
+        | PrimU64, PrimI64 -> null_cast
+
+        | _ -> Report.err_internal __FILE__ __LINE__
+           ("Cast from " ^ (primitive2string t1) ^ " to "
+            ^ (primitive2string t2))
+      in
+      f e llvm_to_tp "cast" data.bldr
+    in
+    match from_tp, to_tp with
+    | DefTypePrimitive prim1, DefTypePrimitive prim2 ->
+       build_primitive_cast prim1 prim2
+    | _ -> failwith "Irfactory.build_cast incomplete implementation."
+
   and expr_gen rvalue_p = function
     | Expr_FcnCall (name, args) ->
        let (_, _, callee) = the (lookup_symbol varmap name) in
@@ -89,7 +152,9 @@ let process_expr data varmap =
        else v
     | Expr_Binary (op, left, right) ->
        llvm_binop op left right data.bldr
-    | Expr_Cast (_, _, _) -> failwith "IRFactory: No expression casting, yet."
+    | Expr_Cast (from_tp, to_tp, expr) ->
+       let e = expr_gen true expr in
+       build_cast from_tp to_tp e
     | _ -> failwith "expr_gen not fully implemented."
   in expr_gen true
 

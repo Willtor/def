@@ -66,3 +66,10 @@ let err_unknown_typename pos name =
     ^ "  Unknown type name: " ^ name ^ ".\n"
     ^ (show_source pos)
   in fatal_error err
+
+(** Returned void in a non-void function.  FIXME: This msg could be better. *)
+let err_returned_void pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Returned void in a non-void function.\n"
+    ^ (show_source pos)
+  in fatal_error err

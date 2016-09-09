@@ -7,6 +7,7 @@ type primitive =
   (* floating point *)
 
 type deftype =
+  | DefTypeVoid
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype
 

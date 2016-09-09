@@ -187,6 +187,8 @@ let build_fcn_call scope pos name args =
               (List.length params) (List.length args)
         end
      | DefTypePrimitive _ -> Report.err_called_non_fcn pos decl.decl_pos name
+     | DefTypeVoid -> Report.err_internal __FILE__ __LINE__
+        "Tried to call a void."
      end
 
 let convert_expr scope =
@@ -218,7 +220,7 @@ let nonconflicting_name pos scope name =
 
 let build_bbs name decltable typemap body =
   let fcndecl = the (lookup_symbol decltable name) in
-  let param_types, _ = get_fcntype_profile fcndecl.tp in
+  let param_types, ret_type = get_fcntype_profile fcndecl.tp in
 
   (* Add the function's parameters to the scope table. *)
   let fcnscope = push_symtab_scope decltable in
@@ -288,10 +290,16 @@ let build_bbs name decltable typemap body =
        in decls, (BB_Loop block) :: bbs
 
     | Return (pos, expr) ->
-       let _, expr = convert_expr scope expr in (* FIXME: Verify return type. *)
-       decls, BB_Return (pos, expr) :: bbs
+       let tp, expr = convert_expr scope expr in
+       begin
+         check_castability pos tp ret_type;
+         decls, BB_Return (pos, (maybe_cast tp ret_type expr)) :: bbs
+       end
     | ReturnVoid pos ->
-       decls, BB_ReturnVoid pos :: bbs
+       if ret_type == DefTypeVoid then
+         decls, BB_ReturnVoid pos :: bbs
+       else
+         Report.err_returned_void pos
   in
   let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
   List.rev decls, List.rev bbs
