@@ -11,7 +11,7 @@ let err_internal file line msg =
 (** Lexing error. *)
 let err_lexing pos character =
   let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "Unexpected character: " ^ character ^ "\n"
+    ^ "  Unexpected character: " ^ character ^ "\n"
     ^ (show_source pos)
   in fatal_error err
 
@@ -60,6 +60,7 @@ let err_redeclared_variable pos orig_pos var =
     ^ (show_source pos)
   in fatal_error err
 
+(** User specified an unknown or undeclared type. *)
 let err_unknown_typename pos name =
   let err = "At " ^ (format_position pos) ^ ":\n"
     ^ "  Unknown type name: " ^ name ^ ".\n"
