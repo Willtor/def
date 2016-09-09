@@ -53,9 +53,9 @@ let process_literal typemap lit = match lit with
 
 let process_variable varmap name =
   match lookup_symbol varmap name with
-  | None -> failwith ("Oh snap!  " ^ name) (* WORKING HERE! *)
+  | None -> Report.err_internal __FILE__ __LINE__
+     ("Failed to find variable " ^ name ^ ".")
   | Some (_, _, llvar) -> llvar
-(*  let (_, _, llvar) = the (lookup_symbol varmap name) in llvar *)
 
 let process_expr data varmap =
   let rec llvm_binop op left right bldr =
