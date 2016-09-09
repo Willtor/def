@@ -16,7 +16,7 @@ type llvm_data =
 
 let get_fcntype = function
   | DefTypeFcn (params, ret) -> params, ret
-  | _ -> fatal_error "Internal error.  Function not of DefTypeFcn."
+  | _ -> Report.err_internal __FILE__ __LINE__ "Expected a DefTypeFcn."
 
 let builtin_types ctx =
   let typemap = make_symtab () in

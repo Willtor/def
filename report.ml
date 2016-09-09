@@ -8,6 +8,12 @@ let err_internal file line msg =
     ^ msg
   in fatal_error err
 
+let err_lexing pos character =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "Unexpected character: " ^ character ^ "\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Error: The operator was invalid for the type being operated on. *)
 let err_invalid_op pos op tpname =
   let err = "At " ^ (format_position pos) ^ ":\n"

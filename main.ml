@@ -27,9 +27,8 @@ let main () =
       with _ -> print_endline "Unable to open input file."; exit 1
     in
     let stmts =
-      try let lexbuf = set_fname Sys.argv.(1) (Lexing.from_channel infile)
-          in ((defparse deflex) lexbuf)
-      with LexError err -> print_endline err; exit 1
+      let lexbuf = set_fname Sys.argv.(1) (Lexing.from_channel infile)
+      in ((defparse deflex) lexbuf)
     in
     close_in infile;
     let stmts = scrub stmts in

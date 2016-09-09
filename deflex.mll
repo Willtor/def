@@ -3,14 +3,6 @@
   open Lexing
   open Util
 
-  exception LexError of string
-
-  let lexerror lexbuf =
-    let pos = lexeme_start_p lexbuf in
-    "Lexing Error: " ^ (format_position pos) ^ "\n"
-    ^ (show_source pos) ^ "\n"
-    ^ "Unexpected char: " ^ (lexeme lexbuf)
-
   let remove_suffix s =
     let length = String.length s in
     String.sub s 0 (length - 3)
@@ -112,5 +104,4 @@ rule deflex = parse
 | ';' { SEMICOLON (lexeme_start_p lexbuf) }
 | eof { EOF }
 | _
-    { raise (LexError (lexerror lexbuf)) }
-
+    { Report.err_lexing (lexeme_start_p lexbuf) (lexeme lexbuf) }
