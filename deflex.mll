@@ -12,6 +12,7 @@ rule deflex = parse
 | [' ' '\t']+
     { deflex lexbuf }
 | '\n' { new_line lexbuf; deflex lexbuf }
+| "/*"([^'*']*['*']+)+"/" { deflex lexbuf }
 | "begin" { BEGIN (lexeme_start_p lexbuf) }
 | "end" { END (lexeme_start_p lexbuf) }
 | "def" { DEF (lexeme_start_p lexbuf) }
