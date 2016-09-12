@@ -67,14 +67,15 @@ let compare t1 t2 =
   | _ -> failwith "Types.compare not fully implemented."
 
 (** name, type, llvm type constructor *)
-let map_builtin_primitives =
-  [ ("bool", PrimBool, i1_type);
-    ("i16", PrimI16, i16_type);
-    ("u16", PrimU16, i16_type);
-    ("i32", PrimI32, i32_type);
-    ("u32", PrimU32, i32_type);
-    ("i64", PrimI64, i64_type);
-    ("u64", PrimU64, i64_type) ]
+let map_builtin_types =
+  [ ("void", DefTypeVoid, void_type);
+    ("bool", DefTypePrimitive PrimBool, i1_type);
+    ("i16", DefTypePrimitive PrimI16, i16_type);
+    ("u16", DefTypePrimitive PrimU16, i16_type);
+    ("i32", DefTypePrimitive PrimI32, i32_type);
+    ("u32", DefTypePrimitive PrimU32, i32_type);
+    ("i64", DefTypePrimitive PrimI64, i64_type);
+    ("u64", DefTypePrimitive PrimU64, i64_type) ]
 
 (** Convert a primitive type to its string representation. *)
 let primitive2string = function

@@ -23,8 +23,8 @@ val generalize_primitives : primitive -> primitive -> primitive
 val compare : deftype -> deftype -> int
 
 (** name, type, llvm type constructor *)
-val map_builtin_primitives :
-  (string * primitive * (Llvm.llcontext -> Llvm.lltype)) list
+val map_builtin_types :
+  (string * deftype * (Llvm.llcontext -> Llvm.lltype)) list
 
 (** Convert a primitive type to its string representation. *)
 val primitive2string : primitive -> string

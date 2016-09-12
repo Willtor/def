@@ -332,8 +332,8 @@ let build_fcns decltable typemap fcns = function
 let builtin_types () =
   let map = make_symtab () in
   List.iter (fun (name, tp, _) ->
-    add_symbol map name (DefTypePrimitive tp))
-    Types.map_builtin_primitives;
+    add_symbol map name tp)
+    Types.map_builtin_types;
   map
 
 let convert_ast stmts =

@@ -22,7 +22,7 @@ let builtin_types ctx =
   let typemap = make_symtab () in
   List.iter
     (fun (name, _, f) -> add_symbol typemap name (f ctx))
-    Types.map_builtin_primitives;
+    Types.map_builtin_types;
   typemap
 
 let deftype2llvmtype typemap =
@@ -36,7 +36,7 @@ let deftype2llvmtype typemap =
     | DefTypePtr pointed_to_tp ->
        pointer_type (convert pointed_to_tp)
     | DefTypeVoid ->
-       failwith "Irfactory.deftype2llvmtype not fully implemented."
+       the (lookup_symbol typemap "void")
   in convert
 
 let process_literal typemap lit = match lit with
@@ -232,7 +232,7 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
        let _ = build_ret ret data.bldr in
        bb
     | BB_ReturnVoid _ ->
-       failwith "FIXME: Not implemented, yet."
+       let _ = build_ret_void data.bldr in bb
   in
   List.fold_left process_bb entry_bb cfg_bbs
 
