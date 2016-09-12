@@ -10,6 +10,7 @@ type deftype =
   | DefTypeVoid
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype
+  | DefTypePtr of deftype
 
 type typecategory =
   | SignedInteger
@@ -27,3 +28,6 @@ val map_builtin_primitives :
 
 (** Convert a primitive type to its string representation. *)
 val primitive2string : primitive -> string
+
+(** Return true iff the given type is an integer type. *)
+val is_integer_type : deftype -> bool

@@ -12,6 +12,7 @@ type deftype =
   | DefTypeVoid
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype
+  | DefTypePtr of deftype
 
 type typecategory =
   | SignedInteger
@@ -84,3 +85,14 @@ let primitive2string = function
   | PrimU32 -> "u32"
   | PrimI64 -> "i64"
   | PrimU64 -> "u64"
+
+let is_integer_type = function
+  | DefTypePrimitive prim ->
+     begin match prim with
+     | PrimBool
+     | PrimI16 | PrimU16
+     | PrimI32 | PrimU32
+     | PrimI64 | PrimU64 -> true
+     (* | _ -> false *)
+     end
+  | _ -> false

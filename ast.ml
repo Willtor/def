@@ -34,6 +34,7 @@ type operator =
 type vartype =
   | VarType of position * string
   | FcnType of (position * string * vartype) list * vartype
+  | PtrType of position * vartype
 
 type expr =
   | ExprFcnCall of position * string * expr list
@@ -44,6 +45,7 @@ type expr =
   | ExprVar of position * string
   | ExprLit of literal
   | ExprCast of position * vartype * expr
+  | ExprIndex of position * expr * position * expr
 
 type stmt =
   | StmtExpr of position * expr

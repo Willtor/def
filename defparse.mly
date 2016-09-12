@@ -22,7 +22,7 @@
 %token <Lexing.position> RANGLE EQUALSEQUALS BANGEQUALS CARAT VBAR
 %token <Lexing.position> DBLAMPERSAND DBLVBAR (*QMARK*) (*COLON*) EQUALS COMMA
 
-%token <Lexing.position> LPAREN RPAREN
+%token <Lexing.position> LPAREN RPAREN LSQUARE RSQUARE
 %token <Lexing.position> SEMICOLON
 %token EOF
 
@@ -42,6 +42,7 @@
 %left DBLLANGLE DBLRANGLE
 %left PLUS MINUS
 %left STAR SLASH PERCENT
+%left LSQUARE
 (* Need to figure out pointers. dereference, addr-of *)
 %right LNOT BNOT
 %nonassoc POSITIVE NEGATIVE
@@ -109,6 +110,7 @@ fcntype:
 
 deftype:
 | s = IDENT { let (pos, ident) = s in VarType (pos, ident) }
+| pos = STAR tp = deftype { PtrType (pos, tp) }
 
 parameterlist:
 | p = variabledecl { [p] }
@@ -148,6 +150,10 @@ expr:
 | s = IDENT
     { let (pos, ident) = s in pos, ExprVar (pos, ident) }
 | pos = LPAREN p_n_e = expr RPAREN { let (_, e) = p_n_e in pos, e }
+| p_n_e1 = expr LSQUARE p_n_e2 = expr RSQUARE
+    { let pos1, expr1 = p_n_e1 in
+      let pos2, expr2 = p_n_e2 in
+      pos1, ExprIndex (pos1, expr1, pos2, expr2) }
 | p_n_e = expr p = INCREMENT
     { let (exprpos, e) = p_n_e in
       (exprpos, ExprPostUnary (OperIncr p, e)) }

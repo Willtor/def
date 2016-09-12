@@ -10,6 +10,7 @@ type cfg_expr =
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
+  | Expr_Index of cfg_expr * cfg_expr
 
 type cfg_basic_block =
   | BB_Cond of conditional_block
@@ -78,9 +79,11 @@ let rec convert_type typemap = function
   | FcnType (params, ret) ->
      DefTypeFcn (List.map (fun (_, _, tp) -> convert_type typemap tp) params,
                  convert_type typemap ret)
+  | PtrType (pos, tp) -> DefTypePtr (convert_type typemap tp)
 
 let param_pos_names = function
   | VarType _ -> []
+  | PtrType _ -> []
   | FcnType (params, _) ->
      List.map (fun (pos, name, _) -> (pos, name)) params
 
@@ -187,6 +190,8 @@ let build_fcn_call scope pos name args =
               (List.length params) (List.length args)
         end
      | DefTypePrimitive _ -> Report.err_called_non_fcn pos decl.decl_pos name
+     | DefTypePtr _ -> Report.err_internal __FILE__ __LINE__
+        "Tried to call a pointer."
      | DefTypeVoid -> Report.err_internal __FILE__ __LINE__
         "Tried to call a void."
      end
@@ -205,6 +210,18 @@ let convert_expr scope =
        in var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
     | ExprLit literal ->
        (typeof_literal literal), Expr_Literal literal
+    | ExprIndex (bpos, base, ipos, idx) ->
+       let btype, converted_base = convert base
+       and itype, converted_idx = convert idx
+       in begin match btype with
+       | DefTypePtr DefTypeVoid -> Report.err_deref_void_ptr bpos ipos
+       | DefTypePtr deref_type ->
+          if is_integer_type itype then
+            deref_type, Expr_Index (converted_base, converted_idx)
+          else
+            Report.err_non_integer_index ipos
+       | _ -> Report.err_index_non_ptr ipos
+       end
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
   in convert
@@ -253,7 +270,7 @@ let build_bbs name decltable typemap body =
        begin match initializer_maybe with
        | None -> (mappedname, decl) :: decls, bbs
        | Some (pos, expr) ->
-            (* FIXME: Need to cast type. *)
+          (* FIXME: Need to cast type. *)
           let (_, expr) = convert_expr scope expr in
           ((mappedname, decl) :: decls,
            BB_Expr (pos, expr) :: bbs)

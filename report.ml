@@ -67,9 +67,35 @@ let err_unknown_typename pos name =
     ^ (show_source pos)
   in fatal_error err
 
-(** Returned void in a non-void function.  FIXME: This msg could be better. *)
+(** Returned void in a non-void function.
+    FIXME: This msg could be better. *)
 let err_returned_void pos =
   let err = "At " ^ (format_position pos) ^ ":\n"
     ^ "  Returned void in a non-void function.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
+(** Tried to dereference a void pointer. *)
+let err_deref_void_ptr bpos ipos =
+  let err = "At " ^ (format_position bpos) ^ ":\n"
+    ^ "  Can't dereference a pointer to void.  Need to cast, first.\n"
+    ^ (show_source bpos) ^ "\n"
+    ^ "  Offending index at " ^ (format_position ipos) ^ ":\n"
+    ^ (show_source ipos)
+  in fatal_error err
+
+(** Tried to index a pointer with a non-integer index.
+    FIXME: Error message should include type of the index. *)
+let err_non_integer_index pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  The index is not an integer.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
+(** Indexed a non-pointer.
+    FIXME: Error message should include type of base. *)
+let err_index_non_ptr pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Can't index into something that isn't a pointer.\n"
     ^ (show_source pos)
   in fatal_error err

@@ -33,6 +33,8 @@ let deftype2llvmtype typemap =
     | DefTypePrimitive prim ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
+    | DefTypePtr pointed_to_tp ->
+       pointer_type (convert pointed_to_tp)
     | DefTypeVoid ->
        failwith "Irfactory.deftype2llvmtype not fully implemented."
   in convert
@@ -155,6 +157,12 @@ let process_expr data varmap =
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
        build_cast from_tp to_tp e
+    | Expr_Index (base, idx) ->
+       let i = expr_gen true idx in
+       let b = expr_gen true base in
+       let addr = build_gep b [|i|] "idx" data.bldr in
+       if rvalue_p then build_load addr "idxval" data.bldr
+       else addr
     | _ -> failwith "expr_gen not fully implemented."
   in expr_gen true
 

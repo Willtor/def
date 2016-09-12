@@ -5,6 +5,7 @@ type cfg_expr =
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
+  | Expr_Index of cfg_expr * cfg_expr
 
 type cfg_basic_block =
   | BB_Cond of conditional_block
