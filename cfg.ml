@@ -69,17 +69,24 @@ let typeof_literal lit =
     | LitU64 _ -> PrimU64
   in DefTypePrimitive (t lit)
 
-let rec convert_type typemap = function
+let rec convert_type defining_p typemap = function
   | VarType (pos, name) ->
      begin
        match lookup_symbol typemap name with
-       | None -> Report.err_unknown_typename pos name
+       | None ->
+          (* If we're defining a type, this type may not yet have been
+             declared.  If we aren't, then the type hasn't been declared
+             at all and that's an error. *)
+          if defining_p then DefTypeSymbolic (pos, name)
+          else Report.err_unknown_typename pos name
        | Some t -> t
      end
   | FcnType (params, ret) ->
-     DefTypeFcn (List.map (fun (_, _, tp) -> convert_type typemap tp) params,
-                 convert_type typemap ret)
-  | PtrType (pos, tp) -> DefTypePtr (convert_type typemap tp)
+     DefTypeFcn
+       (List.map (fun (_, _, tp) ->
+         convert_type defining_p typemap tp) params,
+        convert_type defining_p typemap ret)
+  | PtrType (pos, tp) -> DefTypePtr (convert_type defining_p typemap tp)
 
 let param_pos_names = function
   | VarType _ -> []
@@ -91,18 +98,25 @@ let global_types typemap = function
   | TypeDecl (pos, name, tp) ->
      (* FIXME: When structs get added, check tp to see if it's a struct
         and add a symbolic reference, first, before converting the type. *)
-     add_symbol typemap name (convert_type typemap tp)
+     add_symbol typemap name (convert_type true typemap tp)
   | _ -> ()
 
-let rec verify_type typemap typename = function
-  | DefTypeVoid -> ()
-  | DefTypePrimitive _ -> ()
-  | DefTypeFcn (params, ret) ->
-     begin
-       List.iter (verify_type typemap typename) params;
-       verify_type typemap typename ret
-     end
-  | DefTypePtr t -> verify_type typemap typename t
+let resolve_type typemap typename oldtp =
+  let rec v = function
+    | DefTypeVoid as tp -> tp
+    | DefTypePrimitive _ as tp -> tp
+    | DefTypeFcn (params, ret) ->
+       let params = List.map v params
+       and ret = v ret
+       in DefTypeFcn (params, ret)
+    | DefTypePtr tp -> DefTypePtr (v tp)
+    | DefTypeSymbolic (pos, name) ->
+       begin match lookup_symbol typemap name with
+       | Some tp -> v tp
+       | None -> (* Unresolved type name. *)
+          Report.err_unknown_typename pos name
+       end
+  in Some (v oldtp)
 
 let global_decls decltable typemap = function
   | DefFcn (pos, name, tp, _) ->
@@ -112,7 +126,7 @@ let global_decls decltable typemap = function
         let fcn =
           { decl_pos = pos;
             mappedname = name;
-            tp = convert_type typemap tp;
+            tp = convert_type false typemap tp;
             params = param_pos_names tp }
         in
         add_symbol decltable name fcn
@@ -214,6 +228,8 @@ let build_fcn_call scope pos name args =
         "Tried to call a pointer."
      | DefTypeVoid -> Report.err_internal __FILE__ __LINE__
         "Tried to call a void."
+     | DefTypeSymbolic _ -> Report.err_internal __FILE__ __LINE__
+        "Tried to call an unresolved type."
      end
 
 let convert_expr scope =
@@ -284,7 +300,7 @@ let build_bbs name decltable typemap body =
        let mappedname = nonconflicting_name pos scope name in
        let decl = { decl_pos = pos;
                     mappedname = mappedname;
-                    tp = convert_type typemap tp;
+                    tp = convert_type false typemap tp;
                     params = param_pos_names tp } in
        add_symbol scope name decl;
        begin match initializer_maybe with
@@ -363,7 +379,7 @@ let convert_ast stmts =
   let typemap = builtin_types () in
   let decltable = make_symtab () in
   List.iter (global_types typemap) stmts;
-  symtab_iter (verify_type typemap) typemap;
+  let typemap = symtab_filter (resolve_type typemap) typemap in
   List.iter (global_decls decltable typemap) stmts;
   let fcnlist = List.fold_left (build_fcns decltable typemap) [] stmts
   in

@@ -80,6 +80,19 @@ let rec lookup_symbol symtab name =
 let symtab_iter f =
   List.iter (fun table -> Hashtbl.iter f table)
 
+(** Iterate through all symbols in a symtab and perform a filter (like the
+    Hashtbl.filter_map_inplace function, except it returns a new symtab). *)
+let symtab_filter f =
+  let process_tbl orig =
+    let replacement = Hashtbl.create (Hashtbl.length orig) in
+    Hashtbl.iter
+      (fun k old_v -> match f k old_v with
+      | None -> ()
+      | Some new_v -> Hashtbl.add replacement k new_v)
+      orig;
+    replacement
+  in List.map (fun tbl -> process_tbl tbl)
+
 (****************************************************************************)
 (*                            General Utilities                             *)
 (****************************************************************************)

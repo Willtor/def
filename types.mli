@@ -11,6 +11,7 @@ type deftype =
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype
   | DefTypePtr of deftype
+  | DefTypeSymbolic of Lexing.position * string
 
 type typecategory =
   | SignedInteger

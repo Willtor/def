@@ -40,6 +40,10 @@ val lookup_symbol : 'a symtab -> string -> 'a option
     scope and proceeds outwards towards global. *)
 val symtab_iter : (string -> 'b -> unit) -> 'b symtab -> unit
 
+(** Iterate through all symbols in a symtab and perform a filter (like the
+    Hashtbl.filter_map_inplace function, except it returns a new symtab). *)
+val symtab_filter : (string -> 'b -> 'b option) -> 'b symtab -> 'b symtab
+
 (****************************************************************************)
 (*                            General Utilities                             *)
 (****************************************************************************)

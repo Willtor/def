@@ -37,6 +37,9 @@ let deftype2llvmtype typemap =
        pointer_type (convert pointed_to_tp)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
+    | DefTypeSymbolic (_, name) ->
+       Report.err_internal __FILE__ __LINE__
+         ("Tried to convert a placeholder type: " ^ name)
   in convert
 
 let process_literal typemap lit = match lit with
