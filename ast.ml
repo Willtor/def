@@ -56,6 +56,7 @@ type stmt =
   | WhileLoop of position * expr * stmt list
   | Return of position * expr
   | ReturnVoid of position
+  | TypeDecl of position * string * vartype
 
 let operator2string = function
   | OperIncr _ -> "++"

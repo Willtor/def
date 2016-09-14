@@ -9,6 +9,7 @@
 %token <Lexing.position * bool> LITERALBOOL
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
+%token <Lexing.position> TYPE
 %token <Lexing.position> DEF VAR RETURN BEGIN END IF THEN ELSE FI
 %token <Lexing.position> WHILE DO DONE
 
@@ -97,6 +98,8 @@ statement:
 | p = RETURN p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in Return (p, e) }
 | p = RETURN SEMICOLON { ReturnVoid p }
+| TYPE id = IDENT EQUALS tp = deftype SEMICOLON
+    { let pos, name = id in TypeDecl (pos, name, tp) }
 
 elseclause:
 | ELSE slist = statementlist { Some slist }

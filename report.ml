@@ -99,3 +99,10 @@ let err_index_non_ptr pos =
     ^ "  Can't index into something that isn't a pointer.\n"
     ^ (show_source pos)
   in fatal_error err
+
+(** Type contains itself -- not as a pointer, but as the raw type. *)
+let err_recursive_type_defn pos name =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Recursive defintion of type " ^ name ^ ".\n"
+    ^ (show_source pos)
+  in fatal_error err

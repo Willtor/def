@@ -87,6 +87,23 @@ let param_pos_names = function
   | FcnType (params, _) ->
      List.map (fun (pos, name, _) -> (pos, name)) params
 
+let global_types typemap = function
+  | TypeDecl (pos, name, tp) ->
+     (* FIXME: When structs get added, check tp to see if it's a struct
+        and add a symbolic reference, first, before converting the type. *)
+     add_symbol typemap name (convert_type typemap tp)
+  | _ -> ()
+
+let rec verify_type typemap typename = function
+  | DefTypeVoid -> ()
+  | DefTypePrimitive _ -> ()
+  | DefTypeFcn (params, ret) ->
+     begin
+       List.iter (verify_type typemap typename) params;
+       verify_type typemap typename ret
+     end
+  | DefTypePtr t -> verify_type typemap typename t
+
 let global_decls decltable typemap = function
   | DefFcn (pos, name, tp, _) ->
      begin match lookup_symbol decltable name with
@@ -100,6 +117,7 @@ let global_decls decltable typemap = function
         in
         add_symbol decltable name fcn
      end
+  | TypeDecl _ -> ()
   | _ -> Report.err_internal __FILE__ __LINE__
      "FIXME: Incomplete implementation of Cfg.global_decls."
 
@@ -113,7 +131,7 @@ let rec returns_p stmts =
     | StmtExpr _ -> ret
     | Block (_, stmts) -> (returns_p stmts) || ret
     | DefFcn _ -> Report.err_internal __FILE__ __LINE__
-       "FIXME: Unhandled case in Cfg.returns_p"
+       "FIXME: Unhandled case in Cfg.returns_p (DefFcn)"
     | VarDecl _ -> ret
     | IfStmt (_, _, t, None) -> ret
     | IfStmt (_, _, t, Some e) ->
@@ -121,6 +139,8 @@ let rec returns_p stmts =
     | WhileLoop _ -> ret
     | Return _ -> true
     | ReturnVoid _ -> true
+    | TypeDecl _ -> Report.err_internal __FILE__ __LINE__
+       "FIXME: Unhandled case in Cfg.returns_p (TypeDecl)"
   in List.fold_left r false stmts
 
 (** Return a casted version of the expression, if the original type doesn't
@@ -259,7 +279,7 @@ let build_bbs name decltable typemap body =
          (process_bb (push_symtab_scope scope)) (decls, bbs) stmts
     | DefFcn _ ->
        Report.err_internal __FILE__ __LINE__
-         "FIXME: DefFcn not implemented Cfg.build_bbs"
+         "FIXME: DefFcn not implemented Cfg.build_bbs (DefFcn)"
     | VarDecl (pos, name, tp, initializer_maybe) ->
        let mappedname = nonconflicting_name pos scope name in
        let decl = { decl_pos = pos;
@@ -317,6 +337,9 @@ let build_bbs name decltable typemap body =
          decls, BB_ReturnVoid pos :: bbs
        else
          Report.err_returned_void pos
+    | TypeDecl _ ->
+       Report.err_internal __FILE__ __LINE__
+         "FIXME: DefFcn not implemented Cfg.build_bbs (TypeDecl)"
   in
   let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
   List.rev decls, List.rev bbs
@@ -339,6 +362,8 @@ let builtin_types () =
 let convert_ast stmts =
   let typemap = builtin_types () in
   let decltable = make_symtab () in
+  List.iter (global_types typemap) stmts;
+  symtab_iter (verify_type typemap) typemap;
   List.iter (global_decls decltable typemap) stmts;
   let fcnlist = List.fold_left (build_fcns decltable typemap) [] stmts
   in

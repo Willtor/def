@@ -16,7 +16,8 @@ let position_of_stmt = function
   | IfStmt (pos, _, _, _)
   | WhileLoop (pos, _, _)
   | Return (pos, _)
-  | ReturnVoid pos -> pos
+  | ReturnVoid pos
+  | TypeDecl (pos, _, _) -> pos
 
 let kill_dead_code =
   let report_dead_code fcn pos =
@@ -49,8 +50,10 @@ let kill_dead_code =
       | (Return _ as stmt) :: rest | (ReturnVoid _ as stmt) :: rest ->
          let () = match rest with
            | [] -> ()
-           | extra :: rest -> report_dead_code name (position_of_stmt extra)
+           | extra :: _ -> report_dead_code name (position_of_stmt extra)
          in List.rev (stmt :: accum)
+      | TypeDecl _ as stmt :: rest ->
+         proc (stmt :: accum) rest
     in proc []
   in
   let toplevel = function
