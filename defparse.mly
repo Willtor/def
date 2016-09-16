@@ -23,7 +23,7 @@
 %token <Lexing.position> RANGLE EQUALSEQUALS BANGEQUALS CARAT VBAR
 %token <Lexing.position> DBLAMPERSAND DBLVBAR (*QMARK*) (*COLON*) EQUALS COMMA
 
-%token <Lexing.position> LPAREN RPAREN LSQUARE RSQUARE
+%token <Lexing.position> LPAREN RPAREN LSQUARE RSQUARE LCURLY RCURLY
 %token <Lexing.position> SEMICOLON
 %token EOF
 
@@ -114,6 +114,11 @@ fcntype:
 deftype:
 | s = IDENT { let (pos, ident) = s in VarType (pos, ident) }
 | pos = STAR tp = deftype { PtrType (pos, tp) }
+| LCURLY sc = structcontents RCURLY { StructType sc }
+
+structcontents:
+| sc = variabledecl { [sc] }
+| sc = variabledecl SEMICOLON sclist = structcontents { sc :: sclist }
 
 parameterlist:
 | p = variabledecl { [p] }

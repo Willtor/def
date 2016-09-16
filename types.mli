@@ -7,11 +7,13 @@ type primitive =
   (* floating point *)
 
 type deftype =
+  | DefTypeUnresolved of Lexing.position * string
+  | DefTypeLookup of string
   | DefTypeVoid
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype
   | DefTypePtr of deftype
-  | DefTypeSymbolic of Lexing.position * string
+  | DefTypeStruct of deftype list * string list
 
 type typecategory =
   | SignedInteger

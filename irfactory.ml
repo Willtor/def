@@ -27,6 +27,11 @@ let builtin_types ctx =
 
 let deftype2llvmtype typemap =
   let rec convert = function
+    | DefTypeUnresolved (_, name) ->
+       Report.err_internal __FILE__ __LINE__
+         ("Tried to convert a placeholder type: " ^ name)
+    | DefTypeLookup name ->
+       the (lookup_symbol typemap name)
     | DefTypeFcn (args, ret) ->
        let llvmargs = List.map (fun argtp -> convert argtp) args in
        function_type (convert ret) (Array.of_list llvmargs)
@@ -37,9 +42,7 @@ let deftype2llvmtype typemap =
        pointer_type (convert pointed_to_tp)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
-    | DefTypeSymbolic (_, name) ->
-       Report.err_internal __FILE__ __LINE__
-         ("Tried to convert a placeholder type: " ^ name)
+    | DefTypeStruct _ -> failwith "Irfactory: DefTypeStruct not implemented."
   in convert
 
 let process_literal typemap lit = match lit with

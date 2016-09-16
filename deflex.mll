@@ -105,6 +105,8 @@ rule deflex = parse
 | ')' { RPAREN (lexeme_start_p lexbuf) }
 | '[' { LSQUARE (lexeme_start_p lexbuf) }
 | ']' { RSQUARE (lexeme_start_p lexbuf) }
+| '{' { LCURLY (lexeme_start_p lexbuf) }
+| '}' { RCURLY (lexeme_start_p lexbuf) }
 | ';' { SEMICOLON (lexeme_start_p lexbuf) }
 | eof { EOF }
 | _
