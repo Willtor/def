@@ -55,6 +55,7 @@ type function_defn =
 type program =
   { global_decls : decl Util.symtab;
     fcnlist : function_defn list;
+    deftypemap : deftype symtab
   }
 
 (** Get the type of an Ast.literal value. *)
@@ -79,9 +80,9 @@ let rec convert_type defining_p typemap = function
              at all and that's an error. *)
           if defining_p then DefTypeUnresolved (pos, name)
           else Report.err_unknown_typename pos name
-       | Some (DefTypeStruct _) ->
+       | Some (DefTypeLiteralStruct _) ->
           (* Prevent deep recursive definitions. *)
-          DefTypeLookup name
+          DefTypeNamedStruct name
        | Some t -> t
      end
   | FcnType (params, ret) ->
@@ -94,7 +95,7 @@ let rec convert_type defining_p typemap = function
        (name :: names, (convert_type defining_p typemap tp) :: deftypes)
      in
      let names, deftypes = List.fold_left process ([], []) elements in
-     DefTypeStruct (List.rev deftypes, List.rev names)
+     DefTypeLiteralStruct (List.rev deftypes, List.rev names)
   | PtrType (pos, tp) -> DefTypePtr (convert_type defining_p typemap tp)
 
 let param_pos_names = function
@@ -115,12 +116,12 @@ let resolve_type typemap typename oldtp =
   let rec v = function
     | DefTypeUnresolved (pos, name) ->
        begin match lookup_symbol typemap name with
-       | Some (DefTypeStruct _) -> DefTypeLookup name
+       | Some (DefTypeLiteralStruct _) -> DefTypeNamedStruct name
        | Some tp -> v tp
        | None -> (* Unresolved type name. *)
           Report.err_unknown_typename pos name
        end
-    | DefTypeLookup _ as tp -> tp
+    | DefTypeNamedStruct _ as tp -> tp
     | DefTypeVoid as tp -> tp
     | DefTypePrimitive _ as tp -> tp
     | DefTypeFcn (params, ret) ->
@@ -128,8 +129,8 @@ let resolve_type typemap typename oldtp =
        and ret = v ret
        in DefTypeFcn (params, ret)
     | DefTypePtr tp -> DefTypePtr (v tp)
-    | DefTypeStruct (fields, names) ->
-       DefTypeStruct (List.map v fields, names)
+    | DefTypeLiteralStruct (fields, names) ->
+       DefTypeLiteralStruct (List.map v fields, names)
   in Some (v oldtp)
 
 let global_decls decltable typemap = function
@@ -230,8 +231,8 @@ let build_fcn_call scope pos name args =
      begin match decl.tp with
      | DefTypeUnresolved _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call an unresolved type."
-     | DefTypeLookup _ -> Report.err_internal __FILE__ __LINE__
-        "Tried to call a lookup-type."
+     | DefTypeNamedStruct _ -> Report.err_internal __FILE__ __LINE__
+        "Tried to call a named-struct-type."
      | DefTypeVoid -> Report.err_internal __FILE__ __LINE__
         "Tried to call a void."
      | DefTypeFcn (params, rettp) ->
@@ -246,7 +247,7 @@ let build_fcn_call scope pos name args =
      | DefTypePrimitive _ -> Report.err_called_non_fcn pos decl.decl_pos name
      | DefTypePtr _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call a pointer."
-     | DefTypeStruct _ -> Report.err_internal __FILE__ __LINE__
+     | DefTypeLiteralStruct _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call a struct."
      end
 
@@ -402,4 +403,6 @@ let convert_ast stmts =
   let fcnlist = List.fold_left (build_fcns decltable typemap) [] stmts
   in
   { global_decls = decltable;
-    fcnlist = List.rev fcnlist }
+    fcnlist = List.rev fcnlist;
+    deftypemap = typemap
+  }

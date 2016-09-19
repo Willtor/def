@@ -50,6 +50,7 @@ type function_defn =
 type program =
   { global_decls : decl Util.symtab;
     fcnlist : function_defn list;
+    deftypemap : Types.deftype Util.symtab
   }
 
 val convert_ast : Ast.stmt list -> program

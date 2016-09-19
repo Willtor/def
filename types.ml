@@ -10,12 +10,12 @@ type primitive =
 
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
-  | DefTypeLookup of string
   | DefTypeVoid
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype
   | DefTypePtr of deftype
-  | DefTypeStruct of deftype list * string list
+  | DefTypeNamedStruct of string
+  | DefTypeLiteralStruct of deftype list * string list
 
 type typecategory =
   | SignedInteger

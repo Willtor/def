@@ -18,20 +18,13 @@ let get_fcntype = function
   | DefTypeFcn (params, ret) -> params, ret
   | _ -> Report.err_internal __FILE__ __LINE__ "Expected a DefTypeFcn."
 
-let builtin_types ctx =
-  let typemap = make_symtab () in
-  List.iter
-    (fun (name, _, f) -> add_symbol typemap name (f ctx))
-    Types.map_builtin_types;
-  typemap
-
-let deftype2llvmtype typemap =
+let deftype2llvmtype ctx typemap =
   let rec convert = function
     | DefTypeUnresolved (_, name) ->
        Report.err_internal __FILE__ __LINE__
          ("Tried to convert a placeholder type: " ^ name)
-    | DefTypeLookup name ->
-       the (lookup_symbol typemap name)
+    | DefTypeVoid ->
+       the (lookup_symbol typemap "void")
     | DefTypeFcn (args, ret) ->
        let llvmargs = List.map (fun argtp -> convert argtp) args in
        function_type (convert ret) (Array.of_list llvmargs)
@@ -40,10 +33,42 @@ let deftype2llvmtype typemap =
        the (lookup_symbol typemap name)
     | DefTypePtr pointed_to_tp ->
        pointer_type (convert pointed_to_tp)
-    | DefTypeVoid ->
-       the (lookup_symbol typemap "void")
-    | DefTypeStruct _ -> failwith "Irfactory: DefTypeStruct not implemented."
+    | DefTypeNamedStruct name ->
+       the (lookup_symbol typemap name)
+    | DefTypeLiteralStruct (members, _) ->
+       let llvm_members = List.map convert members in
+       struct_type ctx (Array.of_list llvm_members)
   in convert
+
+let build_types ctx deftypes =
+  let typemap = make_symtab () in
+  let forward_declare_structs name deftype =
+    match lookup_symbol typemap name with
+    | Some _ -> ()
+    | None ->
+       begin match deftype with
+       | DefTypeLiteralStruct _ ->
+          add_symbol typemap name (named_struct_type ctx name)
+       | DefTypePrimitive _
+       | DefTypePtr _ ->
+          add_symbol typemap name (deftype2llvmtype ctx typemap deftype)
+       | _ -> Report.err_internal __FILE__ __LINE__
+          "Some type other than named struct was not found."
+       end
+  in
+  let build_structs name = function
+    | DefTypeLiteralStruct (members, _) ->
+       let llvm_members = List.map (deftype2llvmtype ctx typemap) members in
+       let llvm_struct = the (lookup_symbol typemap name) in
+       struct_set_body llvm_struct (Array.of_list llvm_members) false
+    | _ -> ()
+  in
+  List.iter
+    (fun (name, _, f) -> add_symbol typemap name (f ctx))
+    Types.map_builtin_types;
+  symtab_iter forward_declare_structs deftypes;
+  symtab_iter build_structs deftypes;
+  typemap
 
 let process_literal typemap lit = match lit with
   | LitBool (_, true) ->
@@ -251,14 +276,15 @@ let process_fcn data symbols fcn =
   let (args, _) = get_fcntype profile.tp in
   let llparams = params llfcn in
   List.iteri (fun i ((pos, n), tp) ->
-    let alloc = build_alloca (deftype2llvmtype data.typemap tp) n data.bldr
+    let alloc =
+      build_alloca (deftype2llvmtype data.ctx data.typemap tp) n data.bldr
     in begin
       add_symbol varmap n (pos, tp, alloc);
       ignore (build_store llparams.(i) alloc data.bldr);
     end) (List.combine profile.params args);
   List.iter (fun (name, decl) ->
     let alloc = build_alloca
-      (deftype2llvmtype data.typemap decl.tp) name data.bldr
+      (deftype2llvmtype data.ctx data.typemap decl.tp) name data.bldr
     in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
     fcn.local_vars;
   ignore (process_body data llfcn varmap fcn.bbs bb);
@@ -267,7 +293,8 @@ let process_fcn data symbols fcn =
 let declare_globals data symbols name decl =
   let llfcn =
     (* FIXME: Might not be a function.  Need to check decl.tp. *)
-    declare_function decl.mappedname (deftype2llvmtype data.typemap decl.tp)
+    declare_function
+      decl.mappedname (deftype2llvmtype data.ctx data.typemap decl.tp)
       data.mdl
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llfcn)
@@ -276,7 +303,7 @@ let process_cfg outfile module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let bldr = builder ctx in
-  let typemap = builtin_types ctx in
+  let typemap = build_types ctx program.deftypemap in
   let data = { ctx = ctx; mdl = mdl; bldr = bldr;
                typemap = typemap; prog = program } in
   let symbols = make_symtab () in
