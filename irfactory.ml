@@ -194,6 +194,11 @@ let process_expr data varmap =
        let addr = build_gep b [|i|] "idx" data.bldr in
        if rvalue_p then build_load addr "idxval" data.bldr
        else addr
+    | Expr_SelectField (expr, n) ->
+       let base = expr_gen false expr in
+       let addr = build_struct_gep base n "maddr" data.bldr in
+       if rvalue_p then build_load addr "mval" data.bldr
+       else addr
     | _ -> failwith "expr_gen not fully implemented."
   in expr_gen true
 

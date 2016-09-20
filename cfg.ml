@@ -11,6 +11,7 @@ type cfg_expr =
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
   | Expr_Index of cfg_expr * cfg_expr
+  | Expr_SelectField of cfg_expr * int
 
 type cfg_basic_block =
   | BB_Cond of conditional_block
@@ -251,7 +252,7 @@ let build_fcn_call scope pos name args =
         "Tried to call a struct."
      end
 
-let convert_expr scope =
+let convert_expr typemap scope =
   let rec convert = function
     | ExprFcnCall (pos, name, args) ->
        let converted_args = List.map convert args in
@@ -276,6 +277,25 @@ let convert_expr scope =
           else
             Report.err_non_integer_index ipos
        | _ -> Report.err_index_non_ptr ipos
+       end
+    | ExprSelectField (dpos, fpos, obj, fieldname) ->
+       let otype, converted_obj = convert obj in
+       let struct_select = function
+         | DefTypeLiteralStruct (mtypes, fields) ->
+            let rec get_field n = function
+              | [] -> Report.err_struct_no_such_member fpos fieldname
+              | f :: rest ->
+                 if f = fieldname then n else get_field (n + 1) rest
+            in
+            let n = get_field 0 fields in
+            List.nth mtypes n, Expr_SelectField (converted_obj, n)
+         | _ -> Report.err_non_struct_member_access dpos
+       in
+       begin match otype with
+       | DefTypeLiteralStruct _ -> struct_select otype
+       | DefTypeNamedStruct sname ->
+          struct_select (the (lookup_symbol typemap sname))
+       | _ -> Report.err_non_struct_member_access dpos
        end
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
@@ -307,7 +327,7 @@ let build_bbs name decltable typemap body =
       (process_bb (push_symtab_scope scope)) (decls, [])
   and process_bb scope (decls, bbs) = function
     | StmtExpr (pos, expr) ->
-       let _, expr = convert_expr scope expr in
+       let _, expr = convert_expr typemap scope expr in
        decls, BB_Expr (pos, expr) :: bbs
     | Block (_, stmts) -> (* FIXME: scope should shadow new variables. *)
        List.fold_left
@@ -326,7 +346,7 @@ let build_bbs name decltable typemap body =
        | None -> (mappedname, decl) :: decls, bbs
        | Some (pos, expr) ->
           (* FIXME: Need to cast type. *)
-          let (_, expr) = convert_expr scope expr in
+          let (_, expr) = convert_expr typemap scope expr in
           ((mappedname, decl) :: decls,
            BB_Expr (pos, expr) :: bbs)
        end
@@ -336,7 +356,7 @@ let build_bbs name decltable typemap body =
          | Some stmts -> process_block scope decls stmts, returns_p stmts
        in
        let decls, then_scope = process_block scope decls then_block in
-       let tp, conv_cond = convert_expr scope cond in
+       let tp, conv_cond = convert_expr typemap scope cond in
        let () = check_castability pos tp (DefTypePrimitive PrimBool) in
        let block =
          { if_pos = pos;
@@ -352,7 +372,7 @@ let build_bbs name decltable typemap body =
 
     | WhileLoop (pos, cond, body) ->
        let decls, body_scope = process_block scope decls body in
-       let tp, conv_cond = convert_expr scope cond in
+       let tp, conv_cond = convert_expr typemap scope cond in
        let () = check_castability pos tp (DefTypePrimitive PrimBool) in
        let block =
          { while_pos = pos;
@@ -362,7 +382,7 @@ let build_bbs name decltable typemap body =
        in decls, (BB_Loop block) :: bbs
 
     | Return (pos, expr) ->
-       let tp, expr = convert_expr scope expr in
+       let tp, expr = convert_expr typemap scope expr in
        begin
          check_castability pos tp ret_type;
          decls, BB_Return (pos, (maybe_cast tp ret_type expr)) :: bbs

@@ -18,7 +18,7 @@
 %token <Lexing.position> INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS
 %token <Lexing.position> STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS
 %token <Lexing.position> DBLRANGLEEQUALS AMPERSANDEQUALS VBAREQUALS
-%token <Lexing.position> CARATEQUALS (*DOT*) LNOT BNOT AMPERSAND STAR SLASH
+%token <Lexing.position> CARATEQUALS DOT LNOT BNOT AMPERSAND STAR SLASH
 %token <Lexing.position> PERCENT PLUS MINUS DBLLANGLE DBLRANGLE LEQ LANGLE GEQ
 %token <Lexing.position> RANGLE EQUALSEQUALS BANGEQUALS CARAT VBAR
 %token <Lexing.position> DBLAMPERSAND DBLVBAR (*QMARK*) (*COLON*) EQUALS COMMA
@@ -48,7 +48,7 @@
 %right LNOT BNOT
 %nonassoc POSITIVE NEGATIVE
 %nonassoc PREINCR PREDECR
-%left INCREMENT DECREMENT (*DOT*)
+%left INCREMENT DECREMENT DOT
 
 %%
 
@@ -162,6 +162,10 @@ expr:
     { let pos1, expr1 = p_n_e1 in
       let pos2, expr2 = p_n_e2 in
       pos1, ExprIndex (pos1, expr1, pos2, expr2) }
+| p_n_e = expr dpos = DOT p_n_field = IDENT
+    { let pos, obj = p_n_e in
+      let fpos, field = p_n_field in
+      pos, ExprSelectField (fpos, dpos, obj, field) }
 | p_n_e = expr p = INCREMENT
     { let (exprpos, e) = p_n_e in
       (exprpos, ExprPostUnary (OperIncr p, e)) }

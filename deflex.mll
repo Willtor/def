@@ -76,7 +76,7 @@ rule deflex = parse
 | "&=" { AMPERSANDEQUALS (lexeme_start_p lexbuf) }
 | "|=" { VBAREQUALS (lexeme_start_p lexbuf) }
 | "^=" { CARATEQUALS (lexeme_start_p lexbuf) }
-(*| '.' { DOT }*)
+| '.' { DOT (lexeme_start_p lexbuf) }
 | '!' { LNOT (lexeme_start_p lexbuf) }
 | '~' { BNOT (lexeme_start_p lexbuf) }
 | '&' { AMPERSAND (lexeme_start_p lexbuf) }

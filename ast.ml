@@ -47,6 +47,7 @@ type expr =
   | ExprLit of literal
   | ExprCast of position * vartype * expr
   | ExprIndex of position * expr * position * expr
+  | ExprSelectField of position * position * expr * string
 
 type stmt =
   | StmtExpr of position * expr

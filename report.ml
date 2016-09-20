@@ -106,3 +106,17 @@ let err_recursive_type_defn pos name =
     ^ "  Recursive defintion of type " ^ name ^ ".\n"
     ^ (show_source pos)
   in fatal_error err
+
+(** Tried to access a struct member that doesn't exist in the struct. *)
+let err_struct_no_such_member pos mname =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Struct has no such member: " ^ mname ^ ".\n"
+    ^ (show_source pos)
+  in fatal_error err
+
+(** Tried to access a member of an object that was not a struct. *)
+let err_non_struct_member_access pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Object is not a struct and has no members to access.\n"
+    ^ (show_source pos)
+  in fatal_error err
