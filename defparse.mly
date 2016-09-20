@@ -118,7 +118,7 @@ deftype:
 
 structcontents:
 | sc = variabledecl { [sc] }
-| sc = variabledecl SEMICOLON sclist = structcontents { sc :: sclist }
+| sc = variabledecl COMMA sclist = structcontents { sc :: sclist }
 
 parameterlist:
 | p = variabledecl { [p] }
