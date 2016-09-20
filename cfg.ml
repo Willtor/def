@@ -280,7 +280,7 @@ let convert_expr typemap scope =
        end
     | ExprSelectField (dpos, fpos, obj, fieldname) ->
        let otype, converted_obj = convert obj in
-       let struct_select = function
+       let rec struct_select obj = function
          | DefTypeLiteralStruct (mtypes, fields) ->
             let rec get_field n = function
               | [] -> Report.err_struct_no_such_member fpos fieldname
@@ -288,15 +288,16 @@ let convert_expr typemap scope =
                  if f = fieldname then n else get_field (n + 1) rest
             in
             let n = get_field 0 fields in
-            List.nth mtypes n, Expr_SelectField (converted_obj, n)
+            List.nth mtypes n, Expr_SelectField (obj, n)
+         | DefTypeNamedStruct sname ->
+            struct_select obj (the (lookup_symbol typemap sname))
+         | DefTypePtr p ->
+            let idx = LitI32 (fpos, (Int32.of_int 0)) in
+            let derefed_obj = Expr_Index (obj, Expr_Literal idx) in
+            struct_select derefed_obj p
          | _ -> Report.err_non_struct_member_access dpos
        in
-       begin match otype with
-       | DefTypeLiteralStruct _ -> struct_select otype
-       | DefTypeNamedStruct sname ->
-          struct_select (the (lookup_symbol typemap sname))
-       | _ -> Report.err_non_struct_member_access dpos
-       end
+       struct_select converted_obj otype
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
   in convert

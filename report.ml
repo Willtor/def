@@ -114,7 +114,8 @@ let err_struct_no_such_member pos mname =
     ^ (show_source pos)
   in fatal_error err
 
-(** Tried to access a member of an object that was not a struct. *)
+(** Tried to access a member of an object that was not a struct.
+    FIXME: Should name the type. *)
 let err_non_struct_member_access pos =
   let err = "At " ^ (format_position pos) ^ ":\n"
     ^ "  Object is not a struct and has no members to access.\n"
