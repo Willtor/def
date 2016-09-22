@@ -111,6 +111,7 @@ let main () =
   if !comp_depth = COMPILE_ASM then
     (dump_asm !output_file lines;
      exit 0);
+  (* FIXME: Sanitize !output_file for spaces and such. *)
   let as_in, as_out = Unix.open_process ("as -o " ^ !output_file) in
   List.iter (fun l -> output_string as_out (l ^ "\n")) lines;
   close_out as_out;
