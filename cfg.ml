@@ -176,14 +176,26 @@ let rec returns_p stmts =
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
 let maybe_cast orig cast_as expr =
-  if 0 == (Types.compare orig cast_as) then expr
+  if orig = cast_as then expr
   else Expr_Cast (orig, cast_as, expr)
 
 let check_castability pos ltype rtype =
-  match ltype, rtype with
-  | DefTypePrimitive lprim, DefTypePrimitive rprim ->
-     ()  (* FIXME: Implement. *)
-  | _ -> failwith "FIXME: check_castability incomplete."
+  let rec similar = function
+    | DefTypePrimitive lprim, DefTypePrimitive rprim ->
+       ()  (* FIXME: Implement. *)
+    | DefTypeFcn (plist1, ret1), DefTypeFcn (plist2, ret2) ->
+       begin
+         List.iter identical (List.combine plist1 plist2);
+         identical (ret1, ret2)
+       end
+    | DefTypePtr p1, DefTypePtr p2 ->
+       identical (p1, p2)
+    | _ -> failwith "FIXME: check_castability incomplete."
+  and identical (ltype, rtype) =
+    if ltype = rtype then ()
+    else Report.err_type_mismatch pos
+  in
+  similar (ltype, rtype)
 
 (** Reconcile the types of two subexpressions connected by a binary operator
     and return the result.  The result may include implicit casts. *)

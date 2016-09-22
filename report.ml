@@ -121,3 +121,11 @@ let err_non_struct_member_access pos =
     ^ "  Object is not a struct and has no members to access.\n"
     ^ (show_source pos)
   in fatal_error err
+
+(** Expression's type doesn't match the expected type.
+    FIXME: Should identify the two types. *)
+let err_type_mismatch pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Type mismatch.\n"
+    ^ (show_source pos)
+  in fatal_error err

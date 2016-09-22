@@ -83,14 +83,17 @@ statement:
 | p_n_e = expr SEMICOLON { let (pos, e) = p_n_e in StmtExpr (pos, e) }
 | b = block { let (pos, stmts) = b in Block (pos, stmts) }
 | VAR id = IDENT tp = deftype SEMICOLON
-    { let (pos, name) = id in VarDecl (pos, name, tp, None) }
+    { let (pos, name) = id
+      and _, t = tp in
+      VarDecl (pos, name, t, None) }
 | VAR id = IDENT tp = deftype eq = EQUALS p_n_e = expr SEMICOLON
     { let (pos, name) = id
-      and (_, expr) = p_n_e in
+      and (_, expr) = p_n_e
+      and _, t = tp in
       let init = ExprBinary (OperAssign (eq),
                              ExprVar (pos, name),
                              expr) in
-      VarDecl (pos, name, tp, Some (eq, init)) }
+      VarDecl (pos, name, t, Some (eq, init)) }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
 | p = WHILE p_n_e = expr DO slist = statementlist DONE
@@ -99,22 +102,30 @@ statement:
     { let (_, e) = p_n_e in Return (p, e) }
 | p = RETURN SEMICOLON { ReturnVoid p }
 | TYPE id = IDENT EQUALS tp = deftype SEMICOLON
-    { let pos, name = id in TypeDecl (pos, name, tp) }
+    { let pos, name = id
+      and _, t = tp in
+      TypeDecl (pos, name, t) }
 
 elseclause:
 | ELSE slist = statementlist { Some slist }
 | { None }
 
-fcntype:
+fcntype_with_param_names:
 | LPAREN RPAREN RARROW ret = deftype
-    { ([], ret) }
+    { let pos, rtype = ret in (pos, [], rtype) }
 | LPAREN plist = parameterlist RPAREN RARROW ret = deftype
-    { (plist, ret) }
+    { let pos, rtype = ret in (pos, plist, rtype) }
+
+fcntype:
+| f = fcntype_with_param_names { f }
+| LPAREN plist = unnamedplist RPAREN RARROW ret = deftype
+    { let pos, rtype = ret in (pos, plist, rtype) }
 
 deftype:
-| s = IDENT { let (pos, ident) = s in VarType (pos, ident) }
-| pos = STAR tp = deftype { PtrType (pos, tp) }
-| LCURLY sc = structcontents RCURLY { StructType sc }
+| s = IDENT { let (pos, ident) = s in pos, VarType (pos, ident) }
+| pos = STAR tp = deftype { let _, t = tp in (pos, PtrType (pos, t)) }
+| pos = LCURLY sc = structcontents RCURLY { pos, StructType sc }
+| f = fcntype { let pos, plist, ret = f in (pos, FcnType (plist, ret)) }
 
 structcontents:
 | sc = variabledecl { [sc] }
@@ -124,13 +135,21 @@ parameterlist:
 | p = variabledecl { [p] }
 | p = variabledecl COMMA plist = parameterlist { p :: plist }
 
+unnamedplist:
+| dt = deftype { let pos, tp = dt in [(pos, "", tp)] }
+| dt = deftype COMMA plist = unnamedplist
+    { let pos, tp = dt in (pos, "", tp) :: plist }
+
 variabledecl:
-| s = IDENT t = deftype { let (pos, ident) = s in (pos, ident, t) }
+| s = IDENT tp = deftype
+    { let (pos, ident) = s
+      and _, t = tp
+      in (pos, ident, t) }
 
 fcndef:
-| DEF s = IDENT ftype = fcntype
+| DEF s = IDENT ftype = fcntype_with_param_names
     {
-      let (plist, ret) = ftype
+      let (_, plist, ret) = ftype
       and (pos, ident) = s in
       (pos, ident, FcnType (plist, ret))
     }
