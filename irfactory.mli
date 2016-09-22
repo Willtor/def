@@ -1,3 +1,1 @@
-exception ProcessingError of string
-
-val process_cfg : string -> string -> Cfg.program -> unit
+val process_cfg : string -> Cfg.program -> Llvm.llmodule

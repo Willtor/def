@@ -101,3 +101,11 @@ let symtab_filter f =
 let the = function
   | Some v -> v
   | None -> failwith "Internal error.  Expected a value from Util.the."
+
+(** Set the reference to the given value, but only if it has never been set
+    before.  Return success or non-success. *)
+let ref_set reference v already_set =
+  if !already_set then false
+  else (already_set := true;
+        reference := v;
+        true)

@@ -4,8 +4,6 @@ open Llvm
 open Types
 open Util
 
-exception ProcessingError of string
-
 type llvm_data =
   { ctx  : llcontext;
     mdl  : llmodule;
@@ -304,7 +302,7 @@ let declare_globals data symbols name decl =
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llfcn)
 
-let process_cfg outfile module_name program =
+let process_cfg module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let bldr = builder ctx in
@@ -314,4 +312,4 @@ let process_cfg outfile module_name program =
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols) program.global_decls;
   List.iter (process_fcn data symbols) program.fcnlist;
-  print_module outfile mdl
+  mdl

@@ -1,7 +1,7 @@
 TARGET = defc
 
 OCAMLC = ocamlfind ocamlopt
-PACKAGE = -package llvm,llvm.analysis
+PACKAGE = -package llvm,llvm.analysis,unix
 LINKPKG = -linkpkg $(PACKAGE)
 
 SRC = util.ml types.ml ast.ml report.ml cfg.ml defparse.mly deflex.mll scrubber.ml irfactory.ml main.ml

@@ -50,3 +50,7 @@ val symtab_filter : (string -> 'b -> 'b option) -> 'b symtab -> 'b symtab
 
 (** For when an option isn't really an option. *)
 val the : 'a option -> 'a
+
+(** Set the reference to the given value, but only if it has never been set
+    before.  Return success or non-success. *)
+val ref_set : 'a ref -> 'a -> bool ref -> bool
