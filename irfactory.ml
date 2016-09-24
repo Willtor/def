@@ -88,12 +88,6 @@ let process_literal typemap lit = match lit with
   | LitU64 (_, n) ->
      const_of_int64 (the (lookup_symbol typemap "i64")) n false
 
-let process_variable varmap name =
-  match lookup_symbol varmap name with
-  | None -> Report.err_internal __FILE__ __LINE__
-     ("Failed to find variable " ^ name ^ ".")
-  | Some (_, _, llvar) -> llvar
-
 let process_expr data varmap =
   let rec llvm_binop op left right bldr =
     let standard_op fnc name =
@@ -187,9 +181,14 @@ let process_expr data varmap =
        build_call callee (Array.of_list arg_vals) "def_call" data.bldr
     | Expr_Literal lit -> process_literal data.typemap lit
     | Expr_Variable name ->
-       let v = process_variable varmap name in
-       if rvalue_p then build_load v name data.bldr
-       else v
+       begin match lookup_symbol varmap name with
+       | None -> Report.err_internal __FILE__ __LINE__
+          ("Failed to find variable " ^ name ^ ".")
+       | Some (_, DefTypeFcn _, llvar) -> llvar
+       | Some (_, _, llvar) ->
+          if rvalue_p then build_load llvar name data.bldr
+          else llvar
+       end
     | Expr_Binary (op, left, right) ->
        llvm_binop op left right data.bldr
     | Expr_Cast (from_tp, to_tp, expr) ->
