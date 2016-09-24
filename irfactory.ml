@@ -184,7 +184,12 @@ let process_expr data varmap =
        begin match lookup_symbol varmap name with
        | None -> Report.err_internal __FILE__ __LINE__
           ("Failed to find variable " ^ name ^ ".")
-       | Some (_, DefTypeFcn _, llvar) -> llvar
+       | Some (_, DefTypeFcn _, llvar) ->
+          if not rvalue_p then llvar
+          else begin match classify_value llvar with
+          | ValueKind.Function -> llvar
+          | _ -> build_load llvar "deref_fcn" data.bldr
+          end
        | Some (_, _, llvar) ->
           if rvalue_p then build_load llvar name data.bldr
           else llvar
