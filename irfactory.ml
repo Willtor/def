@@ -17,24 +17,27 @@ let get_fcntype = function
   | _ -> Report.err_internal __FILE__ __LINE__ "Expected a DefTypeFcn."
 
 let deftype2llvmtype ctx typemap =
-  let rec convert = function
+  let rec convert wrap_fcn_ptr = function
     | DefTypeUnresolved (_, name) ->
        Report.err_internal __FILE__ __LINE__
          ("Tried to convert a placeholder type: " ^ name)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
     | DefTypeFcn (args, ret) ->
-       let llvmargs = List.map (fun argtp -> convert argtp) args in
-       function_type (convert ret) (Array.of_list llvmargs)
+       let llvmargs = List.map (fun argtp -> convert true argtp) args in
+       let ftype = function_type (convert true ret) (Array.of_list llvmargs)
+       in
+       if wrap_fcn_ptr then pointer_type ftype
+       else ftype
     | DefTypePrimitive prim ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
     | DefTypePtr pointed_to_tp ->
-       pointer_type (convert pointed_to_tp)
+       pointer_type (convert wrap_fcn_ptr pointed_to_tp)
     | DefTypeNamedStruct name ->
        the (lookup_symbol typemap name)
     | DefTypeLiteralStruct (members, _) ->
-       let llvm_members = List.map convert members in
+       let llvm_members = List.map (convert wrap_fcn_ptr) members in
        struct_type ctx (Array.of_list llvm_members)
   in convert
 
@@ -49,14 +52,15 @@ let build_types ctx deftypes =
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypePrimitive _
        | DefTypePtr _ ->
-          add_symbol typemap name (deftype2llvmtype ctx typemap deftype)
+          add_symbol typemap name (deftype2llvmtype ctx typemap true deftype)
        | _ -> Report.err_internal __FILE__ __LINE__
           "Some type other than named struct was not found."
        end
   in
   let build_structs name = function
     | DefTypeLiteralStruct (members, _) ->
-       let llvm_members = List.map (deftype2llvmtype ctx typemap) members in
+       let llvm_members =
+         List.map (deftype2llvmtype ctx typemap true) members in
        let llvm_struct = the (lookup_symbol typemap name) in
        struct_set_body llvm_struct (Array.of_list llvm_members) false
     | _ -> ()
@@ -173,8 +177,13 @@ let process_expr data varmap =
 
   and expr_gen rvalue_p = function
     | Expr_FcnCall (name, args) ->
-       let (_, _, callee) = the (lookup_symbol varmap name) in
+       let (_, _, var) = the (lookup_symbol varmap name) in
        let arg_vals = List.map (expr_gen true) args in
+       (* Protect programmers from this function pointer nonsense. *)
+       let callee = match classify_value var with
+         | ValueKind.Function -> var
+         | _ -> build_load var "callee" data.bldr
+       in
        build_call callee (Array.of_list arg_vals) "def_call" data.bldr
     | Expr_Literal lit -> process_literal data.typemap lit
     | Expr_Variable name ->
@@ -280,14 +289,14 @@ let process_fcn data symbols fcn =
   let llparams = params llfcn in
   List.iteri (fun i ((pos, n), tp) ->
     let alloc =
-      build_alloca (deftype2llvmtype data.ctx data.typemap tp) n data.bldr
+      build_alloca (deftype2llvmtype data.ctx data.typemap true tp) n data.bldr
     in begin
       add_symbol varmap n (pos, tp, alloc);
       ignore (build_store llparams.(i) alloc data.bldr);
     end) (List.combine profile.params args);
   List.iter (fun (name, decl) ->
     let alloc = build_alloca
-      (deftype2llvmtype data.ctx data.typemap decl.tp) name data.bldr
+      (deftype2llvmtype data.ctx data.typemap true decl.tp) name data.bldr
     in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
     fcn.local_vars;
   ignore (process_body data llfcn varmap fcn.bbs bb);
@@ -297,7 +306,7 @@ let declare_globals data symbols name decl =
   let llfcn =
     (* FIXME: Might not be a function.  Need to check decl.tp. *)
     declare_function
-      decl.mappedname (deftype2llvmtype data.ctx data.typemap decl.tp)
+      decl.mappedname (deftype2llvmtype data.ctx data.typemap false decl.tp)
       data.mdl
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llfcn)
