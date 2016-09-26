@@ -1,12 +1,13 @@
 open Ast
+open Lexing
 open Util
 
 exception NoReturn
 
-type term_condition =
-  | NOT_TERMINATED
-  | TERMINATED
-  | TERMINATED_AND_REPORTED
+let faux_pos = { pos_fname = "";
+                 pos_lnum = 0;
+                 pos_bol = 0;
+                 pos_cnum = 0 }
 
 let position_of_stmt = function
   | StmtExpr (pos, _)
@@ -62,6 +63,46 @@ let kill_dead_code =
     | stmt -> stmt
   in List.map toplevel
 
+let return_all_paths =
+  let process can_return_void body =
+    let rec returns_p = function
+      | [] -> false
+      | Return _ :: _
+      | ReturnVoid _ :: _ -> true
+      | Block (_, block) :: rest ->
+         if returns_p block then true
+         else returns_p rest
+      | StmtExpr _ :: rest
+      | DefFcn _ :: rest
+      | VarDecl _ :: rest
+      | IfStmt (_, _, _, None) :: rest
+      | WhileLoop _ :: rest
+      | TypeDecl _ :: rest -> returns_p rest
+      | IfStmt (_, _, then_branch, Some else_branch) :: rest ->
+         if (returns_p then_branch) && (returns_p else_branch) then true
+         else returns_p rest
+    in
+    if returns_p body then body
+    else if can_return_void then
+      (* Implicit return statement.  This is only allowed when the return
+         type is void. *)
+      List.append body [ ReturnVoid faux_pos ]
+    else raise NoReturn
+  in
+  let toplevel = function
+    | DefFcn (pos, name, tp, body) ->
+       let can_return_void = match tp with
+         | FcnType (_, VarType (_, "void")) -> true
+         | _ -> false
+       in
+       begin try DefFcn (pos, name, tp, process can_return_void body)
+         with _ -> (* Fixme: Need the end of function position. *)
+           Report.err_no_return pos name
+       end
+    | stmt -> stmt
+  in List.map toplevel
+
 let scrub stmts =
   let stmts = kill_dead_code stmts in
+  let stmts = return_all_paths stmts in
   stmts

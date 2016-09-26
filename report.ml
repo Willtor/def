@@ -32,6 +32,13 @@ let err_lexing pos character =
     ^ (show_source pos)
   in fatal_error err
 
+(** Function has no return statement. *)
+let err_no_return pos fcn =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Function " ^ fcn ^ " needs a return statement.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Error: The operator was invalid for the type being operated on. *)
 let err_invalid_op pos op tpname =
   let err = "At " ^ (format_position pos) ^ ":\n"
