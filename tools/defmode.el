@@ -28,4 +28,6 @@
 (setq def-comments-regexp nil)
 (setq def-multiline-comments-regexp nil)
 
+(add-to-list 'auto-mode-alist '("\\.def\\'" . def-mode))
+
 (provide 'def-mode)
