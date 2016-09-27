@@ -171,14 +171,18 @@ let process_expr data varmap =
 
   and expr_gen rvalue_p = function
     | Expr_FcnCall (name, args) ->
-       let (_, _, var) = the (lookup_symbol varmap name) in
+       let (_, tp, var) = the (lookup_symbol varmap name) in
        let arg_vals = List.map (expr_gen true) args in
        (* Protect programmers from this function pointer nonsense. *)
        let callee = match classify_value var with
          | ValueKind.Function -> var
          | _ -> build_load var "callee" data.bldr
        in
-       build_call callee (Array.of_list arg_vals) "def_call" data.bldr
+       let retname = match tp with
+         | DefTypeFcn (_, DefTypeVoid) -> ""
+         | _ -> "def_call"
+       in
+       build_call callee (Array.of_list arg_vals) retname data.bldr
     | Expr_Literal lit -> process_literal data.typemap lit
     | Expr_Variable name ->
        begin match lookup_symbol varmap name with
@@ -252,25 +256,45 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
               merge_bb
             end
     | BB_Loop block ->
-       (* New block for the condition. *)
-       let cond_bb = append_block data.ctx "loop" llfcn in
-       let _ = build_br cond_bb data.bldr in
-       let () = position_at_end cond_bb data.bldr in
-       let cond = process_expr data varmap block.loop_cond in
 
-       (* Loop body. *)
-       let body_bb = append_block data.ctx "loop_body" llfcn in
-       let () = position_at_end body_bb data.bldr in
-       let _ =
-         process_body data llfcn varmap block.body_scope body_bb in
-       let _ = build_br cond_bb data.bldr in
+       (* Check whether the loop is a while or a do-while loop. *)
+       if block.precheck then
+         (* New block for the condition. *)
+         let cond_bb = append_block data.ctx "loop_cond" llfcn in
+         let _ = build_br cond_bb data.bldr in
+         let () = position_at_end cond_bb data.bldr in
+         let cond = process_expr data varmap block.loop_cond in
 
-       (* Follow block. *)
-       let follow_bb = append_block data.ctx "loop_follow" llfcn in
-       let () = position_at_end cond_bb data.bldr in
-       let _ = build_cond_br cond body_bb follow_bb data.bldr in
-       let () = position_at_end follow_bb data.bldr in
-       follow_bb
+         (* Loop body. *)
+         let body_bb = append_block data.ctx "loop_body" llfcn in
+         let () = position_at_end body_bb data.bldr in
+         let _ = process_body data llfcn varmap block.body_scope body_bb in
+         let _ = build_br cond_bb data.bldr in
+
+         (* Follow block. *)
+         let follow_bb = append_block data.ctx "loop_follow" llfcn in
+         let () = position_at_end cond_bb data.bldr in
+         let _ = build_cond_br cond body_bb follow_bb data.bldr in
+         let () = position_at_end follow_bb data.bldr in
+         follow_bb
+       else
+         (* Loop body. *)
+         let body_bb = append_block data.ctx "loop_body" llfcn in
+         let _ = build_br body_bb data.bldr in
+         let () = position_at_end body_bb data.bldr in
+         let _ = process_body data llfcn varmap block.body_scope body_bb in
+
+         (* Block for the conditional. *)
+         let cond_bb = append_block data.ctx "loop_cond" llfcn in
+         let _ = build_br cond_bb data.bldr in
+         let () = position_at_end cond_bb data.bldr in
+         let cond = process_expr data varmap block.loop_cond in
+
+         (* Follow block. *)
+         let follow_bb = append_block data.ctx "loop_follow" llfcn in
+         let _ = build_cond_br cond body_bb follow_bb data.bldr in
+         let () = position_at_end follow_bb data.bldr in
+         follow_bb
 
     | BB_Expr (_, expr) ->
        begin ignore (process_expr data varmap expr); bb end

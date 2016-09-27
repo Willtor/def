@@ -29,6 +29,7 @@ and conditional_block =
 
 and loop_block =
   { while_pos  : Lexing.position;
+    precheck   : bool;
     loop_cond  : cfg_expr;
     body_scope : cfg_basic_block list;
   }

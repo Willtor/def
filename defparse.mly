@@ -97,7 +97,9 @@ statement:
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
 | p = WHILE p_n_e = expr DO slist = statementlist DONE
-    { let (_, e) = p_n_e in WhileLoop (p, e, slist) }
+    { let (_, e) = p_n_e in WhileLoop (p, true, e, slist) }
+| p = DO slist = statementlist DONE WHILE p_n_e = expr SEMICOLON
+    { let (_, e) = p_n_e in WhileLoop (p, false, e, slist) }
 | p = RETURN p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in Return (p, e) }
 | p = RETURN SEMICOLON { ReturnVoid p }

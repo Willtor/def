@@ -15,7 +15,7 @@ let position_of_stmt = function
   | DefFcn (pos, _, _, _)
   | VarDecl (pos, _, _, _)
   | IfStmt (pos, _, _, _)
-  | WhileLoop (pos, _, _)
+  | WhileLoop (pos, _, _, _)
   | Return (pos, _)
   | ReturnVoid pos
   | TypeDecl (pos, _, _) -> pos
@@ -45,8 +45,8 @@ let kill_dead_code =
                             | None -> None
                             | Some elseblk -> Some (proc [] elseblk))
          in proc (stmt :: accum) rest
-      | WhileLoop (pos, cond, body) :: rest ->
-         let stmt = WhileLoop (pos, cond, proc [] body)
+      | WhileLoop (pos, precheck, cond, body) :: rest ->
+         let stmt = WhileLoop (pos, precheck, cond, proc [] body)
          in proc (stmt :: accum) rest
       | (Return _ as stmt) :: rest | (ReturnVoid _ as stmt) :: rest ->
          let () = match rest with

@@ -34,6 +34,7 @@ and conditional_block =
 
 and loop_block =
   { while_pos  : Lexing.position;
+    precheck   : bool;
     loop_cond  : cfg_expr;
     body_scope : cfg_basic_block list;
   }
@@ -383,12 +384,13 @@ let build_bbs name decltable typemap body =
        in
        decls, (BB_Cond block) :: bbs
 
-    | WhileLoop (pos, cond, body) ->
+    | WhileLoop (pos, precheck, cond, body) ->
        let decls, body_scope = process_block scope decls body in
        let tp, conv_cond = convert_expr typemap scope cond in
        let () = check_castability pos tp (DefTypePrimitive PrimBool) in
        let block =
          { while_pos = pos;
+           precheck = precheck;
            loop_cond = maybe_cast tp (DefTypePrimitive PrimBool) conv_cond;
            body_scope = List.rev body_scope
          }
