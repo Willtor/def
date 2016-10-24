@@ -90,10 +90,14 @@ statement:
     { let (pos, name) = id
       and (_, expr) = p_n_e
       and _, t = tp in
-      let init = ExprBinary (eq,
-                             OperAssign,
-                             ExprVar (pos, name),
-                             expr) in
+      let binop =
+        { bo_op_pos = eq;
+          bo_op = OperAssign;
+          bo_left = ExprVar (pos, name);
+          bo_right = expr
+        }
+      in
+      let init = ExprBinary binop in
       VarDecl (pos, name, t, Some (eq, init)) }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
@@ -171,12 +175,21 @@ expr:
 | i = LITERALBOOL { let (pos, b) = i in pos, ExprLit (pos, LitBool b) }
 | str = STRING { let (pos, s) = str in pos, ExprString (pos, s) }
 | s = IDENT LPAREN RPAREN
-    { let (pos, ident) = s in (pos, ExprFcnCall (pos, ident, [])) }
+    { let (pos, ident) = s in
+      let fcn_call =
+        { fc_pos = pos;
+          fc_name = ident;
+          fc_args = [] } in
+      pos, ExprFcnCall fcn_call }
 | s = IDENT LPAREN pos_n_exprs = exprlist RPAREN
     { let (pos, ident) = s in
-      let elist = List.map (fun (_, e) -> e) pos_n_exprs
+      let elist = List.map (fun (_, e) -> e) pos_n_exprs in
+      let fcn_call =
+        { fc_pos = pos;
+          fc_name = ident;
+          fc_args = elist }
       in
-      pos, ExprFcnCall (pos, ident, elist) }
+      pos, ExprFcnCall fcn_call }
 | s = IDENT
     { let (pos, ident) = s in pos, ExprVar (pos, ident) }
 | pos = LPAREN p_n_e = expr RPAREN { let (_, e) = p_n_e in pos, e }
@@ -209,116 +222,319 @@ expr:
 | p_n_e1 = expr p = STAR p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperMult, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperMult;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = SLASH p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperDiv, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperDiv;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = PERCENT p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperRemainder, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperRemainder;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = PLUS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperPlus, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperPlus;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = MINUS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperMinus, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperMinus;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = DBLLANGLE p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperLShift, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperLShift;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = DBLRANGLE p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperRShift, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperRShift;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = LANGLE p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperLT, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperLT;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = RANGLE p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperGT, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperGT;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = LEQ p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperLTE, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperLTE;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = GEQ p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperGTE, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperGTE;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = EQUALSEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperEquals, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperEquals;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = BANGEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperNEquals, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperNEquals;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = AMPERSAND p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperBitwiseAnd, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperBitwiseAnd;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = CARAT p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperBitwiseXor, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperBitwiseXor;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = VBAR p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperBitwiseOr, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperBitwiseOr;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = DBLAMPERSAND p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperLogicalAnd, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperLogicalAnd;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = DBLVBAR p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperLogicalOr, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperLogicalOr;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = EQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = PLUSEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperPlusAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperPlusAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = MINUSEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperMinusAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperMinusAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = STAREQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperMultAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperMultAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = SLASHEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperDivAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperDivAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = PERCENTEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperRemAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperRemAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = DBLLANGLEEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperLShiftAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperLShiftAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = DBLRANGLEEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperRShiftAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperRShiftAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = AMPERSANDEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperBAndAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperBAndAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = CARATEQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperBXorAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperBXorAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }
 | p_n_e1 = expr p = VBAREQUALS p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
-      (exprpos, ExprBinary (p, OperBOrAssign, e1, e2)) }
+      let binop =
+        { bo_op_pos = p;
+          bo_op = OperBOrAssign;
+          bo_left = e1;
+          bo_right = e2
+        }
+      in
+      exprpos, ExprBinary binop }

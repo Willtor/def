@@ -35,10 +35,23 @@ type vartype =
   | StructType of (position * string * vartype) list
   | PtrType of position * vartype
 
-type expr =
-  | ExprFcnCall of position * string * expr list
+type fcn_call =
+  { fc_pos  : position;
+    fc_name : string;
+    fc_args : expr list
+  }
+
+and binary_operation =
+  { bo_op_pos : position;
+    bo_op : operator;
+    bo_left : expr;
+    bo_right : expr
+  }
+
+and expr =
+  | ExprFcnCall of fcn_call
   | ExprString of position * string
-  | ExprBinary of position * operator * expr * expr
+  | ExprBinary of binary_operation
   | ExprPreUnary of position * operator * expr
   | ExprPostUnary of position * operator * expr
   | ExprVar of position * string
