@@ -266,11 +266,11 @@ let convert_expr typemap scope =
        let rettp, fcn, cfg_args =
          build_fcn_call scope call.fc_pos call.fc_name converted_args
        in rettp, Expr_FcnCall (fcn, cfg_args)
-    | ExprBinary bo ->
+    | ExprBinary op ->
        let tp, lhs, rhs =
-         binary_reconcile bo.bo_op_pos bo.bo_op
-           (convert bo.bo_left) (convert bo.bo_right)
-       in tp, Expr_Binary (bo.bo_op, lhs, rhs)
+         binary_reconcile op.op_pos op.op_op
+           (convert op.op_left) (convert (the op.op_right))
+       in tp, Expr_Binary (op.op_op, lhs, rhs)
     | ExprVar (pos, name) ->
        let var = the (lookup_symbol scope name)
        in var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)

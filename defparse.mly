@@ -91,10 +91,10 @@ statement:
       and (_, expr) = p_n_e
       and _, t = tp in
       let binop =
-        { bo_op_pos = eq;
-          bo_op = OperAssign;
-          bo_left = ExprVar (pos, name);
-          bo_right = expr
+        { op_pos = eq;
+          op_op = OperAssign;
+          op_left = ExprVar (pos, name);
+          op_right = Some expr
         }
       in
       let init = ExprBinary binop in
@@ -203,30 +203,92 @@ expr:
       pos, ExprSelectField (fpos, dpos, obj, field) }
 | p_n_e = expr p = INCREMENT
     { let (exprpos, e) = p_n_e in
-      (exprpos, ExprPostUnary (p, OperIncr, e)) }
+      let unop =
+        { op_pos = p;
+          op_op = OperIncr;
+          op_left = e;
+          op_right = None
+        }
+      in
+      exprpos, ExprPostUnary unop }
 | p_n_e = expr p = DECREMENT
     { let (exprpos, e) = p_n_e in
-      (exprpos, ExprPostUnary (p, OperDecr, e)) }
+      let unop =
+        { op_pos = p;
+          op_op = OperDecr;
+          op_left = e;
+          op_right = None
+        }
+      in
+      exprpos, ExprPostUnary unop }
 | p = INCREMENT p_n_e = expr %prec PREINCR
-    { let (_, e) = p_n_e in (p, ExprPreUnary (p, OperIncr, e)) }
+    { let (_, e) = p_n_e in
+      let unop =
+        { op_pos = p;
+          op_op = OperIncr;
+          op_left = e;
+          op_right = None
+        }
+      in
+      p, ExprPreUnary unop }
 | p = DECREMENT p_n_e = expr %prec PREDECR
-    { let (_, e) = p_n_e in (p, ExprPreUnary (p, OperDecr, e)) }
+    { let (_, e) = p_n_e in
+      let unop =
+        { op_pos = p;
+          op_op = OperDecr;
+          op_left = e;
+          op_right = None
+        }
+      in
+      p, ExprPreUnary unop }
 | p = MINUS p_n_e = expr %prec NEGATIVE
-    { let (_, e) = p_n_e in (p, ExprPreUnary (p, OperMinus, e)) }
+    { let (_, e) = p_n_e in
+      let unop =
+        { op_pos = p;
+          op_op = OperMinus;
+          op_left = e;
+          op_right = None
+        }
+      in
+      p, ExprPreUnary unop }
 | p = PLUS p_n_e = expr %prec POSITIVE
-    { let (_, e) = p_n_e in (p, ExprPreUnary (p, OperPlus, e)) }
+    { let (_, e) = p_n_e in
+      let unop =
+        { op_pos = p;
+          op_op = OperPlus;
+          op_left = e;
+          op_right = None
+        }
+      in
+      p, ExprPreUnary unop }
 | p = LNOT p_n_e = expr
-    { let (_, e) = p_n_e in (p, ExprPreUnary (p, OperLogicalNot, e)) }
+    { let (_, e) = p_n_e in
+      let unop =
+        { op_pos = p;
+          op_op = OperLogicalNot;
+          op_left = e;
+          op_right = None
+        }
+      in
+      p, ExprPreUnary unop }
 | p = BNOT p_n_e = expr
-    { let (_, e) = p_n_e in (p, ExprPreUnary (p, OperBitwiseNot, e)) }
+    { let (_, e) = p_n_e in
+      let unop =
+        { op_pos = p;
+          op_op = OperBitwiseNot;
+          op_left = e;
+          op_right = None
+        }
+      in
+      p, ExprPreUnary unop }
 | p_n_e1 = expr p = STAR p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperMult;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperMult;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -234,10 +296,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperDiv;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperDiv;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -245,10 +307,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperRemainder;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperRemainder;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -256,10 +318,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperPlus;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperPlus;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -267,10 +329,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperMinus;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperMinus;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -278,10 +340,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperLShift;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperLShift;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -289,10 +351,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperRShift;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperRShift;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -300,10 +362,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperLT;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperLT;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -311,10 +373,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperGT;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperGT;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -322,10 +384,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperLTE;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperLTE;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -333,10 +395,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperGTE;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperGTE;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -344,10 +406,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperEquals;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperEquals;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -355,10 +417,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperNEquals;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperNEquals;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -366,10 +428,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperBitwiseAnd;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperBitwiseAnd;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -377,10 +439,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperBitwiseXor;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperBitwiseXor;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -388,10 +450,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperBitwiseOr;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperBitwiseOr;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -399,10 +461,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperLogicalAnd;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperLogicalAnd;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -410,10 +472,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperLogicalOr;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperLogicalOr;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -421,10 +483,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -432,10 +494,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperPlusAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperPlusAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -443,10 +505,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperMinusAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperMinusAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -454,10 +516,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperMultAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperMultAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -465,10 +527,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperDivAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperDivAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -476,10 +538,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperRemAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperRemAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -487,10 +549,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperLShiftAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperLShiftAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -498,10 +560,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperRShiftAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperRShiftAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -509,10 +571,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperBAndAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperBAndAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -520,10 +582,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperBXorAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperBXorAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }
@@ -531,10 +593,10 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { bo_op_pos = p;
-          bo_op = OperBOrAssign;
-          bo_left = e1;
-          bo_right = e2
+        { op_pos = p;
+          op_op = OperBOrAssign;
+          op_left = e1;
+          op_right = Some e2
         }
       in
       exprpos, ExprBinary binop }

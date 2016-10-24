@@ -41,19 +41,19 @@ type fcn_call =
     fc_args : expr list
   }
 
-and binary_operation =
-  { bo_op_pos : position;
-    bo_op : operator;
-    bo_left : expr;
-    bo_right : expr
+and operation =
+  { op_pos : position;
+    op_op : operator;
+    op_left : expr;
+    op_right : expr option
   }
 
 and expr =
   | ExprFcnCall of fcn_call
   | ExprString of position * string
-  | ExprBinary of binary_operation
-  | ExprPreUnary of position * operator * expr
-  | ExprPostUnary of position * operator * expr
+  | ExprBinary of operation
+  | ExprPreUnary of operation
+  | ExprPostUnary of operation
   | ExprVar of position * string
   | ExprLit of position * literal
   | ExprCast of position * vartype * expr
