@@ -207,25 +207,19 @@ let binary_reconcile =
        DefTypePrimitive (generalize_primitives lprim rprim)
     | _ -> failwith "FIXME: more_general_of incomplete."
   in
-  let reconcile op (ltype, lexpr) (rtype, rexpr) =
+  let reconcile pos op (ltype, lexpr) (rtype, rexpr) =
     match op with
-    | OperPlus pos
-    | OperMinus pos
-    | OperMult pos
-    | OperDiv pos ->
+    | OperPlus | OperMinus | OperMult | OperDiv ->
        let tp = more_general_of pos op ltype rtype in
        tp, (maybe_cast ltype tp lexpr), (maybe_cast rtype tp rexpr)
-    | OperLT pos
-    | OperLTE pos
-    | OperGT pos
-    | OperGTE pos
-    | OperEquals pos
-    | OperNEquals pos ->
+    | OperLT | OperLTE
+    | OperGT | OperGTE
+    | OperEquals | OperNEquals ->
        let tp = more_general_of pos op ltype rtype in
        DefTypePrimitive PrimBool,
        (maybe_cast ltype tp lexpr),
        (maybe_cast rtype tp rexpr)
-    | OperAssign pos ->
+    | OperAssign ->
        begin
          check_castability pos rtype ltype;
          ltype, lexpr, (maybe_cast rtype ltype rexpr)
@@ -271,13 +265,13 @@ let convert_expr typemap scope =
        let converted_args = List.map convert args in
        let rettp, fcn, cfg_args = build_fcn_call scope pos name converted_args
        in rettp, Expr_FcnCall (fcn, cfg_args)
-    | ExprBinary (op, lhs, rhs) ->
-       let tp, lhs, rhs = binary_reconcile op (convert lhs) (convert rhs)
+    | ExprBinary (pos, op, lhs, rhs) ->
+       let tp, lhs, rhs = binary_reconcile pos op (convert lhs) (convert rhs)
        in tp, Expr_Binary (op, lhs, rhs)
     | ExprVar (pos, name) ->
        let var = the (lookup_symbol scope name)
        in var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
-    | ExprLit literal ->
+    | ExprLit (pos, literal) ->
        (typeof_literal literal), Expr_Literal literal
     | ExprIndex (bpos, base, ipos, idx) ->
        let btype, converted_base = convert base
@@ -305,7 +299,7 @@ let convert_expr typemap scope =
          | DefTypeNamedStruct sname ->
             struct_select obj (the (lookup_symbol typemap sname))
          | DefTypePtr p ->
-            let idx = LitI32 (fpos, (Int32.of_int 0)) in
+            let idx = LitI32 (Int32.of_int 0) in
             let derefed_obj = Expr_Index (obj, Expr_Literal idx) in
             struct_select derefed_obj p
          | _ -> Report.err_non_struct_member_access dpos

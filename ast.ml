@@ -1,35 +1,33 @@
 
-open Lexing
 open Types
+open Lexing
 
 type literal =
-  | LitBool of Lexing.position * bool
+  | LitBool of bool
   (* schar, uchar *)
-  | LitI16 of Lexing.position * int32 
-  | LitU16 of Lexing.position * int32
-  | LitI32 of Lexing.position * int32
-  | LitU32 of Lexing.position * int32
-  | LitI64 of Lexing.position * int64
-  | LitU64 of Lexing.position * int64
+  | LitI16 of int32 
+  | LitU16 of int32
+  | LitI32 of int32
+  | LitU32 of int32
+  | LitI64 of int64
+  | LitU64 of int64
   (* floating point *)
 
 type operator =
-  | OperIncr of position | OperDecr of position
-  | OperMinus of position | OperPlus of position
-  | OperLogicalNot of position | OperBitwiseNot of position
-  | OperMult of position | OperDiv of position | OperRemainder of position
-  | OperLShift of position | OperRShift of position
-  | OperLT of position | OperGT of position | OperLTE of position
-  | OperGTE of position | OperEquals of position | OperNEquals of position
-  | OperBitwiseAnd of position | OperBitwiseXor of position
-  | OperBitwiseOr of position
-  | OperLogicalAnd of position | OperLogicalOr of position
-  | OperAssign of position | OperPlusAssign of position
-  | OperMinusAssign of position | OperMultAssign of position
-  | OperDivAssign of position | OperRemAssign of position
-  | OperLShiftAssign of position | OperRShiftAssign of position
-  | OperBAndAssign of position
-  | OperBXorAssign of position | OperBOrAssign of position
+  | OperIncr | OperDecr
+  | OperMinus | OperPlus
+  | OperLogicalNot | OperBitwiseNot
+  | OperMult | OperDiv | OperRemainder
+  | OperLShift | OperRShift
+  | OperLT | OperGT | OperLTE
+  | OperGTE | OperEquals | OperNEquals
+  | OperBitwiseAnd | OperBitwiseXor | OperBitwiseOr
+  | OperLogicalAnd | OperLogicalOr
+  | OperAssign | OperPlusAssign
+  | OperMinusAssign | OperMultAssign
+  | OperDivAssign | OperRemAssign
+  | OperLShiftAssign | OperRShiftAssign
+  | OperBAndAssign | OperBXorAssign | OperBOrAssign
 
 type vartype =
   | VarType of position * string
@@ -40,11 +38,11 @@ type vartype =
 type expr =
   | ExprFcnCall of position * string * expr list
   | ExprString of position * string
-  | ExprBinary of operator * expr * expr
-  | ExprPreUnary of operator * expr
-  | ExprPostUnary of operator * expr
+  | ExprBinary of position * operator * expr * expr
+  | ExprPreUnary of position * operator * expr
+  | ExprPostUnary of position * operator * expr
   | ExprVar of position * string
-  | ExprLit of literal
+  | ExprLit of position * literal
   | ExprCast of position * vartype * expr
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * string
@@ -62,39 +60,39 @@ type stmt =
   | TypeDecl of position * string * vartype
 
 let operator2string = function
-  | OperIncr _ -> "++"
-  | OperDecr _ -> "--"
-  | OperMinus _ -> "-"
-  | OperPlus _ -> "+"
-  | OperLogicalNot _ -> "!"
-  | OperBitwiseNot _ -> "~"
-  | OperMult _ -> "*"
-  | OperDiv _ -> "/"
-  | OperRemainder _ -> "%"
-  | OperLShift _ -> "<<"
-  | OperRShift _ -> ">>"
-  | OperLT _ -> "<"
-  | OperGT _ -> ">"
-  | OperLTE _ -> "<="
-  | OperGTE _ -> ">="
-  | OperEquals _ -> "=="
-  | OperNEquals _ -> "!="
-  | OperBitwiseAnd _ -> "&"
-  | OperBitwiseXor _ -> "^"
-  | OperBitwiseOr _ -> "|"
-  | OperLogicalAnd _ -> "&&"
-  | OperLogicalOr _ -> "||"
-  | OperAssign _ -> "="
-  | OperPlusAssign _ -> "+="
-  | OperMinusAssign _ -> "-="
-  | OperMultAssign _ -> "*="
-  | OperDivAssign _ -> "/="
-  | OperRemAssign _ -> "%="
-  | OperLShiftAssign _ -> "<<="
-  | OperRShiftAssign _ -> ">>="
-  | OperBAndAssign _ -> "&="
-  | OperBXorAssign _ -> "^="
-  | OperBOrAssign _ -> "|="
+  | OperIncr -> "++"
+  | OperDecr -> "--"
+  | OperMinus -> "-"
+  | OperPlus -> "+"
+  | OperLogicalNot -> "!"
+  | OperBitwiseNot -> "~"
+  | OperMult -> "*"
+  | OperDiv -> "/"
+  | OperRemainder -> "%"
+  | OperLShift -> "<<"
+  | OperRShift -> ">>"
+  | OperLT -> "<"
+  | OperGT -> ">"
+  | OperLTE -> "<="
+  | OperGTE -> ">="
+  | OperEquals -> "=="
+  | OperNEquals -> "!="
+  | OperBitwiseAnd -> "&"
+  | OperBitwiseXor -> "^"
+  | OperBitwiseOr -> "|"
+  | OperLogicalAnd -> "&&"
+  | OperLogicalOr -> "||"
+  | OperAssign -> "="
+  | OperPlusAssign -> "+="
+  | OperMinusAssign -> "-="
+  | OperMultAssign -> "*="
+  | OperDivAssign -> "/="
+  | OperRemAssign -> "%="
+  | OperLShiftAssign -> "<<="
+  | OperRShiftAssign -> ">>="
+  | OperBAndAssign -> "&="
+  | OperBXorAssign -> "^="
+  | OperBOrAssign -> "|="
 
 let literal2primitive = function
   | LitBool _ -> PrimBool

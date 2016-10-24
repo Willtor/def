@@ -73,19 +73,19 @@ let build_types ctx deftypes =
   typemap
 
 let process_literal typemap lit = match lit with
-  | LitBool (_, true) ->
+  | LitBool true ->
      const_int (the (lookup_symbol typemap "bool")) 1
-  | LitBool (_, false) ->
+  | LitBool false ->
      const_int (the (lookup_symbol typemap "bool")) 0
-  | LitI16 (_, n)
-  | LitU16 (_, n)
-  | LitI32 (_, n)
-  | LitU32 (_, n) ->
+  | LitI16 n
+  | LitU16 n
+  | LitI32 n
+  | LitU32 n ->
      let typename = primitive2string (literal2primitive lit) in
      const_int (the (lookup_symbol typemap typename)) (Int32.to_int n)
-  | LitI64 (_, n) ->
+  | LitI64 n ->
      const_of_int64 (the (lookup_symbol typemap "i64")) n true
-  | LitU64 (_, n) ->
+  | LitU64 n ->
      const_of_int64 (the (lookup_symbol typemap "i64")) n false
 
 let process_expr data varmap =
@@ -94,16 +94,16 @@ let process_expr data varmap =
       fnc (expr_gen true left) (expr_gen true right) name bldr
     in
     match op with
-    | OperMult _ -> standard_op build_mul "def_mult"
-    | OperDiv _ -> standard_op build_sdiv "def_sdiv"
-    | OperPlus _ -> standard_op build_add "def_add"
-    | OperMinus _ -> standard_op build_sub "def_sub"
-    | OperLT _ -> standard_op (build_icmp Icmp.Slt) "def_lt"
-    | OperLTE _ -> standard_op (build_icmp Icmp.Sle) "def_le"
-    | OperGT _ -> standard_op (build_icmp Icmp.Sgt) "def_gt"
-    | OperGTE _ -> standard_op (build_icmp Icmp.Sge) "def_ge"
-    | OperEquals _ -> standard_op (build_icmp Icmp.Eq) "def_eq"
-    | OperAssign _ ->
+    | OperMult -> standard_op build_mul "def_mult"
+    | OperDiv -> standard_op build_sdiv "def_sdiv"
+    | OperPlus -> standard_op build_add "def_add"
+    | OperMinus -> standard_op build_sub "def_sub"
+    | OperLT -> standard_op (build_icmp Icmp.Slt) "def_lt"
+    | OperLTE -> standard_op (build_icmp Icmp.Sle) "def_le"
+    | OperGT -> standard_op (build_icmp Icmp.Sgt) "def_gt"
+    | OperGTE -> standard_op (build_icmp Icmp.Sge) "def_ge"
+    | OperEquals -> standard_op (build_icmp Icmp.Eq) "def_eq"
+    | OperAssign ->
        let rhs = expr_gen true right in
        let _ = build_store rhs (expr_gen false left) bldr in
        rhs
