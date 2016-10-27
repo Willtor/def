@@ -5,7 +5,7 @@ open Util
 
 type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
-  | Expr_Binary of Ast.operator * cfg_expr * cfg_expr
+  | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * cfg_expr * bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
@@ -270,7 +270,7 @@ let convert_expr typemap scope =
        let tp, lhs, rhs =
          binary_reconcile op.op_pos op.op_op
            (convert op.op_left) (convert (the op.op_right))
-       in tp, Expr_Binary (op.op_op, lhs, rhs)
+       in tp, Expr_Binary (op.op_op, tp, lhs, rhs)
     | ExprVar (pos, name) ->
        let var = the (lookup_symbol scope name)
        in var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
@@ -414,8 +414,12 @@ let build_bbs name decltable typemap body =
 let build_fcns decltable typemap fcns = function
   | DefFcn (pos, name, _, body) ->
      let decls, bbs = build_bbs name decltable typemap body in
-     let fcn = { defn_begin = pos; defn_end = pos; name = name;
-                 local_vars = decls; bbs = bbs }
+     let fcn =
+       { defn_begin = pos;
+         defn_end = pos;
+         name = name;
+         local_vars = decls;
+         bbs = bbs }
      in fcn :: fcns
   | _ -> fcns
 

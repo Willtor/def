@@ -1,6 +1,6 @@
 type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
-  | Expr_Binary of Ast.operator * cfg_expr * cfg_expr
+  | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * cfg_expr * bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string

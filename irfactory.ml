@@ -198,7 +198,7 @@ let process_expr data varmap =
           if rvalue_p then build_load llvar name data.bldr
           else llvar
        end
-    | Expr_Binary (op, left, right) ->
+    | Expr_Binary (op, _(*tp*), left, right) ->
        llvm_binop op left right data.bldr
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
