@@ -1,6 +1,6 @@
 type primitive =
   | PrimBool
-  (* schar, uchar *)
+  | PrimI8  | PrimU8
   | PrimI16 | PrimU16
   | PrimI32 | PrimU32
   | PrimI64 | PrimU64

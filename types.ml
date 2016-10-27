@@ -2,7 +2,7 @@ open Llvm
 
 type primitive =
   | PrimBool
-  (* schar, uchar *)
+  | PrimI8  | PrimU8
   | PrimI16 | PrimU16
   | PrimI32 | PrimU32
   | PrimI64 | PrimU64
@@ -27,6 +27,7 @@ type primitive_kind =
 let generalize_primitives p1 p2 =
   let get_kind = function
     | PrimBool
+    | PrimI8  | PrimU8
     | PrimI16 | PrimU16
     | PrimI32 | PrimU32
     | PrimI64 | PrimU64
@@ -34,11 +35,12 @@ let generalize_primitives p1 p2 =
   in
   let is_signed = function
     | PrimBool -> true
-    | PrimI16 | PrimI32 | PrimI64 -> true
-    | PrimU16 | PrimU32 | PrimU64 -> false
+    | PrimI8 | PrimI16 | PrimI32 | PrimI64 -> true
+    | PrimU8 | PrimU16 | PrimU32 | PrimU64 -> false
   in
   let get_rank = function
     | PrimBool -> 1
+    | PrimI8  | PrimU8  -> 8
     | PrimI16 | PrimU16 -> 16
     | PrimI32 | PrimU32 -> 32
     | PrimI64 | PrimU64 -> 64
@@ -72,7 +74,11 @@ let compare t1 t2 =
 (** name, type, llvm type constructor *)
 let map_builtin_types =
   [ ("void", DefTypeVoid, void_type);
-    ("bool", DefTypePrimitive PrimBool, i1_type);
+    ("bool", DefTypePrimitive PrimBool, i1_type); 
+    ("char", DefTypePrimitive PrimI8, i8_type);
+    ("uchar", DefTypePrimitive PrimU8, i8_type);
+    ("i8",  DefTypePrimitive PrimI8,  i8_type);
+    ("u8",  DefTypePrimitive PrimU8,  i8_type);
     ("i16", DefTypePrimitive PrimI16, i16_type);
     ("u16", DefTypePrimitive PrimU16, i16_type);
     ("i32", DefTypePrimitive PrimI32, i32_type);
@@ -83,6 +89,8 @@ let map_builtin_types =
 (** Convert a primitive type to its string representation. *)
 let primitive2string = function
   | PrimBool -> "bool"
+  | PrimI8  -> "i8"
+  | PrimU8  -> "u8"
   | PrimI16 -> "i16"
   | PrimU16 -> "u16"
   | PrimI32 -> "i32"
@@ -94,6 +102,7 @@ let is_integer_type = function
   | DefTypePrimitive prim ->
      begin match prim with
      | PrimBool
+     | PrimI8  | PrimU8
      | PrimI16 | PrimU16
      | PrimI32 | PrimU32
      | PrimI64 | PrimU64 -> true
