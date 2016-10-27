@@ -77,6 +77,9 @@ let process_literal typemap lit = match lit with
      const_int (the (lookup_symbol typemap "bool")) 1
   | LitBool false ->
      const_int (the (lookup_symbol typemap "bool")) 0
+  | LitI8 n
+  | LitU8 n ->
+     const_int (the (lookup_symbol typemap "i8")) (Char.code n)
   | LitI16 n
   | LitU16 n
   | LitI32 n

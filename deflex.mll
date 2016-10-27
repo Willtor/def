@@ -6,6 +6,18 @@
   let remove_suffix s =
     let length = String.length s in
     String.sub s 0 (length - 3)
+
+  let get_i8_of_str pos str =
+    let c = String.get str 1 in
+    if c = '\\' then
+      match String.get str 2 with
+      | 'n' -> '\n'   (* Newline *)
+      | 'r' -> '\r'   (* Carriage return *)
+      | 't' -> '\t'   (* Tab *)
+      | '\\' -> '\\'  (* Backslash *)
+      | '\'' -> '\''  (* Single-quote *)
+      | _ -> Report.err_bad_escaped_char pos c
+    else c
 }
 
 rule deflex = parse
@@ -31,6 +43,9 @@ rule deflex = parse
 
 (* Integers. *)
 
+| "'"[^'\\' '\'']|("\\"_)"'" as cstr
+    { let pos = lexeme_start_p lexbuf in
+      LITERALI8 (pos, get_i8_of_str pos cstr) }
 | ['0'-'9']+"I64" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I64" as istr
     { LITERALI64 (lexeme_start_p lexbuf,
@@ -55,6 +70,16 @@ rule deflex = parse
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U16" as istr
     { LITERALU16 (lexeme_start_p lexbuf,
                   Int32.of_string (remove_suffix istr)) }
+| ['0'-'9']+"I8" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I8" as istr
+    { LITERALI8 (lexeme_start_p lexbuf,
+                 Char.chr (Int32.to_int (Int32.of_string
+                                           (remove_suffix istr)))) }
+| ['0'-'9']+"U8" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U8" as istr
+    { LITERALU8 (lexeme_start_p lexbuf,
+                 Char.chr (Int32.to_int (Int32.of_string
+                                           (remove_suffix istr)))) }
 | ['0'-'9']+ as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+ as istr
     { LITERALI32 (lexeme_start_p lexbuf, Int32.of_string istr) }

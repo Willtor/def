@@ -6,6 +6,7 @@
 %token <Lexing.position * int64> LITERALI64 LITERALU64
 %token <Lexing.position * int32> LITERALI32 LITERALU32
 %token <Lexing.position * int32> LITERALI16 LITERALU16
+%token <Lexing.position * char> LITERALI8 LITERALU8
 %token <Lexing.position * bool> LITERALBOOL
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
@@ -172,6 +173,8 @@ expr:
 | i = LITERALU32 { let (pos, n) = i in pos, ExprLit (pos, LitU32 n) }
 | i = LITERALI16 { let (pos, n) = i in pos, ExprLit (pos, LitI16 n) }
 | i = LITERALU16 { let (pos, n) = i in pos, ExprLit (pos, LitU16 n) }
+| i = LITERALI8  { let (pos, n) = i in pos, ExprLit (pos, LitI8  n) }
+| i = LITERALU8  { let (pos, n) = i in pos, ExprLit (pos, LitU8  n) }
 | i = LITERALBOOL { let (pos, b) = i in pos, ExprLit (pos, LitBool b) }
 | str = STRING { let (pos, s) = str in pos, ExprString (pos, s) }
 | s = IDENT LPAREN RPAREN

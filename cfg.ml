@@ -62,15 +62,7 @@ type program =
 
 (** Get the type of an Ast.literal value. *)
 let typeof_literal lit =
-  let t = function
-    | LitBool _ -> PrimBool
-    | LitI16 _ -> PrimI16
-    | LitU16 _ -> PrimU16
-    | LitI32 _ -> PrimI32
-    | LitU32 _ -> PrimU32
-    | LitI64 _ -> PrimI64
-    | LitU64 _ -> PrimU64
-  in DefTypePrimitive (t lit)
+  DefTypePrimitive (literal2primitive lit)
 
 let rec convert_type defining_p typemap = function
   | VarType (pos, name) ->

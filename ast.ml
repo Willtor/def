@@ -4,8 +4,9 @@ open Lexing
 
 type literal =
   | LitBool of bool
-  (* schar, uchar *)
-  | LitI16 of int32 
+  | LitI8  of char
+  | LitU8  of char
+  | LitI16 of int32
   | LitU16 of int32
   | LitI32 of int32
   | LitU32 of int32
@@ -109,6 +110,8 @@ let operator2string = function
 
 let literal2primitive = function
   | LitBool _ -> PrimBool
+  | LitI8  _ -> PrimI8
+  | LitU8  _ -> PrimU8
   | LitI16 _ -> PrimI16
   | LitU16 _ -> PrimU16
   | LitI32 _ -> PrimI32

@@ -32,6 +32,14 @@ let err_lexing pos character =
     ^ (show_source pos)
   in fatal_error err
 
+(** Escaped character was unknown. *)
+let err_bad_escaped_char pos c =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Escaped (backslash'd) the char, " ^ (Char.escaped c)
+    ^ ", which is not recognized.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Function has no return statement. *)
 let err_no_return pos fcn =
   let err = "At " ^ (format_position pos) ^ ":\n"
