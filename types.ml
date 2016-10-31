@@ -6,7 +6,8 @@ type primitive =
   | PrimI16 | PrimU16
   | PrimI32 | PrimU32
   | PrimI64 | PrimU64
-  (* floating point *)
+  | PrimF32
+  | PrimF64
 
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
@@ -17,11 +18,9 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
 
-type typecategory =
-  | SignedInteger
-
 type primitive_kind =
   | KindInteger
+  | KindFloat
 
 (** Return the more general of the two primitive types. *)
 let generalize_primitives p1 p2 =
@@ -32,11 +31,14 @@ let generalize_primitives p1 p2 =
     | PrimI32 | PrimU32
     | PrimI64 | PrimU64
       -> KindInteger
+    | PrimF32 | PrimF64
+      -> KindFloat
   in
   let is_signed = function
     | PrimBool -> true
     | PrimI8 | PrimI16 | PrimI32 | PrimI64 -> true
     | PrimU8 | PrimU16 | PrimU32 | PrimU64 -> false
+    | _ -> Report.err_internal __FILE__ __LINE__ "is_signed of non-integer type."
   in
   let get_rank = function
     | PrimBool -> 1
@@ -44,6 +46,8 @@ let generalize_primitives p1 p2 =
     | PrimI16 | PrimU16 -> 16
     | PrimI32 | PrimU32 -> 32
     | PrimI64 | PrimU64 -> 64
+    | PrimF32 -> 32
+    | PrimF64 -> 64
   in
   if p1 == p2 then p1
   else match (get_kind p1), (get_kind p2) with
@@ -61,6 +65,11 @@ let generalize_primitives p1 p2 =
         if rank1 >= rank2 then p1
         else p2
      end
+  | KindFloat, KindInteger -> p1
+  | KindInteger, KindFloat -> p2
+  | KindFloat, KindFloat ->
+     let r1, r2 = get_rank p1, get_rank p2 in
+     if r1 > r2 then p1 else p2
 
 (** Compare two types for equality.  There is no ordering, so zero indicates
     the types are identical and non-zero indicates non-identical. *)
@@ -84,7 +93,9 @@ let map_builtin_types =
     ("i32", DefTypePrimitive PrimI32, i32_type);
     ("u32", DefTypePrimitive PrimU32, i32_type);
     ("i64", DefTypePrimitive PrimI64, i64_type);
-    ("u64", DefTypePrimitive PrimU64, i64_type) ]
+    ("u64", DefTypePrimitive PrimU64, i64_type);
+    ("f32", DefTypePrimitive PrimF32, float_type);
+    ("f64", DefTypePrimitive PrimF64, double_type) ]
 
 (** Convert a primitive type to its string representation. *)
 let primitive2string = function
@@ -97,6 +108,8 @@ let primitive2string = function
   | PrimU32 -> "u32"
   | PrimI64 -> "i64"
   | PrimU64 -> "u64"
+  | PrimF32 -> "f32"
+  | PrimF64 -> "f64"
 
 let is_integer_type = function
   | DefTypePrimitive prim ->
@@ -106,6 +119,6 @@ let is_integer_type = function
      | PrimI16 | PrimU16
      | PrimI32 | PrimU32
      | PrimI64 | PrimU64 -> true
-     (* | _ -> false *)
+     | PrimF32 | PrimF64 -> false
      end
   | _ -> false

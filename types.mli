@@ -4,7 +4,8 @@ type primitive =
   | PrimI16 | PrimU16
   | PrimI32 | PrimU32
   | PrimI64 | PrimU64
-  (* floating point *)
+  | PrimF32
+  | PrimF64
 
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
@@ -14,9 +15,6 @@ type deftype =
   | DefTypePtr of deftype
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
-
-type typecategory =
-  | SignedInteger
 
 (** Return the more general of the two primitive types. *)
 val generalize_primitives : primitive -> primitive -> primitive

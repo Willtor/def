@@ -12,7 +12,8 @@ type literal =
   | LitU32 of int32
   | LitI64 of int64
   | LitU64 of int64
-  (* floating point *)
+  | LitF32 of float
+  | LitF64 of float
 
 type operator =
   | OperIncr | OperDecr
@@ -118,3 +119,5 @@ let literal2primitive = function
   | LitU32 _ -> PrimU32
   | LitI64 _ -> PrimI64
   | LitU64 _ -> PrimU64
+  | LitF32 _ -> PrimF32
+  | LitF64 _ -> PrimF64

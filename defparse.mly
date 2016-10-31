@@ -8,6 +8,7 @@
 %token <Lexing.position * int32> LITERALI16 LITERALU16
 %token <Lexing.position * char> LITERALI8 LITERALU8
 %token <Lexing.position * bool> LITERALBOOL
+%token <Lexing.position * float> LITERALF32 LITERALF64
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE
@@ -176,6 +177,8 @@ expr:
 | i = LITERALI8  { let (pos, n) = i in pos, ExprLit (pos, LitI8  n) }
 | i = LITERALU8  { let (pos, n) = i in pos, ExprLit (pos, LitU8  n) }
 | i = LITERALBOOL { let (pos, b) = i in pos, ExprLit (pos, LitBool b) }
+| n = LITERALF64 { let (pos, f) = n in pos, ExprLit (pos, LitF64 f) }
+| n = LITERALF32 { let (pos, f) = n in pos, ExprLit (pos, LitF32 f) }
 | str = STRING { let (pos, s) = str in pos, ExprString (pos, s) }
 | s = IDENT LPAREN RPAREN
     { let (pos, ident) = s in

@@ -1,4 +1,3 @@
-open Ast
 open Util
 
 (** Report an internal error. *)
@@ -44,14 +43,6 @@ let err_bad_escaped_char pos c =
 let err_no_return pos fcn =
   let err = "At " ^ (format_position pos) ^ ":\n"
     ^ "  Function " ^ fcn ^ " needs a return statement.\n"
-    ^ (show_source pos)
-  in fatal_error err
-
-(** Error: The operator was invalid for the type being operated on. *)
-let err_invalid_op pos op tpname =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Can't use operator " ^ (operator2string op) ^ " on type "
-    ^ tpname ^ ".\n"
     ^ (show_source pos)
   in fatal_error err
 

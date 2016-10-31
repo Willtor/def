@@ -90,23 +90,37 @@ let process_literal typemap lit = match lit with
      const_of_int64 (the (lookup_symbol typemap "i64")) n true
   | LitU64 n ->
      const_of_int64 (the (lookup_symbol typemap "i64")) n false
+  | LitF32 n ->
+     const_float (the (lookup_symbol typemap "f32")) n
+  | LitF64 n ->
+     const_float (the (lookup_symbol typemap "f64")) n
 
 let process_expr data varmap =
-  let rec llvm_binop op left right bldr =
+  let rec llvm_binop op tp left right bldr =
     let standard_op fnc name =
       fnc (expr_gen true left) (expr_gen true right) name bldr
     in
-    match op with
-    | OperMult -> standard_op build_mul "def_mult"
-    | OperDiv -> standard_op build_sdiv "def_sdiv"
-    | OperPlus -> standard_op build_add "def_add"
-    | OperMinus -> standard_op build_sub "def_sub"
-    | OperLT -> standard_op (build_icmp Icmp.Slt) "def_lt"
-    | OperLTE -> standard_op (build_icmp Icmp.Sle) "def_le"
-    | OperGT -> standard_op (build_icmp Icmp.Sgt) "def_gt"
-    | OperGTE -> standard_op (build_icmp Icmp.Sge) "def_ge"
-    | OperEquals -> standard_op (build_icmp Icmp.Eq) "def_eq"
-    | OperAssign ->
+    match op, is_integer_type tp with
+    (* FIXME: Distinguish between signed/unsigned integers. *)
+    | OperMult, true -> standard_op build_mul "def_mult"
+    | OperMult, false -> standard_op build_fmul "def_mult_f"
+    | OperDiv, true -> standard_op build_sdiv "def_sdiv"
+    | OperDiv, false -> standard_op build_fdiv "def_div_f"
+    | OperPlus, true -> standard_op build_add "def_add"
+    | OperPlus, false -> standard_op build_fadd "def_add_f"
+    | OperMinus, true -> standard_op build_sub "def_sub"
+    | OperMinus, false -> standard_op build_fsub "def_sub_f"
+    | OperLT, true -> standard_op (build_icmp Icmp.Slt) "def_lt"
+    | OperLT, false -> standard_op (build_fcmp Fcmp.Olt) "def_lt_f"
+    | OperLTE, true -> standard_op (build_icmp Icmp.Sle) "def_le"
+    | OperLTE, false -> standard_op (build_fcmp Fcmp.Ole) "def_le_f"
+    | OperGT, true -> standard_op (build_icmp Icmp.Sgt) "def_gt"
+    | OperGT, false -> standard_op (build_fcmp Fcmp.Ogt) "def_gt_f"
+    | OperGTE, true -> standard_op (build_icmp Icmp.Sge) "def_ge"
+    | OperGTE, false -> standard_op (build_fcmp Fcmp.Oge) "def_ge_f"
+    | OperEquals, true -> standard_op (build_icmp Icmp.Eq) "def_eq"
+    | OperEquals, false -> standard_op (build_fcmp Fcmp.Oeq) "def_eq_f"
+    | OperAssign, _ ->
        let rhs = expr_gen true right in
        let _ = build_store rhs (expr_gen false left) bldr in
        rhs
@@ -120,46 +134,105 @@ let process_expr data varmap =
       let f = match t1, t2 with
 
         (* From bool *)
+        | PrimBool, PrimI8  | PrimBool, PrimU8
         | PrimBool, PrimI16 | PrimBool, PrimU16
         | PrimBool, PrimI32 | PrimBool, PrimU32
         | PrimBool, PrimI64 | PrimBool, PrimU64 -> build_zext
+        | PrimBool, PrimF32
+        | PrimBool, PrimF64 -> build_uitofp
+
+        (* From i8 *)
+        | PrimI8, PrimBool -> build_trunc
+        | PrimI8, PrimU8 -> null_cast
+        | PrimI8, PrimI16 | PrimI8, PrimI32 | PrimI8, PrimI64 -> build_sext
+        | PrimI8, PrimU16 | PrimI8, PrimU32 | PrimI8, PrimU64 -> build_zext
+        | PrimI8, PrimF32
+        | PrimI8, PrimF64 -> build_sitofp
+
+        (* From u8 *)
+        | PrimU8, PrimBool -> build_trunc
+        | PrimU8, PrimI8 -> null_cast
+        | PrimU8, PrimI16 | PrimU8, PrimI32 | PrimU8, PrimI64
+        | PrimU8, PrimU16 | PrimU8, PrimU32 | PrimU8, PrimU64 -> build_zext
+        | PrimU8, PrimF32
+        | PrimU8, PrimF64 -> build_sitofp
 
         (* From i16 *)
-        | PrimI16, PrimBool -> build_trunc
+        | PrimI16, PrimBool
+        | PrimI16, PrimU8  | PrimI16, PrimI8
+          -> build_trunc
         | PrimI16, PrimU16 -> null_cast
         | PrimI16, PrimI32 | PrimI16, PrimI64 -> build_sext
         | PrimI16, PrimU32 | PrimI16, PrimU64 -> build_zext
+        | PrimI16, PrimF32
+        | PrimI16, PrimF64 -> build_sitofp
 
         (* From u16 *)
-        | PrimU16, PrimBool -> build_trunc
+        | PrimU16, PrimBool
+        | PrimU16, PrimU8  | PrimU16, PrimI8
+          -> build_trunc
         | PrimU16, PrimI16 -> null_cast
         | PrimU16, PrimI32 | PrimU16, PrimU32
         | PrimU16, PrimI64 | PrimU16, PrimU64 -> build_zext
+        | PrimU16, PrimF32
+        | PrimU16, PrimF64 -> build_uitofp
 
         (* From i32 *)
         | PrimI32, PrimBool
+        | PrimI32, PrimU8  | PrimI32, PrimI8
         | PrimI32, PrimI16 | PrimI32, PrimU16 -> build_trunc
         | PrimI32, PrimU32 -> null_cast
         | PrimI32, PrimI64 -> build_sext
         | PrimI32, PrimU64 -> build_zext
+        | PrimI32, PrimF32
+        | PrimI32, PrimF64 -> build_sitofp
 
         (* From u32 *)
         | PrimU32, PrimBool
+        | PrimU32, PrimU8  | PrimU32, PrimI8
         | PrimU32, PrimI16 | PrimU32, PrimU16 -> build_trunc
         | PrimU32, PrimI32 -> null_cast
         | PrimU32, PrimI64 | PrimU32, PrimU64 -> build_zext
+        | PrimU32, PrimF32
+        | PrimU32, PrimF64 -> build_uitofp
 
         (* From i64 *)
         | PrimI64, PrimBool
+        | PrimI64, PrimU8  | PrimI64, PrimI8
         | PrimI64, PrimI16 | PrimI64, PrimU16
         | PrimI64, PrimI32 | PrimI64, PrimU32 -> build_trunc
         | PrimI64, PrimU64 -> null_cast
+        | PrimI64, PrimF32
+        | PrimI64, PrimF64 -> build_sitofp
 
         (* From u64 *)
         | PrimU64, PrimBool
+        | PrimU64, PrimU8  | PrimU64, PrimI8
         | PrimU64, PrimI16 | PrimU64, PrimU16
         | PrimU64, PrimI32 | PrimU64, PrimU32 -> build_trunc
         | PrimU64, PrimI64 -> null_cast
+        | PrimU64, PrimF32
+        | PrimU64, PrimF64 -> build_uitofp
+
+        (* From f32 *)
+        | PrimF32, PrimBool
+        | PrimF32, PrimI8 | PrimF32, PrimI16 | PrimF32, PrimI32
+        | PrimF32, PrimI64
+          -> build_fptosi
+        | PrimF32, PrimU8 | PrimF32, PrimU16 | PrimF32, PrimU32
+        | PrimF32, PrimU64
+          -> build_fptoui
+        | PrimF32, PrimF64 -> build_fpext
+
+        (* From f64 *)
+        | PrimF64, PrimBool
+        | PrimF64, PrimI8 | PrimF64, PrimI16 | PrimF64, PrimI32
+        | PrimF64, PrimI64
+          -> build_fptosi
+        | PrimF64, PrimU8 | PrimF64, PrimU16 | PrimF64, PrimU32
+        | PrimF64, PrimU64
+          -> build_fptoui
+        | PrimF64, PrimF32 -> build_fptrunc
 
         | _ -> Report.err_internal __FILE__ __LINE__
            ("Cast from " ^ (primitive2string t1) ^ " to "
@@ -201,8 +274,8 @@ let process_expr data varmap =
           if rvalue_p then build_load llvar name data.bldr
           else llvar
        end
-    | Expr_Binary (op, _(*tp*), left, right) ->
-       llvm_binop op left right data.bldr
+    | Expr_Binary (op, tp, left, right) ->
+       llvm_binop op tp left right data.bldr
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
        build_cast from_tp to_tp e
