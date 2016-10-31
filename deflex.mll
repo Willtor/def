@@ -27,8 +27,9 @@ rule deflex = parse
 | [' ' '\t']+
     { deflex lexbuf }
 | '\n' { new_line lexbuf; deflex lexbuf }
-| "/*"([^'*']*['*']+)+"/" as comment
-    { proc_newlines lexbuf comment; deflex lexbuf }
+| "/*"([^'*']*"*"+[^'*' '/'])*[^'*']*"*"+"/" as comment
+    { proc_newlines lexbuf comment;
+      deflex lexbuf }
 | "//"[^'\n']* { deflex lexbuf }
 | "type" { TYPE (lexeme_start_p lexbuf) }
 | "begin" { BEGIN (lexeme_start_p lexbuf) }
