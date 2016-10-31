@@ -3,6 +3,9 @@
   open Lexing
   open Util
 
+  let proc_newlines lexbuf =
+    String.iter (fun c -> if c = '\n' then new_line lexbuf)
+
   let remove_suffix s n =
     let length = String.length s in
     String.sub s 0 (length - n)
@@ -24,7 +27,8 @@ rule deflex = parse
 | [' ' '\t']+
     { deflex lexbuf }
 | '\n' { new_line lexbuf; deflex lexbuf }
-| "/*"([^'*']*['*']+)+"/" { deflex lexbuf }
+| "/*"([^'*']*['*']+)+"/" as comment
+    { proc_newlines lexbuf comment; deflex lexbuf }
 | "//"[^'\n']* { deflex lexbuf }
 | "type" { TYPE (lexeme_start_p lexbuf) }
 | "begin" { BEGIN (lexeme_start_p lexbuf) }
