@@ -203,18 +203,25 @@ let binary_reconcile =
     match op with
     | OperPlus | OperMinus | OperMult | OperDiv ->
        let tp = more_general_of pos op ltype rtype in
-       tp, (maybe_cast ltype tp lexpr), (maybe_cast rtype tp rexpr)
-    | OperLT | OperLTE
+       tp, tp, (maybe_cast ltype tp lexpr), (maybe_cast rtype tp rexpr)
+    | OperLT ->
+       let tp = more_general_of pos op ltype rtype in
+       DefTypePrimitive PrimBool,
+       tp,
+       (maybe_cast ltype tp lexpr),
+       (maybe_cast rtype tp rexpr)
+    | OperLTE
     | OperGT | OperGTE
     | OperEquals | OperNEquals ->
        let tp = more_general_of pos op ltype rtype in
        DefTypePrimitive PrimBool,
+       tp,
        (maybe_cast ltype tp lexpr),
        (maybe_cast rtype tp rexpr)
     | OperAssign ->
        begin
          check_castability pos rtype ltype;
-         ltype, lexpr, (maybe_cast rtype ltype rexpr)
+         ltype, ltype, lexpr, (maybe_cast rtype ltype rexpr)
        end
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Incomplete implementation Cfg.reconcile."
@@ -259,10 +266,10 @@ let convert_expr typemap scope =
          build_fcn_call scope call.fc_pos call.fc_name converted_args
        in rettp, Expr_FcnCall (fcn, cfg_args)
     | ExprBinary op ->
-       let tp, lhs, rhs =
+       let rettp, tp, lhs, rhs =
          binary_reconcile op.op_pos op.op_op
            (convert op.op_left) (convert (the op.op_right))
-       in tp, Expr_Binary (op.op_op, tp, lhs, rhs)
+       in rettp, Expr_Binary (op.op_op, tp, lhs, rhs)
     | ExprVar (pos, name) ->
        let var = the (lookup_symbol scope name)
        in var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
