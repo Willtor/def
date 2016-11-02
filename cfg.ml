@@ -6,7 +6,7 @@ open Util
 type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
-  | Expr_Unary of Ast.operator * cfg_expr * bool
+  | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
@@ -270,6 +270,13 @@ let convert_expr typemap scope =
          binary_reconcile op.op_pos op.op_op
            (convert op.op_left) (convert (the op.op_right))
        in rettp, Expr_Binary (op.op_op, tp, lhs, rhs)
+    | ExprPreUnary op ->
+       let tp, subexpr = convert op.op_left in
+       let rettp = match op.op_op with
+         | OperAddrOf -> DefTypePtr tp
+         | _ -> tp
+       in
+       rettp, Expr_Unary (op.op_op, tp, subexpr, true)
     | ExprVar (pos, name) ->
        let var = the (lookup_symbol scope name)
        in var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)

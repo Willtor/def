@@ -9,7 +9,8 @@ type llvm_data =
     mdl  : llmodule;
     bldr : llbuilder;
     typemap : lltype symtab;
-    prog : program
+    prog : program;
+    zero_i32 : llvalue
   }
 
 let get_fcntype = function
@@ -96,7 +97,13 @@ let process_literal typemap lit = match lit with
      const_float (the (lookup_symbol typemap "f64")) n
 
 let process_expr data varmap =
-  let rec llvm_binop op tp left right bldr =
+  let rec llvm_unop op (*tp*)_ expr (*pre_p*)_ bldr =
+    match op with
+    | OperAddrOf ->
+       let llvm_expr = expr_gen false expr in
+       build_gep llvm_expr [| data.zero_i32 |] "addrof" bldr
+    | _ -> failwith "llvm_unop not fully implemented."
+  and llvm_binop op tp left right bldr =
     let standard_op fnc name =
       fnc (expr_gen true left) (expr_gen true right) name bldr
     in
@@ -276,6 +283,8 @@ let process_expr data varmap =
        end
     | Expr_Binary (op, tp, left, right) ->
        llvm_binop op tp left right data.bldr
+    | Expr_Unary (op, tp, expr, pre_p) ->
+       llvm_unop op tp expr pre_p data.bldr
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
        build_cast from_tp to_tp e
@@ -290,7 +299,6 @@ let process_expr data varmap =
        let addr = build_struct_gep base n "maddr" data.bldr in
        if rvalue_p then build_load addr "mval" data.bldr
        else addr
-    | _ -> failwith "expr_gen not fully implemented."
   in expr_gen true
 
 let rec process_body data llfcn varmap cfg_bbs entry_bb =
@@ -420,8 +428,12 @@ let process_cfg module_name program =
   let mdl  = create_module ctx module_name in
   let bldr = builder ctx in
   let typemap = build_types ctx program.deftypemap in
-  let data = { ctx = ctx; mdl = mdl; bldr = bldr;
-               typemap = typemap; prog = program } in
+  let data = { ctx = ctx;
+               mdl = mdl;
+               bldr = bldr;
+               typemap = typemap;
+               prog = program;
+               zero_i32 = const_null (the (lookup_symbol typemap "i32")) } in
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols) program.global_decls;
   List.iter (process_fcn data symbols) program.fcnlist;

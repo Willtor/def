@@ -16,7 +16,7 @@ type literal =
   | LitF64 of float
 
 type operator =
-  | OperIncr | OperDecr
+  | OperIncr | OperDecr | OperAddrOf
   | OperMinus | OperPlus
   | OperLogicalNot | OperBitwiseNot
   | OperMult | OperDiv | OperRemainder
@@ -77,6 +77,7 @@ type stmt =
 let operator2string = function
   | OperIncr -> "++"
   | OperDecr -> "--"
+  | OperAddrOf -> "&"
   | OperMinus -> "-"
   | OperPlus -> "+"
   | OperLogicalNot -> "!"

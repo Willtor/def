@@ -49,7 +49,7 @@
 (* Need to figure out pointers. dereference, addr-of *)
 %right LNOT BNOT
 %nonassoc POSITIVE NEGATIVE
-%nonassoc PREINCR PREDECR
+%nonassoc PREINCR PREDECR ADDR_OF
 %left INCREMENT DECREMENT DOT
 
 %%
@@ -282,6 +282,16 @@ expr:
       let unop =
         { op_pos = p;
           op_op = OperBitwiseNot;
+          op_left = e;
+          op_right = None
+        }
+      in
+      p, ExprPreUnary unop }
+| p = AMPERSAND p_n_e = expr %prec ADDR_OF
+    { let _, e = p_n_e in
+      let unop =
+        { op_pos = p;
+          op_op = OperAddrOf;
           op_left = e;
           op_right = None
         }
