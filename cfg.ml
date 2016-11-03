@@ -42,6 +42,7 @@ and loop_block =
 and decl =
   { decl_pos   : Lexing.position;
     mappedname : string;
+    vis        : visibility;
     tp         : Types.deftype;
     params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
   }
@@ -128,13 +129,15 @@ let resolve_type typemap typename oldtp =
   in Some (v oldtp)
 
 let global_decls decltable typemap = function
-  | DefFcn (pos, name, tp, _) ->
+  | DefFcn (pos, vis, name, tp, _) ->
+     (* FIXME: WORKING HERE! Visibility *)
      begin match lookup_symbol decltable name with
      | Some _ -> ()
      | None ->
         let fcn =
           { decl_pos = pos;
             mappedname = name;
+            vis = vis;
             tp = convert_type false typemap tp;
             params = param_pos_names tp }
         in
@@ -335,7 +338,11 @@ let build_bbs name decltable typemap body =
   let fcnscope = push_symtab_scope decltable in
   List.iter2 (fun tp (pos, name) ->
     add_symbol fcnscope name
-      { decl_pos = pos; mappedname = name; tp = tp; params = [] })
+      { decl_pos = pos;
+        mappedname = name;
+        vis = VisLocal;
+        tp = tp;
+        params = [] })
     param_types
     fcndecl.params;
 
@@ -356,6 +363,7 @@ let build_bbs name decltable typemap body =
        let mappedname = nonconflicting_name pos scope name in
        let decl = { decl_pos = pos;
                     mappedname = mappedname;
+                    vis = VisLocal;
                     tp = convert_type false typemap tp;
                     params = param_pos_names tp } in
        add_symbol scope name decl;
@@ -418,7 +426,7 @@ let build_bbs name decltable typemap body =
   List.rev decls, List.rev bbs
 
 let build_fcns decltable typemap fcns = function
-  | DefFcn (pos, name, _, body) ->
+  | DefFcn (pos, _, name, _, body) ->
      let decls, bbs = build_bbs name decltable typemap body in
      let fcn =
        { defn_begin = pos;

@@ -421,6 +421,7 @@ let declare_globals data symbols name decl =
       decl.mappedname (deftype2llvmtype data.ctx data.typemap false decl.tp)
       data.mdl
   in
+  if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llfcn)
 
 let process_cfg module_name program =

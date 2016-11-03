@@ -1,5 +1,6 @@
 %{
   open Ast
+  open Types
   open Lexing
 %}
 
@@ -12,7 +13,7 @@
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE
-%token <Lexing.position> DEF VAR RETURN BEGIN END IF THEN ELSE FI
+%token <Lexing.position> EXPORT DEF VAR RETURN BEGIN END IF THEN ELSE FI
 %token <Lexing.position> WHILE DO DONE
 
 (* Operators *)
@@ -69,9 +70,9 @@ statement:
 | f = fcndef EQUALS p_n_e = expr semi_pos = SEMICOLON {
   (* If it's an expression, it may need to be returned.  Check to see
      whether the return type is void.  If not, return it. *)
-  let (pos, name, tp) = f in
+  let (pos, vis, name, tp) = f in
   let (epos, e) = p_n_e in
-  DefFcn (pos, name, tp,
+  DefFcn (pos, vis, name, tp,
           match tp with
           | VarType (_, "void") ->
              [StmtExpr (epos, e);
@@ -79,9 +80,9 @@ statement:
           | _ -> [Return (epos, e)])
 }
 | f = fcndef b = block
-    { let (pos, name, tp) = f in
+    { let (pos, vis, name, tp) = f in
       let (_, stmts) = b in
-      DefFcn (pos, name, tp, stmts) }
+      DefFcn (pos, vis, name, tp, stmts) }
 | p_n_e = expr SEMICOLON { let (pos, e) = p_n_e in StmtExpr (pos, e) }
 | b = block { let (pos, stmts) = b in Block (pos, stmts) }
 | VAR id = IDENT tp = deftype SEMICOLON
@@ -134,7 +135,8 @@ deftype:
 | s = IDENT { let (pos, ident) = s in pos, VarType (pos, ident) }
 | pos = STAR tp = deftype { let _, t = tp in (pos, PtrType (pos, t)) }
 | pos = LCURLY sc = structcontents RCURLY { pos, StructType sc }
-| f = fcntype { let pos, plist, ret = f in (pos, FcnType (plist, ret)) }
+| f = fcntype
+    { let pos, plist, ret = f in (pos, FcnType (plist, ret)) }
 
 structcontents:
 | sc = variabledecl { [sc] }
@@ -156,11 +158,15 @@ variabledecl:
       in (pos, ident, t) }
 
 fcndef:
-| DEF s = IDENT ftype = fcntype_with_param_names
+| export_p = EXPORT? DEF s = IDENT ftype = fcntype_with_param_names
     {
+      let vis = match export_p with
+        | Some p -> VisExported p
+        | None -> VisLocal
+      in
       let (_, plist, ret) = ftype
       and (pos, ident) = s in
-      (pos, ident, FcnType (plist, ret))
+      (pos, vis, ident, FcnType (plist, ret))
     }
 
 exprlist:

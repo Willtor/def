@@ -7,6 +7,10 @@ type primitive =
   | PrimF32
   | PrimF64
 
+type visibility =
+  | VisLocal
+  | VisExported of Lexing.position
+
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid

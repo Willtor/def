@@ -34,6 +34,7 @@ rule deflex = parse
 | "type" { TYPE (lexeme_start_p lexbuf) }
 | "begin" { BEGIN (lexeme_start_p lexbuf) }
 | "end" { END (lexeme_start_p lexbuf) }
+| "export" { EXPORT (lexeme_start_p lexbuf) }
 | "def" { DEF (lexeme_start_p lexbuf) }
 | "var" { VAR (lexeme_start_p lexbuf) }
 | "return" { RETURN (lexeme_start_p lexbuf) }

@@ -65,7 +65,7 @@ and expr =
 type stmt =
   | StmtExpr of position * expr
   | Block of position * stmt list
-  | DefFcn of position * string * vartype * stmt list
+  | DefFcn of position * Types.visibility * string * vartype * stmt list
   | VarDecl of position * string * vartype * (position * expr) option
   | IfStmt of position * expr * stmt list * stmt list option
   (* WhileLoop: start-pos * pre-check * cond * body *)
