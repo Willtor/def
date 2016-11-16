@@ -46,6 +46,13 @@ let err_no_return pos fcn =
     ^ (show_source pos)
   in fatal_error err
 
+let err_local_fcn_with_nonlocal_vis pos fcn =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Function " ^ fcn ^ " has non-global scope, and must have local "
+    ^ "visibility."
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Error: Tried to call an unknown function. *)
 let err_unknown_fcn_call pos name =
   let err = "At " ^ (format_position pos) ^ ":\n"

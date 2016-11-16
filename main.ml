@@ -5,6 +5,7 @@ open Defparse
 open Deflex
 open Irfactory
 open Lexing
+open Lower
 open Scrubber
 open Util
 
@@ -88,6 +89,8 @@ let main () =
   Arg.parse parameter_set anon_arg usage_msg;
   if !input_file = "" then Report.err_no_input_file ();
   if not !output_file_is_set then build_outfile_name !input_file;
+
+  (* Read/parse. *)
   let infile = try open_in !input_file
     with _ -> Report.err_unable_to_open_file !input_file
   in
@@ -96,12 +99,16 @@ let main () =
     in ((defparse deflex) lexbuf)
   in
   close_in infile;
+
+  (* Generate and process the CFG. *)
   let stmts = scrub stmts in
-  let program = convert_ast stmts in
+  let program = lower_cfg (convert_ast stmts) in
   let llvm_module = process_cfg !input_file program in
   if !comp_depth = COMPILE_LLVM then
     (Llvm.print_module !output_file llvm_module;
      exit 0);
+
+  (* LLVM compiling. *)
   let llvm_str = Llvm.string_of_llmodule llvm_module in
   let llc_in, llc_out = Unix.open_process "llc" in
   output_string llc_out llvm_str;

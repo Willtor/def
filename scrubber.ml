@@ -2,6 +2,9 @@ open Ast
 open Lexing
 open Util
 
+(* FIXME: This analysis should be done on the CFG instead of the AST.
+   Replace this module. *)
+
 exception NoReturn
 
 let faux_pos = { pos_fname = "";

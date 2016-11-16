@@ -4,7 +4,7 @@ OCAMLC = ocamlfind ocamlopt
 PACKAGE = -package llvm,llvm.analysis,unix
 LINKPKG = -linkpkg $(PACKAGE)
 
-SRC = util.ml report.ml types.ml ast.ml cfg.ml defparse.mly deflex.mll scrubber.ml irfactory.ml main.ml
+SRC = util.ml report.ml types.ml ast.ml cfg.ml lower.ml defparse.mly deflex.mll scrubber.ml irfactory.ml main.ml
 GENERATED = report.mli ast.mli defparse.ml defparse.mli deflex.ml deflex.mli
 
 FILES1 = $(SRC:.mly=.ml)

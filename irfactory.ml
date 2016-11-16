@@ -388,6 +388,9 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
        bb
     | BB_ReturnVoid _ ->
        let _ = build_ret_void data.bldr in bb
+    | BB_LocalFcn fcn ->
+       Report.err_internal __FILE__ __LINE__
+         ("Unlifted function: " ^ fcn.name)
   in
   List.fold_left process_bb entry_bb cfg_bbs
 

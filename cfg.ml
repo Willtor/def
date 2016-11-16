@@ -19,16 +19,17 @@ type cfg_basic_block =
   | BB_Expr of Lexing.position * cfg_expr
   | BB_Return of Lexing.position * cfg_expr
   | BB_ReturnVoid of Lexing.position
+  | BB_LocalFcn of function_defn
 
 and conditional_block =
   { if_pos       : Lexing.position;
     fi_pos       : Lexing.position;
     branch_cond  : cfg_expr;
 
-    then_scope   : cfg_basic_block list;
+    mutable then_scope : cfg_basic_block list;
     then_returns : bool;
 
-    else_scope   : cfg_basic_block list;
+    mutable else_scope : cfg_basic_block list;
     else_returns : bool
   }
 
@@ -36,7 +37,7 @@ and loop_block =
   { while_pos  : Lexing.position;
     precheck   : bool;
     loop_cond  : cfg_expr;
-    body_scope : cfg_basic_block list;
+    mutable body_scope : cfg_basic_block list;
   }
 
 and decl =
@@ -47,18 +48,18 @@ and decl =
     params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
   }
 
-type function_defn =
+and function_defn =
   { defn_begin : Lexing.position;
     defn_end   : Lexing.position;
     name       : string;
     local_vars : (string * decl) list;
-    bbs        : cfg_basic_block list
+    mutable bbs : cfg_basic_block list;
   }
 
 type program =
   { global_decls : decl Util.symtab;
     fcnlist : function_defn list;
-    deftypemap : deftype symtab
+    deftypemap : Types.deftype symtab
   }
 
 (** Get the type of an Ast.literal value. *)
@@ -130,7 +131,6 @@ let resolve_type typemap typename oldtp =
 
 let global_decls decltable typemap = function
   | DefFcn (pos, vis, name, tp, _) ->
-     (* FIXME: WORKING HERE! Visibility *)
      begin match lookup_symbol decltable name with
      | Some _ -> ()
      | None ->
@@ -139,7 +139,8 @@ let global_decls decltable typemap = function
             mappedname = name;
             vis = vis;
             tp = convert_type false typemap tp;
-            params = param_pos_names tp }
+            params = param_pos_names tp
+          }
         in
         add_symbol decltable name fcn
      end
@@ -330,7 +331,7 @@ let nonconflicting_name pos scope name =
   end
   | Some decl -> Report.err_redeclared_variable pos decl.decl_pos name
 
-let build_bbs name decltable typemap body =
+let rec build_bbs name decltable typemap body =
   let fcndecl = the (lookup_symbol decltable name) in
   let param_types, ret_type = get_fcntype_profile fcndecl.tp in
 
@@ -356,9 +357,35 @@ let build_bbs name decltable typemap body =
     | Block (_, stmts) -> (* FIXME: scope should shadow new variables. *)
        List.fold_left
          (process_bb (push_symtab_scope scope)) (decls, bbs) stmts
-    | DefFcn _ ->
-       Report.err_internal __FILE__ __LINE__
-         "FIXME: DefFcn not implemented Cfg.build_bbs (DefFcn)"
+    | DefFcn (pos, vis, name, tp, body) ->
+       begin
+         if vis != VisLocal then
+           Report.err_local_fcn_with_nonlocal_vis pos name;
+         let () = match lookup_symbol_local decltable name with
+           | Some _ -> ()
+           | None ->
+              let decl =
+                { decl_pos = pos;
+                  mappedname = name;
+                  vis = vis;
+                  tp = convert_type false typemap tp;
+                  params = param_pos_names tp
+                }
+              in
+              add_symbol decltable name decl
+         in
+         let decltable = push_symtab_scope decltable in
+         let local_decls, local_bbs =
+           build_bbs name decltable typemap body in
+         let fcn =
+           { defn_begin = pos;
+             defn_end = pos; (* FIXME: Should collect actual positions. *)
+             name = name;
+             local_vars = local_decls;
+             bbs = local_bbs;
+           }
+         in decls, BB_LocalFcn fcn :: bbs
+       end
     | VarDecl (pos, name, tp, initializer_maybe) ->
        let mappedname = nonconflicting_name pos scope name in
        let decl = { decl_pos = pos;
@@ -433,7 +460,8 @@ let build_fcns decltable typemap fcns = function
          defn_end = pos;
          name = name;
          local_vars = decls;
-         bbs = bbs }
+         bbs = bbs;
+       }
      in fcn :: fcns
   | _ -> fcns
 
