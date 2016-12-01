@@ -13,6 +13,7 @@ $(BUILDDIR):
 	mkdir -p $@
 	cp $(SRCDIR)/*.ml $(SRCDIR)/*.mli $(SRCDIR)/*.mll $(SRCDIR)/*.mly $@
 	cp $(SRCDIR)/Makefile $@
+#	ocamldep $(BUILDDIR)/*.ml $(BUILDDIR)/*.mli >> $(BUILDDIR)/Makefile
 
 $(DEFC): $(BUILDDEFC) $(BINDIR)
 	cp $< $@

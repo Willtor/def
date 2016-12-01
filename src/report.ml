@@ -19,6 +19,12 @@ let err_no_input_file () =
   let err = "No input file specified.  Use --help for options."
   in fatal_error err
 
+(** Input file has unknown type. *)
+let err_unknown_infile_type filename ext =
+  let err = "Unknown type of file \"" ^ filename ^ "\".\n"
+    ^ "The filename extension, \"" ^ ext ^ "\" is not supported."
+  in fatal_error err
+
 (** Couldn't open file. *)
 let err_unable_to_open_file filename =
   let err = "Unable to open file \"" ^ filename ^ "\""
