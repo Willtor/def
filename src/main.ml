@@ -16,6 +16,13 @@ type compilation_level =
 
 let llc_bin = "llc-3.9"
 let llvm_as_bin = "llvm-as-3.9"
+let as_bin = "/usr/bin/as"
+
+(* Copied from "clang -v".  Need to figure out how it generates all these
+   paths. *)
+let ld_cmd = "/usr/bin/ld -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2"
+let ld_paths = "/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../.. -L/usr/lib/llvm-3.8/bin/../lib -L/lib -L/usr/lib"
+let ld_libs = "-lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crtn.o"
 
 let set_param param v is_set failure_msg =
   if Util.ref_set param v is_set then ()
@@ -70,12 +77,18 @@ let set_fname file lexbuf =
                          pos_cnum = lexbuf.lex_curr_p.pos_cnum };
   lexbuf
 
-let infile2outfile file =
+let obj_name_of file =
   let base = Filename.chop_extension (Filename.basename file) in
-  match !comp_depth with
-  | COMPILE_ASM -> if !compile_llvm then base ^ ".ll" else base ^ ".s"
-  | COMPILE_OBJ -> if !compile_llvm then base ^ ".bc" else base ^ ".o"
-  | COMPILE_BINARY -> "a.out"
+  base ^ ".o"
+
+let infile2outfile file =
+  if !output_file_is_set then !output_file
+  else
+    let base = Filename.chop_extension (Filename.basename file) in
+    match !comp_depth with
+    | COMPILE_ASM -> if !compile_llvm then base ^ ".ll" else base ^ ".s"
+    | COMPILE_OBJ -> if !compile_llvm then base ^ ".bc" else base ^ ".o"
+    | COMPILE_BINARY -> "a.out"
 
 let get_lines input =
   let rec get accum =
@@ -122,12 +135,30 @@ let dump_asm infilename lines =
   outfile
 
 let compile_asm_lines infilename lines =
-  let out = infile2outfile infilename in
-  let as_in, as_out = Unix.open_process ("as -o " ^ out ^ " -c") in
-  List.iter (fun l -> output_string as_out (l ^ "\n")) lines;
-  close_out as_out;
-  close_in as_in;
-  out
+  let out =
+    if !comp_depth = COMPILE_BINARY then obj_name_of infilename
+    else infile2outfile infilename
+  in
+  let fd_in, fd_out = Unix.pipe () in
+  match Unix.fork () with
+  | 0 -> 
+     begin
+       Unix.close fd_out;
+       Unix.dup2 fd_in Unix.stdin;
+       Unix.execv as_bin [|as_bin; "-o"; out; "-c"|]
+     end
+  | pid ->
+     let () = Unix.close fd_in in
+     let oc = Unix.out_channel_of_descr fd_out in
+     let () = set_binary_mode_out oc false in
+     let () = List.iter (fun l -> output_string oc (l ^ "\n")) lines in
+     let () = close_out oc in
+     let _, status = Unix.waitpid [] pid in
+     begin match status with
+     | Unix.WEXITED n
+     | Unix.WSIGNALED n
+     | Unix.WSTOPPED n -> if n = 0 then out else exit n
+     end
 
 let compile_llvm_lines infilename llvm_lines =
   if !compile_llvm && !comp_depth = COMPILE_OBJ then
@@ -201,7 +232,16 @@ let main () =
   let objects = List.map compile_input !input_files in
   match !comp_depth with
   | COMPILE_BINARY ->
-     Report.err_internal __FILE__ __LINE__ (List.hd objects)
+     let outfile = infile2outfile (List.hd objects) in
+     let ld_in, ld_out = Unix.open_process
+       (ld_cmd ^ " -o " ^ outfile ^ " " ^ ld_paths ^ " "
+        ^ (String.concat " " objects)
+        ^ " " ^ ld_libs)
+     in
+     begin
+       close_out ld_out;
+       close_in ld_in;
+     end
   | _ -> ()
 
 let () = main ()
