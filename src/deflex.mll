@@ -45,6 +45,8 @@ rule deflex = parse
 | "while" { WHILE (lexeme_start_p lexbuf) }
 | "do" { DO (lexeme_start_p lexbuf) }
 | "done" { DONE (lexeme_start_p lexbuf) }
+| "true" { LITERALBOOL (lexeme_start_p lexbuf, true) }
+| "false" { LITERALBOOL (lexeme_start_p lexbuf, false) }
 | ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf, str) }
 
 (* Integers. *)
@@ -90,11 +92,6 @@ rule deflex = parse
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+ as istr
     { LITERALI32 (lexeme_start_p lexbuf, Int32.of_string istr) }
 
-| "true" { LITERALBOOL (lexeme_start_p lexbuf, true) }
-| "false" { LITERALBOOL (lexeme_start_p lexbuf, false) }
-| ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
-    { IDENT (lexeme_start_p lexbuf, ident) }
-
 (* Floating point. *)
 
 | ['0'-'9']+'.'(['e' 'E']['0'-'9']+)?"F64" as fstr
@@ -116,6 +113,9 @@ rule deflex = parse
 | ['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)? as fstr
     { LITERALF64 (lexeme_start_p lexbuf,
                   float_of_string fstr) }
+
+| ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
+    { IDENT (lexeme_start_p lexbuf, ident) }
 
 (* Operators. *)
 | "->" { RARROW (lexeme_start_p lexbuf) }
