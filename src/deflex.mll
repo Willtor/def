@@ -45,6 +45,8 @@ rule deflex = parse
 | "while" { WHILE (lexeme_start_p lexbuf) }
 | "do" { DO (lexeme_start_p lexbuf) }
 | "done" { DONE (lexeme_start_p lexbuf) }
+| "cast" { CAST (lexeme_start_p lexbuf) }
+| "as" { AS (lexeme_start_p lexbuf) }
 | "true" { LITERALBOOL (lexeme_start_p lexbuf, true) }
 | "false" { LITERALBOOL (lexeme_start_p lexbuf, false) }
 | ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf, str) }
