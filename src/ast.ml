@@ -61,6 +61,7 @@ and expr =
   | ExprCast of position * vartype * expr
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * string
+  | ExprStaticStruct of position * (position * expr) list
 
 type stmt =
   | StmtExpr of position * expr

@@ -208,8 +208,9 @@ expr:
       in
       pos, ExprFcnCall fcn_call }
 | s = IDENT
-    { let (pos, ident) = s in pos, ExprVar (pos, ident) }
-| pos = LPAREN p_n_e = expr RPAREN { let (_, e) = p_n_e in pos, e }
+    { let pos, ident = s in pos, ExprVar (pos, ident) }
+| pos = LPAREN p_n_e = expr RPAREN { let _, e = p_n_e in pos, e }
+| pos = LCURLY elist = exprlist RCURLY { pos, ExprStaticStruct (pos, elist) }
 | p_n_e1 = expr LSQUARE p_n_e2 = expr RSQUARE
     { let pos1, expr1 = p_n_e1 in
       let pos2, expr2 = p_n_e2 in
@@ -219,7 +220,7 @@ expr:
       let fpos, field = p_n_field in
       pos, ExprSelectField (fpos, dpos, obj, field) }
 | p_n_e = expr p = INCREMENT
-    { let (exprpos, e) = p_n_e in
+    { let exprpos, e = p_n_e in
       let unop =
         { op_pos = p;
           op_op = OperIncr;
