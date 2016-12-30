@@ -67,13 +67,17 @@ type stmt =
   | StmtExpr of position * expr
   | Block of position * stmt list
   | DefFcn of position * Types.visibility * string * vartype * stmt list
-  | VarDecl of position * string * vartype * (position * expr) option
+  (*| VarDecl of position * string * vartype * (position * expr) option*)
+  | VarDecl of (position * string * (position * expr) option) list * vartype
   | IfStmt of position * expr * stmt list * stmt list option
   (* WhileLoop: start-pos * pre-check * cond * body *)
   | WhileLoop of position * bool * expr * stmt list
   | Return of position * expr
   | ReturnVoid of position
   | TypeDecl of position * string * vartype
+  | Label of position * string
+  | Goto of position * string
+  | Continue of position
 
 let operator2string = function
   | OperIncr -> "++"

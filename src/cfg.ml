@@ -168,6 +168,10 @@ let rec returns_p stmts =
     | ReturnVoid _ -> true
     | TypeDecl _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Unhandled case in Cfg.returns_p (TypeDecl)"
+    | Label _ -> ret
+    | Continue _ -> ret
+    | Goto _ -> ret (* FIXME: unstructured goto is a little weird.  Think
+                       about this some more... *)
   in List.fold_left r false stmts
 
 (** Return a casted version of the expression, if the original type doesn't
@@ -386,22 +390,26 @@ let rec build_bbs name decltable typemap body =
            }
          in decls, BB_LocalFcn fcn :: bbs
        end
-    | VarDecl (pos, name, tp, initializer_maybe) ->
-       let mappedname = nonconflicting_name pos scope name in
-       let decl = { decl_pos = pos;
-                    mappedname = mappedname;
-                    vis = VisLocal;
-                    tp = convert_type false typemap tp;
-                    params = param_pos_names tp } in
-       add_symbol scope name decl;
-       begin match initializer_maybe with
-       | None -> (mappedname, decl) :: decls, bbs
-       | Some (pos, expr) ->
-          (* FIXME: Need to cast type. *)
-          let (_, expr) = convert_expr typemap scope expr in
-          ((mappedname, decl) :: decls,
-           BB_Expr (pos, expr) :: bbs)
-       end
+    | VarDecl (vars, tp) ->
+       let t = convert_type false typemap tp in
+       let process_var (decls, bbs) (pos, name, initializer_maybe) =
+         let mappedname = nonconflicting_name pos scope name in
+         let decl = { decl_pos = pos;
+                      mappedname = mappedname;
+                      vis = VisLocal;
+                      tp = t;
+                      params = param_pos_names tp } in
+         add_symbol scope name decl;
+         begin match initializer_maybe with
+         | None -> (mappedname, decl) :: decls, bbs
+         | Some (pos, expr) ->
+            (* FIXME: Need to cast type. *)
+            let (_, expr) = convert_expr typemap scope expr in
+            ((mappedname, decl) :: decls,
+             BB_Expr (pos, expr) :: bbs)
+         end
+       in
+       List.fold_left process_var (decls, bbs) (List.rev vars)
     | IfStmt (pos, cond, then_block, else_block_maybe) ->
        let (decls, else_scope), else_returns = match else_block_maybe with
          | None -> (decls, []), false
@@ -448,6 +456,15 @@ let rec build_bbs name decltable typemap body =
     | TypeDecl _ ->
        Report.err_internal __FILE__ __LINE__
          "FIXME: DefFcn not implemented Cfg.build_bbs (TypeDecl)"
+    | Label _ ->
+       Report.err_internal __FILE__ __LINE__
+         "FIXME: DefFcn not implemented Cfg.build_bbs (Label)"
+    | Goto _ ->
+       Report.err_internal __FILE__ __LINE__
+         "FIXME: DefFcn not implemented Cfg.build_bbs (Goto)"
+    | Continue _ ->
+       Report.err_internal __FILE__ __LINE__
+         "FIXME: DefFcn not implemented Cfg.build_bbs (Continue)"
   in
   let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
   List.rev decls, List.rev bbs

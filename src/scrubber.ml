@@ -16,12 +16,18 @@ let position_of_stmt = function
   | StmtExpr (pos, _)
   | Block (pos, _)
   | DefFcn (pos, _, _, _, _)
-  | VarDecl (pos, _, _, _)
+  | VarDecl ((pos, _, _) :: _, _)
   | IfStmt (pos, _, _, _)
   | WhileLoop (pos, _, _, _)
   | Return (pos, _)
   | ReturnVoid pos
-  | TypeDecl (pos, _, _) -> pos
+  | TypeDecl (pos, _, _)
+  | Label (pos, _)
+  | Goto (pos, _)
+  | Continue pos
+    -> pos
+  | VarDecl _ ->
+     Report.err_internal __FILE__ __LINE__ "VarDecl with no declarations."
 
 let kill_dead_code =
   let report_dead_code fcn pos =
@@ -58,6 +64,12 @@ let kill_dead_code =
          in List.rev (stmt :: accum)
       | TypeDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
+      | Label _ as stmt :: rest ->
+         proc (stmt :: accum) rest
+      | Goto _ as stmt :: rest ->
+         proc (stmt :: accum) rest
+      | Continue _ as stmt :: rest ->
+         proc (stmt :: accum) rest
     in proc []
   in
   let toplevel = function
@@ -80,7 +92,11 @@ let return_all_paths =
       | VarDecl _ :: rest
       | IfStmt (_, _, _, None) :: rest
       | WhileLoop _ :: rest
-      | TypeDecl _ :: rest -> returns_p rest
+      | TypeDecl _ :: rest
+      | Label _ :: rest
+      | Goto _ :: rest (* FIXME: Think about Goto case some more... *)
+      | Continue _ :: rest (* FIXME: Also, the Continue case. *)
+        -> returns_p rest
       | IfStmt (_, _, then_branch, Some else_branch) :: rest ->
          if (returns_p then_branch) && (returns_p else_branch) then true
          else returns_p rest

@@ -47,6 +47,8 @@ rule deflex = parse
 | "done" { DONE (lexeme_start_p lexbuf) }
 | "cast" { CAST (lexeme_start_p lexbuf) }
 | "as" { AS (lexeme_start_p lexbuf) }
+| "goto" { GOTO (lexeme_start_p lexbuf) }
+| "continue" { CONTINUE (lexeme_start_p lexbuf) }
 | "true" { LITERALBOOL (lexeme_start_p lexbuf, true) }
 | "false" { LITERALBOOL (lexeme_start_p lexbuf, false) }
 | ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf, str) }
@@ -155,7 +157,7 @@ rule deflex = parse
 | "&&" { DBLAMPERSAND (lexeme_start_p lexbuf) }
 | "||" { DBLVBAR (lexeme_start_p lexbuf) }
 (*| '?' { QMARK }*)
-(*| ':' { COLON }*)
+| ':' { COLON (lexeme_start_p lexbuf) }
 | '=' { EQUALS (lexeme_start_p lexbuf) }
 | ',' { COMMA (lexeme_start_p lexbuf) }
 | '(' { LPAREN (lexeme_start_p lexbuf) }

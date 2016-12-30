@@ -14,7 +14,7 @@
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE
 %token <Lexing.position> EXPORT DEF VAR RETURN BEGIN END IF THEN ELSE FI
-%token <Lexing.position> WHILE DO DONE CAST AS
+%token <Lexing.position> WHILE DO DONE CAST AS GOTO CONTINUE
 
 (* Operators *)
 %token <Lexing.position> RARROW
@@ -24,7 +24,7 @@
 %token <Lexing.position> CARATEQUALS DOT LNOT BNOT AMPERSAND STAR SLASH
 %token <Lexing.position> PERCENT PLUS MINUS DBLLANGLE DBLRANGLE LEQ LANGLE GEQ
 %token <Lexing.position> RANGLE EQUALSEQUALS BANGEQUALS CARAT VBAR
-%token <Lexing.position> DBLAMPERSAND DBLVBAR (*QMARK*) (*COLON*) EQUALS COMMA
+%token <Lexing.position> DBLAMPERSAND DBLVBAR (*QMARK*) COLON EQUALS COMMA
 
 %token <Lexing.position> LPAREN RPAREN LSQUARE RSQUARE LCURLY RCURLY
 %token <Lexing.position> SEMICOLON
@@ -85,23 +85,21 @@ statement:
       DefFcn (pos, vis, name, tp, stmts) }
 | p_n_e = expr SEMICOLON { let (pos, e) = p_n_e in StmtExpr (pos, e) }
 | b = block { let (pos, stmts) = b in Block (pos, stmts) }
-| VAR id = IDENT tp = deftype SEMICOLON
-    { let (pos, name) = id
-      and _, t = tp in
-      VarDecl (pos, name, t, None) }
-| VAR id = IDENT tp = deftype eq = EQUALS p_n_e = expr SEMICOLON
-    { let (pos, name) = id
-      and (_, expr) = p_n_e
-      and _, t = tp in
-      let binop =
-        { op_pos = eq;
-          op_op = OperAssign;
-          op_left = ExprVar (pos, name);
-          op_right = Some expr
-        }
-      in
-      let init = ExprBinary binop in
-      VarDecl (pos, name, t, Some (eq, init)) }
+| VAR ids = idlist tp = deftype SEMICOLON
+    { let _, t = tp in
+      let vars = List.map (fun (p, n) -> (p, n, None)) ids in
+      VarDecl (vars, t)
+    }
+| VAR ids = idlist tp = deftype eq = EQUALS elist = exprlist SEMICOLON
+    { try
+        let vars = List.map2
+          (fun (p, n) e -> (p, n, Some e)) ids elist
+        and _, t = tp
+        in
+        VarDecl (vars, t)
+      with _ -> Report.err_var_decl_list_length_mismatch eq
+        (List.length ids) (List.length elist);
+    }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
 | p = WHILE p_n_e = expr DO slist = statementlist DONE
@@ -115,6 +113,16 @@ statement:
     { let pos, name = id
       and _, t = tp in
       TypeDecl (pos, name, t) }
+| pos = GOTO p_n_id = IDENT SEMICOLON
+    { let _, id = p_n_id in
+      Goto (pos, id)
+    }
+| p_n_id = IDENT COLON
+    { let pos, id = p_n_id in
+      Label (pos, id)
+    }
+| pos = CONTINUE SEMICOLON
+    { Continue pos }
 
 elseclause:
 | ELSE slist = statementlist { Some slist }
@@ -135,12 +143,17 @@ deftype:
 | s = IDENT { let (pos, ident) = s in pos, VarType (pos, ident) }
 | pos = STAR tp = deftype { let _, t = tp in (pos, PtrType (pos, t)) }
 | pos = LCURLY sc = structcontents RCURLY { pos, StructType sc }
+| pos = LCURLY ac = unnamedplist RCURLY { pos, StructType ac }
 | f = fcntype
     { let pos, plist, ret = f in (pos, FcnType (plist, ret)) }
 
 structcontents:
 | sc = variabledecl { [sc] }
 | sc = variabledecl COMMA sclist = structcontents { sc :: sclist }
+
+idlist:
+| id = IDENT { [id] }
+| id = IDENT COMMA l = idlist { id :: l }
 
 parameterlist:
 | p = variabledecl { [p] }

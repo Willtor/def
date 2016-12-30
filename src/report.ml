@@ -45,6 +45,15 @@ let err_bad_escaped_char pos c =
     ^ (show_source pos)
   in fatal_error err
 
+(** Initializing variables: There was a mismatch between the count of
+    variables being declared and initializers. *)
+let err_var_decl_list_length_mismatch pos vars inits =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Mismatch between count of variables (" ^ (string_of_int vars)
+    ^ ") and initializers (" ^ (string_of_int inits) ^ ").\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Function has no return statement. *)
 let err_no_return pos fcn =
   let err = "At " ^ (format_position pos) ^ ":\n"
