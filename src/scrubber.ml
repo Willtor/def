@@ -57,19 +57,19 @@ let kill_dead_code =
       | WhileLoop (pos, precheck, cond, body) :: rest ->
          let stmt = WhileLoop (pos, precheck, cond, proc [] body)
          in proc (stmt :: accum) rest
-      | (Return _ as stmt) :: rest | (ReturnVoid _ as stmt) :: rest ->
-         let () = match rest with
-           | [] -> ()
-           | extra :: _ -> report_dead_code name (position_of_stmt extra)
-         in List.rev (stmt :: accum)
       | TypeDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
       | Label _ as stmt :: rest ->
          proc (stmt :: accum) rest
-      | Goto _ as stmt :: rest ->
-         proc (stmt :: accum) rest
-      | Continue _ as stmt :: rest ->
-         proc (stmt :: accum) rest
+
+      | (Return _ as stmt) :: rest
+      | (ReturnVoid _ as stmt) :: rest
+      | (Goto _ as stmt) :: rest
+      | (Continue _ as stmt) :: rest ->
+         let () = match rest with
+           | [] -> ()
+           | extra :: _ -> report_dead_code name (position_of_stmt extra)
+         in List.rev (stmt :: accum)
     in proc []
   in
   let toplevel = function
