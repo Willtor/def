@@ -78,8 +78,33 @@ let kill_dead_code =
     | stmt -> stmt
   in List.map toplevel
 
+(** Expression cannot resolve to false/0.  *)
+let expr_must_be_true = function
+  | ExprLit (_, LitBool true) -> true
+  | _ -> false
+
 let return_all_paths =
   let process can_return_void body =
+    let rec contains_return = function
+      | [] -> false
+      | Return _ :: _
+      | ReturnVoid _ :: _ -> true
+      | Block (_, body) :: rest ->
+         if contains_return body then true
+         else contains_return rest
+      | IfStmt (_, _, tstmts, None) :: rest ->
+         if contains_return tstmts then true
+         else contains_return rest
+      | IfStmt (_, _, tstmts, Some estmts) :: rest ->
+         if contains_return tstmts then true
+         else if contains_return estmts then true
+         else contains_return rest
+      | WhileLoop (_, _, _, body) :: rest ->
+         if contains_return body then true
+         else contains_return rest
+      | DefFcn _ :: rest (* Returns from nested functions don't count. *)
+      | _ :: rest -> contains_return rest
+    in
     let rec returns_p = function
       | [] -> false
       | Return _ :: _
@@ -91,7 +116,6 @@ let return_all_paths =
       | DefFcn _ :: rest
       | VarDecl _ :: rest
       | IfStmt (_, _, _, None) :: rest
-      | WhileLoop _ :: rest
       | TypeDecl _ :: rest
       | Label _ :: rest
       | Goto _ :: rest (* FIXME: Think about Goto case some more... *)
@@ -99,6 +123,9 @@ let return_all_paths =
         -> returns_p rest
       | IfStmt (_, _, then_branch, Some else_branch) :: rest ->
          if (returns_p then_branch) && (returns_p else_branch) then true
+         else returns_p rest
+      | WhileLoop (_, _, cond, body) :: rest ->
+         if expr_must_be_true cond then contains_return body
          else returns_p rest
     in
     if returns_p body then body
