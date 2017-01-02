@@ -12,7 +12,7 @@
 %token <Lexing.position * float> LITERALF32 LITERALF64
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
-%token <Lexing.position> TYPE
+%token <Lexing.position> TYPE TYPEDEF
 %token <Lexing.position> EXPORT DEF VAR RETURN BEGIN END IF THEN ELSE FI
 %token <Lexing.position> WHILE DO DONE CAST AS GOTO CONTINUE
 
@@ -109,7 +109,7 @@ statement:
 | p = RETURN p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in Return (p, e) }
 | p = RETURN SEMICOLON { ReturnVoid p }
-| TYPE id = IDENT EQUALS tp = deftype SEMICOLON
+| TYPEDEF id = IDENT EQUALS tp = deftype SEMICOLON
     { let pos, name = id
       and _, t = tp in
       TypeDecl (pos, name, t) }
@@ -191,6 +191,10 @@ expr:
     { let _, e = p_n_e
       and _, t = tp in
       p, ExprCast (p, t, e)
+    }
+| p = TYPE tp = deftype
+    { let _, t = tp in
+      p, ExprType (p, t)
     }
 | i = LITERALI64 { let (pos, n) = i in pos, ExprLit (pos, LitI64 n) }
 | i = LITERALU64 { let (pos, n) = i in pos, ExprLit (pos, LitU64 n) }

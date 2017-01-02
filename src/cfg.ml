@@ -322,6 +322,14 @@ let convert_expr typemap scope =
          | _ -> Report.err_non_struct_member_access dpos
        in
        struct_select converted_obj otype
+    | ExprCast (_, tp, e) ->
+       let cast_tp = convert_type false typemap tp in
+       let orig_tp, converted_expr = convert e in
+       cast_tp, Expr_Cast (orig_tp, cast_tp, converted_expr)
+    | ExprStaticStruct _ ->
+       Report.err_internal __FILE__ __LINE__ "ExprStaticStruct"
+    | ExprType _ ->
+       Report.err_internal __FILE__ __LINE__ "ExprType"
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
   in convert
@@ -489,13 +497,95 @@ let builtin_types () =
     Types.map_builtin_types;
   map
 
+let resolve_builtins stmts typemap =
+  let rec process_expr = function
+    | ExprFcnCall f ->
+       begin match f.fc_name with
+         | "sizeof" ->
+            begin match f.fc_args with
+            | [ ExprType (p, tp) ] ->
+               (* FIXME: Implement. *)
+               let () = prerr_endline "FIXME: sizeof needs fixing." in
+               ExprLit (p, LitU32 (Int32.of_int 40))
+            | _ :: [] -> Report.err_internal __FILE__ __LINE__
+               "FIXME: No error message for this."
+            | _ -> Report.err_internal __FILE__ __LINE__
+               "FIXME: No error message for this."
+            end
+         | _ ->
+            ExprFcnCall
+              { fc_pos = f.fc_pos;
+                fc_name = f.fc_name;
+                fc_args = List.map process_expr f.fc_args
+              }
+       end
+    | ExprBinary op ->
+       let newop =
+         { op_pos = op.op_pos;
+           op_op = op.op_op;
+           op_left = process_expr op.op_left;
+           op_right = Some (process_expr (Util.the op.op_right))
+         }
+       in ExprBinary newop
+    | ExprPreUnary op ->
+       let newop =
+         { op_pos = op.op_pos;
+           op_op = op.op_op;
+           op_left = process_expr op.op_left;
+           op_right = None
+         }
+       in ExprPreUnary newop
+    | ExprPostUnary op ->
+       let newop =
+         { op_pos = op.op_pos;
+           op_op = op.op_op;
+           op_left = process_expr op.op_left;
+           op_right = None
+         }
+       in ExprPostUnary newop
+    | ExprCast (p, v, e) ->
+       ExprCast (p, v, process_expr e)
+    | ExprIndex (p1, base, p2, idx) ->
+       ExprIndex (p1, process_expr base, p2, process_expr idx)
+    | ExprSelectField (p1, p2, e, fname) ->
+       ExprSelectField (p1, p2, process_expr e, fname)
+    | ExprStaticStruct (p, elist) ->
+       ExprStaticStruct (p, List.map (fun (p, e) -> p, process_expr e) elist)
+    | e -> e
+  in
+  let rec process_stmt = function
+    | StmtExpr (p, e) -> StmtExpr (p, process_expr e)
+    | Block (p, stmts) -> Block (p, List.map process_stmt stmts)
+    | DefFcn (p, vis, name, tp, stmts) ->
+       DefFcn(p, vis, name, tp, List.map process_stmt stmts)
+    | VarDecl (vlist, tp) ->
+       let fixedvlist = List.map (fun (p, nm, init) -> match init with
+         | None -> (p, nm, init)
+         | Some (p, e) -> (p, nm, Some (p, process_expr e)))
+         vlist
+       in
+       VarDecl (fixedvlist, tp)
+    | IfStmt (p, cond, tstmts, estmts_maybe) ->
+       IfStmt (p, process_expr cond,
+               List.map process_stmt tstmts,
+               if estmts_maybe = None then None
+               else Some (List.map process_stmt (Util.the estmts_maybe)))
+    | WhileLoop (p, pre, cond, stmts) ->
+       WhileLoop (p, pre, process_expr cond, List.map process_stmt stmts)
+    | Return (p, e) -> Return (p, process_expr e)
+    | stmt -> stmt
+  in
+  List.map process_stmt stmts
+
 let convert_ast stmts =
   let typemap = builtin_types () in
   let decltable = make_symtab () in
   List.iter (global_types typemap) stmts;
   let typemap = symtab_filter (resolve_type typemap) typemap in
-  List.iter (global_decls decltable typemap) stmts;
-  let fcnlist = List.fold_left (build_fcns decltable typemap) [] stmts
+  let sanitized_stmts = resolve_builtins stmts typemap in
+  List.iter (global_decls decltable typemap) sanitized_stmts;
+  let fcnlist =
+    List.fold_left (build_fcns decltable typemap) [] sanitized_stmts
   in
   { global_decls = decltable;
     fcnlist = List.rev fcnlist;

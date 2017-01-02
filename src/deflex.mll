@@ -32,6 +32,7 @@ rule deflex = parse
       deflex lexbuf }
 | "//"[^'\n']* { deflex lexbuf }
 | "type" { TYPE (lexeme_start_p lexbuf) }
+| "typedef" { TYPEDEF (lexeme_start_p lexbuf) }
 | "begin" { BEGIN (lexeme_start_p lexbuf) }
 | "end" { END (lexeme_start_p lexbuf) }
 | "export" { EXPORT (lexeme_start_p lexbuf) }
