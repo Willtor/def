@@ -504,9 +504,8 @@ let resolve_builtins stmts typemap =
          | "sizeof" ->
             begin match f.fc_args with
             | [ ExprType (p, tp) ] ->
-               (* FIXME: Implement. *)
-               let () = prerr_endline "FIXME: sizeof needs fixing." in
-               ExprLit (p, LitU32 (Int32.of_int 40))
+               let sz = size_of typemap (convert_type false typemap tp) in
+               ExprLit (p, LitU32 (Int32.of_int sz))
             | _ :: [] -> Report.err_internal __FILE__ __LINE__
                "FIXME: No error message for this."
             | _ -> Report.err_internal __FILE__ __LINE__

@@ -1,4 +1,5 @@
 open Llvm
+open Util
 
 type primitive =
   | PrimBool
@@ -126,3 +127,30 @@ let is_integer_type = function
      | PrimF32 | PrimF64 -> false
      end
   | _ -> false
+
+let ptr_size = 8
+
+(** Return the size of the given type in bytes. *)
+let rec size_of typemap = function
+  | DefTypeUnresolved _ ->
+     Report.err_internal __FILE__ __LINE__
+       "size_of called on an unresolved type."
+  | DefTypeVoid ->
+     Report.err_internal __FILE__ __LINE__
+       "size_of called on a void type."
+  | DefTypePrimitive p ->
+     begin match p with
+     | PrimBool | PrimI8 | PrimU8 -> 1
+     | PrimI16 | PrimU16 -> 2
+     | PrimI32 | PrimU32 -> 4
+     | PrimI64 | PrimU64 -> 8
+     | PrimF32 -> 4
+     | PrimF64 -> 8
+     end
+  | DefTypeFcn _ -> ptr_size
+  | DefTypePtr _ -> ptr_size
+  | DefTypeNamedStruct nm -> size_of typemap (the (lookup_symbol typemap nm))
+  | DefTypeLiteralStruct (members, _) ->
+     (* FIXME: Take aligment into account. *)
+     List.fold_left (fun accum t -> accum + (size_of typemap t))
+       0 members

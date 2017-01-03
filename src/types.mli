@@ -36,3 +36,6 @@ val primitive2string : primitive -> string
 
 (** Return true iff the given type is an integer type. *)
 val is_integer_type : deftype -> bool
+
+(** Return the size of the given type in bytes. *)
+val size_of : deftype Util.symtab -> deftype -> int
