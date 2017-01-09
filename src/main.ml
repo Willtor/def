@@ -66,6 +66,21 @@ let anon_arg = set_input_file
 
 let usage_msg = "defc: The DEF compiler."
 
+let add_builtin_fcns stmts =
+  let pos = { pos_fname = "builtin";
+              pos_lnum = 1;
+              pos_bol = 1;
+              pos_cnum = 1
+            }
+  in
+  let builtins =
+    [ DeclFcn (pos, Types.VisExported pos, "forkscan_alloc",
+               FcnType ([(pos, "size", VarType (pos, "u64"))],
+                        PtrType (pos, VarType (pos, "void"))))
+    ]
+  in
+  builtins @ stmts
+
 let set_fname file lexbuf =
   lexbuf.lex_start_p <- { pos_fname = file;
                           pos_lnum = lexbuf.lex_start_p.pos_lnum;
@@ -191,6 +206,7 @@ let compile_def_file infilename =
   close_in infile;
 
   (* Generate and process the CFG. *)
+  let stmts = add_builtin_fcns stmts in
   let stmts = scrub stmts in
   let program = lower_cfg (convert_ast stmts) in
   let llvm_module = process_cfg infilename program in

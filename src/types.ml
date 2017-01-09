@@ -20,8 +20,10 @@ type deftype =
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype
   | DefTypePtr of deftype
+  | DefTypeNullPtr
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
+  | DefTypeStaticStruct of deftype list
 
 type primitive_kind =
   | KindInteger
@@ -149,8 +151,10 @@ let rec size_of typemap = function
      end
   | DefTypeFcn _ -> ptr_size
   | DefTypePtr _ -> ptr_size
+  | DefTypeNullPtr -> ptr_size
   | DefTypeNamedStruct nm -> size_of typemap (the (lookup_symbol typemap nm))
-  | DefTypeLiteralStruct (members, _) ->
+  | DefTypeLiteralStruct (members, _)
+  | DefTypeStaticStruct members ->
      (* FIXME: Take aligment into account. *)
      List.fold_left (fun accum t -> accum + (size_of typemap t))
        0 members

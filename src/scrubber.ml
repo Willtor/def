@@ -15,6 +15,7 @@ let faux_pos = { pos_fname = "";
 let position_of_stmt = function
   | StmtExpr (pos, _)
   | Block (pos, _)
+  | DeclFcn (pos, _, _, _)
   | DefFcn (pos, _, _, _, _)
   | VarDecl ((pos, _, _) :: _, _)
   | IfStmt (pos, _, _, _)
@@ -43,6 +44,7 @@ let kill_dead_code =
       | Block (pos, slist) :: rest ->
          let stmt = Block (pos, proc [] slist) in
          proc (stmt :: accum) rest
+      | DeclFcn _ as stmt :: rest -> proc (stmt :: accum) rest
       | DefFcn (pos, vis, name, tp, body) :: rest ->
          let stmt = DefFcn (pos, vis, name, tp, process name body) in
          proc (stmt :: accum) rest
@@ -113,6 +115,7 @@ let return_all_paths =
          if returns_p block then true
          else returns_p rest
       | StmtExpr _ :: rest
+      | DeclFcn _ :: rest
       | DefFcn _ :: rest
       | VarDecl _ :: rest
       | IfStmt (_, _, _, None) :: rest

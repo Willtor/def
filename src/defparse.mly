@@ -14,7 +14,7 @@
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE TYPEDEF
 %token <Lexing.position> EXPORT DEF VAR RETURN BEGIN END IF THEN ELSE FI
-%token <Lexing.position> WHILE DO DONE CAST AS GOTO CONTINUE
+%token <Lexing.position> WHILE DO DONE CAST AS GOTO CONTINUE NIL
 
 (* Operators *)
 %token <Lexing.position> RARROW
@@ -187,6 +187,7 @@ exprlist:
 | e = expr { [e] }
 
 expr:
+| p = NIL { p, ExprNil p }
 | p = CAST p_n_e = expr AS tp = deftype
     { let _, e = p_n_e
       and _, t = tp in

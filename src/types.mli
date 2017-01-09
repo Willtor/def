@@ -17,8 +17,10 @@ type deftype =
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype
   | DefTypePtr of deftype
+  | DefTypeNullPtr
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
+  | DefTypeStaticStruct of deftype list
 
 (** Return the more general of the two primitive types. *)
 val generalize_primitives : primitive -> primitive -> primitive

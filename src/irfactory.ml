@@ -303,7 +303,7 @@ let process_expr data varmap =
 
 let rec process_body data llfcn varmap cfg_bbs entry_bb =
   let process_bb bb = function
-    | BB_Cond conditional ->
+    | BB_Cond (_, conditional) ->
        let cond = process_expr data varmap conditional.branch_cond in
 
        (* then-branch *)
@@ -339,7 +339,7 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
               position_at_end merge_bb data.bldr;
               merge_bb
             end
-    | BB_Loop block ->
+    | BB_Loop (_, block) ->
 
        (* Check whether the loop is a while or a do-while loop. *)
        if block.precheck then
@@ -380,7 +380,7 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
          let () = position_at_end follow_bb data.bldr in
          follow_bb
 
-    | BB_Expr (_, expr) ->
+    | BB_Expr (_, _, expr) ->
        begin ignore (process_expr data varmap expr); bb end
     | BB_Return (_, expr) ->
        let ret = process_expr data varmap expr in

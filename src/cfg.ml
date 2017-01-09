@@ -12,14 +12,19 @@ type cfg_expr =
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
   | Expr_Index of cfg_expr * cfg_expr
   | Expr_SelectField of cfg_expr * int
+  | Expr_StaticStruct of (Types.deftype * cfg_expr) list
+  | Expr_Nil
 
 type cfg_basic_block =
-  | BB_Cond of conditional_block
-  | BB_Loop of loop_block
-  | BB_Expr of Lexing.position * cfg_expr
+  | BB_Cond of string * conditional_block
+  | BB_Loop of string * loop_block
+  | BB_Expr of Lexing.position * string * cfg_expr
   | BB_Return of Lexing.position * cfg_expr
   | BB_ReturnVoid of Lexing.position
   | BB_LocalFcn of function_defn
+  | BB_Label of string
+  | BB_Goto of string
+  | BB_Continue
 
 and conditional_block =
   { if_pos       : Lexing.position;
@@ -61,6 +66,10 @@ type program =
     fcnlist : function_defn list;
     deftypemap : Types.deftype symtab
   }
+
+let label_of_pos pos =
+  pos.pos_fname ^ "_" ^ (string_of_int pos.pos_lnum)
+  ^ "_" ^ (string_of_int (pos.pos_cnum - pos.pos_bol))
 
 (** Get the type of an Ast.literal value. *)
 let typeof_literal lit =
@@ -125,11 +134,15 @@ let resolve_type typemap typename oldtp =
        and ret = v ret
        in DefTypeFcn (params, ret)
     | DefTypePtr tp -> DefTypePtr (v tp)
+    | DefTypeNullPtr -> DefTypeNullPtr
     | DefTypeLiteralStruct (fields, names) ->
        DefTypeLiteralStruct (List.map v fields, names)
+    | DefTypeStaticStruct members ->
+       DefTypeStaticStruct (List.map v members)
   in Some (v oldtp)
 
 let global_decls decltable typemap = function
+  | DeclFcn (pos, vis, name, tp)
   | DefFcn (pos, vis, name, tp, _) ->
      begin match lookup_symbol decltable name with
      | Some _ -> ()
@@ -157,6 +170,7 @@ let rec returns_p stmts =
   let r ret = function
     | StmtExpr _ -> ret
     | Block (_, stmts) -> (returns_p stmts) || ret
+    | DeclFcn _
     | DefFcn _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Unhandled case in Cfg.returns_p (DefFcn)"
     | VarDecl _ -> ret
@@ -180,7 +194,7 @@ let maybe_cast orig cast_as expr =
   if orig = cast_as then expr
   else Expr_Cast (orig, cast_as, expr)
 
-let check_castability pos ltype rtype =
+let check_castability pos typemap ltype rtype =
   let rec similar = function
     | DefTypePrimitive lprim, DefTypePrimitive rprim ->
        ()  (* FIXME: Implement. *)
@@ -191,7 +205,20 @@ let check_castability pos ltype rtype =
        end
     | DefTypePtr p1, DefTypePtr p2 ->
        identical (p1, p2)
-    | _ -> failwith "FIXME: check_castability incomplete."
+    | DefTypeNamedStruct nm, DefTypeStaticStruct smembers ->
+       begin match lookup_symbol typemap nm with
+       | Some DefTypeLiteralStruct (lmembers, _) ->
+          List.iter similar (List.combine lmembers smembers)
+       | _ -> Report.err_internal __FILE__ __LINE__ "Unknown struct type."
+       end
+    | DefTypeLiteralStruct (lmembers, _), DefTypeStaticStruct smembers ->
+       List.iter similar (List.combine lmembers smembers)
+    | DefTypePrimitive _, _ ->
+       Report.err_internal __FILE__ __LINE__ (Util.format_position pos)
+    | DefTypePtr _, DefTypeNullPtr
+    | DefTypeNullPtr, DefTypePtr _ -> ()
+    | _ -> Report.err_internal __FILE__ __LINE__
+       ("incomplete cast implementation for " ^ (Util.format_position pos))
   and identical (ltype, rtype) =
     if ltype = rtype then ()
     else Report.err_type_mismatch pos
@@ -200,7 +227,7 @@ let check_castability pos ltype rtype =
 
 (** Reconcile the types of two subexpressions connected by a binary operator
     and return the result.  The result may include implicit casts. *)
-let binary_reconcile =
+let binary_reconcile typemap =
   let more_general_of pos op ltype rtype =
     match ltype, rtype with
     | DefTypePrimitive lprim, DefTypePrimitive rprim ->
@@ -228,19 +255,19 @@ let binary_reconcile =
        (maybe_cast rtype tp rexpr)
     | OperAssign ->
        begin
-         check_castability pos rtype ltype;
+         check_castability pos typemap ltype rtype;
          ltype, ltype, lexpr, (maybe_cast rtype ltype rexpr)
        end
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Incomplete implementation Cfg.reconcile."
   in reconcile
 
-let build_fcn_call scope pos name args =
+let build_fcn_call scope typemap pos name args =
   match lookup_symbol scope name with
   | None -> Report.err_unknown_fcn_call pos name
   | Some decl ->
      let match_param_with_arg ptype (atype, expr) =
-       check_castability pos atype ptype;
+       check_castability pos typemap atype ptype;
        maybe_cast atype ptype expr
      in
      begin match decl.tp with
@@ -262,7 +289,10 @@ let build_fcn_call scope pos name args =
      | DefTypePrimitive _ -> Report.err_called_non_fcn pos decl.decl_pos name
      | DefTypePtr _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call a pointer."
-     | DefTypeLiteralStruct _ -> Report.err_internal __FILE__ __LINE__
+     | DefTypeNullPtr -> Report.err_internal __FILE__ __LINE__
+        "Tried to call nil."
+     | DefTypeLiteralStruct _
+     | DefTypeStaticStruct _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call a struct."
      end
 
@@ -271,11 +301,11 @@ let convert_expr typemap scope =
     | ExprFcnCall call ->
        let converted_args = List.map convert call.fc_args in
        let rettp, fcn, cfg_args =
-         build_fcn_call scope call.fc_pos call.fc_name converted_args
+         build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
        in rettp, Expr_FcnCall (fcn, cfg_args)
     | ExprBinary op ->
        let rettp, tp, lhs, rhs =
-         binary_reconcile op.op_pos op.op_op
+         binary_reconcile typemap op.op_pos op.op_op
            (convert op.op_left) (convert (the op.op_right))
        in rettp, Expr_Binary (op.op_op, tp, lhs, rhs)
     | ExprPreUnary op ->
@@ -326,10 +356,14 @@ let convert_expr typemap scope =
        let cast_tp = convert_type false typemap tp in
        let orig_tp, converted_expr = convert e in
        cast_tp, Expr_Cast (orig_tp, cast_tp, converted_expr)
-    | ExprStaticStruct _ ->
-       Report.err_internal __FILE__ __LINE__ "ExprStaticStruct"
+    | ExprStaticStruct (_, members) ->
+       let cmembers = List.map (fun (_, e) -> convert e) members in
+       let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
+         (t :: taccum)) [] cmembers) in
+       DefTypeStaticStruct tlist, Expr_StaticStruct cmembers
     | ExprType _ ->
        Report.err_internal __FILE__ __LINE__ "ExprType"
+    | ExprNil _ -> DefTypeNullPtr, Expr_Nil
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
   in convert
@@ -365,10 +399,12 @@ let rec build_bbs name decltable typemap body =
   and process_bb scope (decls, bbs) = function
     | StmtExpr (pos, expr) ->
        let _, expr = convert_expr typemap scope expr in
-       decls, BB_Expr (pos, expr) :: bbs
+       decls, BB_Expr (pos, (label_of_pos pos), expr) :: bbs
     | Block (_, stmts) -> (* FIXME: scope should shadow new variables. *)
        List.fold_left
          (process_bb (push_symtab_scope scope)) (decls, bbs) stmts
+    | DeclFcn _ ->
+       Report.err_internal __FILE__ __LINE__ "DeclFcn not expected."
     | DefFcn (pos, vis, name, tp, body) ->
        begin
          if vis != VisLocal then
@@ -414,7 +450,7 @@ let rec build_bbs name decltable typemap body =
             (* FIXME: Need to cast type. *)
             let (_, expr) = convert_expr typemap scope expr in
             ((mappedname, decl) :: decls,
-             BB_Expr (pos, expr) :: bbs)
+             BB_Expr (pos, (label_of_pos pos), expr) :: bbs)
          end
        in
        List.fold_left process_var (decls, bbs) (List.rev vars)
@@ -425,7 +461,7 @@ let rec build_bbs name decltable typemap body =
        in
        let decls, then_scope = process_block scope decls then_block in
        let tp, conv_cond = convert_expr typemap scope cond in
-       let () = check_castability pos tp (DefTypePrimitive PrimBool) in
+       let () = check_castability pos typemap tp (DefTypePrimitive PrimBool) in
        let block =
          { if_pos = pos;
            fi_pos = pos; (* FIXME! *)
@@ -436,24 +472,24 @@ let rec build_bbs name decltable typemap body =
            else_returns = else_returns
          }
        in
-       decls, (BB_Cond block) :: bbs
+       decls, (BB_Cond (label_of_pos pos, block)) :: bbs
 
     | WhileLoop (pos, precheck, cond, body) ->
        let decls, body_scope = process_block scope decls body in
        let tp, conv_cond = convert_expr typemap scope cond in
-       let () = check_castability pos tp (DefTypePrimitive PrimBool) in
+       let () = check_castability pos typemap tp (DefTypePrimitive PrimBool) in
        let block =
          { while_pos = pos;
            precheck = precheck;
            loop_cond = maybe_cast tp (DefTypePrimitive PrimBool) conv_cond;
            body_scope = List.rev body_scope
          }
-       in decls, (BB_Loop block) :: bbs
+       in decls, (BB_Loop (label_of_pos pos, block)) :: bbs
 
     | Return (pos, expr) ->
        let tp, expr = convert_expr typemap scope expr in
        begin
-         check_castability pos tp ret_type;
+         check_castability pos typemap tp ret_type;
          decls, BB_Return (pos, (maybe_cast tp ret_type expr)) :: bbs
        end
     | ReturnVoid pos ->
@@ -463,16 +499,13 @@ let rec build_bbs name decltable typemap body =
          Report.err_returned_void pos
     | TypeDecl _ ->
        Report.err_internal __FILE__ __LINE__
-         "FIXME: DefFcn not implemented Cfg.build_bbs (TypeDecl)"
-    | Label _ ->
-       Report.err_internal __FILE__ __LINE__
-         "FIXME: DefFcn not implemented Cfg.build_bbs (Label)"
-    | Goto _ ->
-       Report.err_internal __FILE__ __LINE__
-         "FIXME: DefFcn not implemented Cfg.build_bbs (Goto)"
+         "FIXME: TypeDecl not implemented Cfg.build_bbs (TypeDecl)"
+    | Label (_, label) ->
+       decls, BB_Label label :: bbs
+    | Goto (_, label) ->
+       decls, BB_Goto label :: bbs
     | Continue _ ->
-       Report.err_internal __FILE__ __LINE__
-         "FIXME: DefFcn not implemented Cfg.build_bbs (Continue)"
+       decls, BB_Continue :: bbs
   in
   let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
   List.rev decls, List.rev bbs
