@@ -41,3 +41,6 @@ val is_integer_type : deftype -> bool
 
 (** Return the size of the given type in bytes. *)
 val size_of : deftype Util.symtab -> deftype -> int
+
+(** Convert the type into its string representation. *)
+val string_of_type : deftype -> string

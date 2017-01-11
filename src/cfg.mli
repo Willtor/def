@@ -9,6 +9,10 @@ type cfg_expr =
   | Expr_SelectField of cfg_expr * int
   | Expr_StaticStruct of (Types.deftype * cfg_expr) list
   | Expr_Nil
+  | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
+
+and atomic_op =
+  | AtomicCAS
 
 type cfg_basic_block =
   | BB_Cond of string * conditional_block

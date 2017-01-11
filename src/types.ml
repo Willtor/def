@@ -158,3 +158,17 @@ let rec size_of typemap = function
      (* FIXME: Take aligment into account. *)
      List.fold_left (fun accum t -> accum + (size_of typemap t))
        0 members
+
+let rec string_of_type = function
+  | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
+  | DefTypeVoid -> "void"
+  | DefTypePrimitive t -> primitive2string t
+  | DefTypePtr t -> "*" ^ (string_of_type t)
+  | DefTypeNullPtr -> "nil"
+  | DefTypeNamedStruct nm -> "struct " ^ nm
+  | DefTypeLiteralStruct (members, _)
+  | DefTypeStaticStruct members ->
+     "{ "
+     ^ (String.concat ", " (List.map string_of_type members))
+     ^ " }"
+  | _ -> "other"

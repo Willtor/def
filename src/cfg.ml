@@ -14,6 +14,10 @@ type cfg_expr =
   | Expr_SelectField of cfg_expr * int
   | Expr_StaticStruct of (Types.deftype * cfg_expr) list
   | Expr_Nil
+  | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
+
+and atomic_op =
+  | AtomicCAS
 
 type cfg_basic_block =
   | BB_Cond of string * conditional_block
@@ -203,14 +207,19 @@ let check_castability pos typemap ltype rtype =
          List.iter identical (List.combine plist1 plist2);
          identical (ret1, ret2)
        end
+    | DefTypePtr DefTypeVoid, DefTypePtr _
+    | DefTypePtr _, DefTypePtr DefTypeVoid ->
+       ()
     | DefTypePtr p1, DefTypePtr p2 ->
        identical (p1, p2)
+    | DefTypeStaticStruct smembers, DefTypeNamedStruct nm
     | DefTypeNamedStruct nm, DefTypeStaticStruct smembers ->
        begin match lookup_symbol typemap nm with
        | Some DefTypeLiteralStruct (lmembers, _) ->
           List.iter similar (List.combine lmembers smembers)
        | _ -> Report.err_internal __FILE__ __LINE__ "Unknown struct type."
        end
+    | DefTypeStaticStruct smembers, DefTypeLiteralStruct (lmembers, _)
     | DefTypeLiteralStruct (lmembers, _), DefTypeStaticStruct smembers ->
        List.iter similar (List.combine lmembers smembers)
     | DefTypePrimitive _, _ ->
@@ -221,7 +230,12 @@ let check_castability pos typemap ltype rtype =
        ("incomplete cast implementation for " ^ (Util.format_position pos))
   and identical (ltype, rtype) =
     if ltype = rtype then ()
-    else Report.err_type_mismatch pos
+    else
+      begin
+        prerr_endline (string_of_type ltype);
+        prerr_endline (string_of_type rtype);
+        Report.err_type_mismatch pos
+      end
   in
   similar (ltype, rtype)
 
@@ -247,24 +261,45 @@ let binary_reconcile typemap =
        (maybe_cast rtype tp rexpr)
     | OperLTE
     | OperGT | OperGTE
-    | OperEquals | OperNEquals ->
+    | OperEquals | OperNEquals
+    | OperBitwiseAnd | OperBitwiseOr ->
        let tp = more_general_of pos op ltype rtype in
        DefTypePrimitive PrimBool,
        tp,
-       (maybe_cast ltype tp lexpr),
-       (maybe_cast rtype tp rexpr)
+       maybe_cast ltype tp lexpr,
+       maybe_cast rtype tp rexpr
+    | OperLogicalOr | OperLogicalAnd ->
+       let primbool = DefTypePrimitive PrimBool in
+       begin
+         check_castability pos typemap ltype primbool;
+         check_castability pos typemap rtype primbool;
+         primbool,
+         primbool,
+         maybe_cast ltype primbool lexpr,
+         maybe_cast rtype primbool rexpr
+       end
     | OperAssign ->
        begin
          check_castability pos typemap ltype rtype;
          ltype, ltype, lexpr, (maybe_cast rtype ltype rexpr)
        end
     | _ -> Report.err_internal __FILE__ __LINE__
-       "FIXME: Incomplete implementation Cfg.reconcile."
+       ("FIXME: Incomplete implementation Cfg.reconcile (operator "
+        ^ (operator2string op) ^ ").")
   in reconcile
 
 let build_fcn_call scope typemap pos name args =
   match lookup_symbol scope name with
-  | None -> Report.err_unknown_fcn_call pos name
+  | None ->
+     (* Check if the function is an atomic. *)
+     begin match name with
+     | "__builtin_cas" ->
+        if (List.length args) <> 3 then
+          Report.err_wrong_number_of_atomic_args pos name (List.length args)
+        else
+          DefTypePrimitive PrimBool, Expr_Atomic (AtomicCAS, args)
+     | _ -> Report.err_unknown_fcn_call pos name
+     end
   | Some decl ->
      let match_param_with_arg ptype (atype, expr) =
        check_castability pos typemap atype ptype;
@@ -281,7 +316,7 @@ let build_fcn_call scope typemap pos name args =
         begin
           try
             let casted_args = List.map2 match_param_with_arg params args in
-            rettp, decl.mappedname, casted_args
+            rettp, Expr_FcnCall (decl.mappedname, casted_args)
           with _ ->
             Report.err_wrong_number_of_args pos decl.decl_pos name
               (List.length params) (List.length args)
@@ -300,9 +335,7 @@ let convert_expr typemap scope =
   let rec convert = function
     | ExprFcnCall call ->
        let converted_args = List.map convert call.fc_args in
-       let rettp, fcn, cfg_args =
-         build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
-       in rettp, Expr_FcnCall (fcn, cfg_args)
+       build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
     | ExprBinary op ->
        let rettp, tp, lhs, rhs =
          binary_reconcile typemap op.op_pos op.op_op
