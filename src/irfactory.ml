@@ -128,10 +128,35 @@ let process_expr data varmap =
     | OperEquals, true -> standard_op (build_icmp Icmp.Eq) "def_eq"
     | OperEquals, false -> standard_op (build_fcmp Fcmp.Oeq) "def_eq_f"
     | OperAssign, _ ->
-       let rhs = expr_gen true right in
-       let _ = build_store rhs (expr_gen false left) bldr in
-       rhs
+       begin match left, right with
+       | _, Expr_Cast (_, _, Expr_StaticStruct members)
+       | _, Expr_StaticStruct members ->
+          let base = expr_gen false left in
+          let assign n (_, expr) =
+            let v = expr_gen false expr in
+            let dest = build_struct_gep base n "ssfield" bldr in
+            ignore (build_store v dest bldr)
+          in
+          let () = List.iteri assign members in
+          base (* FIXME: Broken!  BAD WILLTOR!  NO BISCUIT!  But I don't want
+                  to fix this, now.
+                  This returns an address rather than a proper rvalue.  It
+                  needs a dereference, somehow, but without recalculating. *)
+       | _ ->
+          let rhs = expr_gen true right in
+          let _ = build_store rhs (expr_gen false left) bldr in
+          rhs
+       end
     | _ -> failwith "llvm_operator not fully implemented"
+
+  and make_llvm_tp = function
+      | DefTypePtr t -> pointer_type (make_llvm_tp t)
+      | DefTypePrimitive pt ->
+         the (lookup_symbol data.typemap (primitive2string pt))
+      | DefTypeNamedStruct nm ->
+         the (lookup_symbol data.typemap nm)
+      | t -> Report.err_internal __FILE__ __LINE__
+         ("make_llvm_tp incomplete: " ^ (string_of_type t))
 
   and build_cast from_tp to_tp e =
     let build_primitive_cast t1 t2 =
@@ -250,7 +275,13 @@ let process_expr data varmap =
     match from_tp, to_tp with
     | DefTypePrimitive prim1, DefTypePrimitive prim2 ->
        build_primitive_cast prim1 prim2
-    | _ -> failwith "Irfactory.build_cast incomplete implementation."
+    | DefTypePtr _, DefTypePtr _ ->
+       build_bitcast e (make_llvm_tp to_tp) "cast" data.bldr
+    | _ ->
+       Report.err_internal __FILE__ __LINE__
+         ("build_cast: Incomplete implementation (from "
+          ^ (string_of_type from_tp) ^ " to "
+          ^ (string_of_type to_tp) ^ ").")
 
   and expr_gen rvalue_p = function
     | Expr_FcnCall (name, args) ->
@@ -285,6 +316,8 @@ let process_expr data varmap =
        llvm_binop op tp left right data.bldr
     | Expr_Unary (op, tp, expr, pre_p) ->
        llvm_unop op tp expr pre_p data.bldr
+    | Expr_Cast (_, to_tp, Expr_Nil) ->
+       const_null (make_llvm_tp to_tp)
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
        build_cast from_tp to_tp e
@@ -299,6 +332,12 @@ let process_expr data varmap =
        let addr = build_struct_gep base n "maddr" data.bldr in
        if rvalue_p then build_load addr "mval" data.bldr
        else addr
+    | Expr_StaticStruct _ ->
+       Report.err_internal __FILE__ __LINE__ "Static struct."
+    | Expr_Nil ->
+       Report.err_internal __FILE__ __LINE__ "Nil."
+    | Expr_Atomic _ ->
+       Report.err_internal __FILE__ __LINE__ "Atomic."
   in expr_gen true
 
 let rec process_body data llfcn varmap cfg_bbs entry_bb =

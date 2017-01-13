@@ -194,9 +194,28 @@ let rec returns_p stmts =
 
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
-let maybe_cast orig cast_as expr =
+let rec maybe_cast typemap orig cast_as expr =
   if orig = cast_as then expr
-  else Expr_Cast (orig, cast_as, expr)
+  else match cast_as with
+  | DefTypeNamedStruct nm ->
+     begin match the (lookup_symbol typemap nm) with
+     | DefTypeLiteralStruct (tplist, _) ->
+        begin match expr with
+        | Expr_StaticStruct exprmembers ->
+           let castmembers =
+             List.map2
+               (fun to_tp (from_tp, e) ->
+                 to_tp, (maybe_cast typemap from_tp to_tp e))
+               tplist
+               exprmembers
+           in
+           Expr_Cast (orig, cast_as, Expr_StaticStruct castmembers)
+        | _ ->
+           Report.err_internal __FILE__ __LINE__ "Non-struct type struct."
+        end
+     | _ -> Report.err_internal __FILE__ __LINE__ "Non-struct type struct."
+     end
+  | _ -> Expr_Cast (orig, cast_as, expr)
 
 let check_castability pos typemap ltype rtype =
   let rec similar = function
@@ -252,13 +271,15 @@ let binary_reconcile typemap =
     match op with
     | OperPlus | OperMinus | OperMult | OperDiv ->
        let tp = more_general_of pos op ltype rtype in
-       tp, tp, (maybe_cast ltype tp lexpr), (maybe_cast rtype tp rexpr)
+       tp, tp,
+       (maybe_cast typemap ltype tp lexpr),
+       (maybe_cast typemap rtype tp rexpr)
     | OperLT ->
        let tp = more_general_of pos op ltype rtype in
        DefTypePrimitive PrimBool,
        tp,
-       (maybe_cast ltype tp lexpr),
-       (maybe_cast rtype tp rexpr)
+       (maybe_cast typemap ltype tp lexpr),
+       (maybe_cast typemap rtype tp rexpr)
     | OperLTE
     | OperGT | OperGTE
     | OperEquals | OperNEquals
@@ -266,8 +287,8 @@ let binary_reconcile typemap =
        let tp = more_general_of pos op ltype rtype in
        DefTypePrimitive PrimBool,
        tp,
-       maybe_cast ltype tp lexpr,
-       maybe_cast rtype tp rexpr
+       maybe_cast typemap ltype tp lexpr,
+       maybe_cast typemap rtype tp rexpr
     | OperLogicalOr | OperLogicalAnd ->
        let primbool = DefTypePrimitive PrimBool in
        begin
@@ -275,13 +296,17 @@ let binary_reconcile typemap =
          check_castability pos typemap rtype primbool;
          primbool,
          primbool,
-         maybe_cast ltype primbool lexpr,
-         maybe_cast rtype primbool rexpr
+         maybe_cast typemap ltype primbool lexpr,
+         maybe_cast typemap rtype primbool rexpr
        end
     | OperAssign ->
        begin
+         (* FIXME: WORKING HERE -- Do automatic casting of static structs
+            to named or literal structs, if possible.  Otherwise, casting
+            doesn't work.  Literal structs need to be the correct type at
+            instantiation. *)
          check_castability pos typemap ltype rtype;
-         ltype, ltype, lexpr, (maybe_cast rtype ltype rexpr)
+         ltype, ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
        end
     | _ -> Report.err_internal __FILE__ __LINE__
        ("FIXME: Incomplete implementation Cfg.reconcile (operator "
@@ -303,7 +328,7 @@ let build_fcn_call scope typemap pos name args =
   | Some decl ->
      let match_param_with_arg ptype (atype, expr) =
        check_castability pos typemap atype ptype;
-       maybe_cast atype ptype expr
+       maybe_cast typemap atype ptype expr
      in
      begin match decl.tp with
      | DefTypeUnresolved _ -> Report.err_internal __FILE__ __LINE__
@@ -498,7 +523,8 @@ let rec build_bbs name decltable typemap body =
        let block =
          { if_pos = pos;
            fi_pos = pos; (* FIXME! *)
-           branch_cond = maybe_cast tp (DefTypePrimitive PrimBool) conv_cond;
+           branch_cond =
+             maybe_cast typemap tp (DefTypePrimitive PrimBool) conv_cond;
            then_scope = List.rev then_scope;
            then_returns = returns_p then_block;
            else_scope = List.rev else_scope;
@@ -514,7 +540,8 @@ let rec build_bbs name decltable typemap body =
        let block =
          { while_pos = pos;
            precheck = precheck;
-           loop_cond = maybe_cast tp (DefTypePrimitive PrimBool) conv_cond;
+           loop_cond =
+             maybe_cast typemap tp (DefTypePrimitive PrimBool) conv_cond;
            body_scope = List.rev body_scope
          }
        in decls, (BB_Loop (label_of_pos pos, block)) :: bbs
@@ -523,7 +550,7 @@ let rec build_bbs name decltable typemap body =
        let tp, expr = convert_expr typemap scope expr in
        begin
          check_castability pos typemap tp ret_type;
-         decls, BB_Return (pos, (maybe_cast tp ret_type expr)) :: bbs
+         decls, BB_Return (pos, (maybe_cast typemap tp ret_type expr)) :: bbs
        end
     | ReturnVoid pos ->
        if ret_type == DefTypeVoid then
