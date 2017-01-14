@@ -147,7 +147,10 @@ let process_expr data varmap =
           let _ = build_store rhs (expr_gen false left) bldr in
           rhs
        end
-    | _ -> failwith "llvm_operator not fully implemented"
+    | _ ->
+       Report.err_internal __FILE__ __LINE__
+         ("llvm_operator not fully implemented: operator "
+          ^ (operator2string op))
 
   and make_llvm_tp = function
       | DefTypePtr t -> pointer_type (make_llvm_tp t)
