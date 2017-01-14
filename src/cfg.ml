@@ -285,7 +285,7 @@ let binary_reconcile typemap =
     | OperEquals | OperNEquals
     | OperBitwiseAnd | OperBitwiseOr ->
        let tp = more_general_of pos op ltype rtype in
-       DefTypePrimitive PrimBool,
+       tp,
        tp,
        maybe_cast typemap ltype tp lexpr,
        maybe_cast typemap rtype tp rexpr
@@ -410,10 +410,17 @@ let convert_expr typemap scope =
          | _ -> Report.err_non_struct_member_access dpos
        in
        struct_select converted_obj otype
-    | ExprCast (_, tp, e) ->
-       let cast_tp = convert_type false typemap tp in
+    | ExprCast (pos, to_tp, e) ->
+       let cast_tp = convert_type false typemap to_tp in
        let orig_tp, converted_expr = convert e in
-       cast_tp, Expr_Cast (orig_tp, cast_tp, converted_expr)
+       if orig_tp = cast_tp then
+         let () = prerr_endline
+           ("omitting cast: " ^ (string_of_type orig_tp) ^ " -> "
+            ^ (string_of_type cast_tp)
+            ^ " (" ^ (format_position pos) ^ ")") in
+         cast_tp, converted_expr
+       else
+         cast_tp, Expr_Cast (orig_tp, cast_tp, converted_expr)
     | ExprStaticStruct (_, members) ->
        let cmembers = List.map (fun (_, e) -> convert e) members in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->

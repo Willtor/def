@@ -127,6 +127,8 @@ let process_expr data varmap =
     | OperGTE, false -> standard_op (build_fcmp Fcmp.Oge) "def_ge_f"
     | OperEquals, true -> standard_op (build_icmp Icmp.Eq) "def_eq"
     | OperEquals, false -> standard_op (build_fcmp Fcmp.Oeq) "def_eq_f"
+    | OperBitwiseAnd, true -> standard_op build_and "def_land"
+    | OperBitwiseOr, true -> standard_op build_or "def_lor"
     | OperAssign, _ ->
        begin match left, right with
        | _, Expr_Cast (_, _, Expr_StaticStruct members)
@@ -147,6 +149,11 @@ let process_expr data varmap =
           let _ = build_store rhs (expr_gen false left) bldr in
           rhs
        end
+    | OperBitwiseAnd, false
+    | OperBitwiseOr, false ->
+       Report.err_internal __FILE__ __LINE__
+         ("tried to perform an operation \"" ^ (operator2string op)
+          ^ ") on float operands.  This should have been caught earlier.")
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_operator not fully implemented: operator "
@@ -280,6 +287,16 @@ let process_expr data varmap =
        build_primitive_cast prim1 prim2
     | DefTypePtr _, DefTypePtr _ ->
        build_bitcast e (make_llvm_tp to_tp) "cast" data.bldr
+    | DefTypePtr _, DefTypePrimitive _ ->
+       if is_integer_type to_tp then
+         build_pointercast e (make_llvm_tp to_tp) "cast" data.bldr
+       else Report.err_internal __FILE__ __LINE__
+         "What's the deal with casting pointers to floats?"
+    | DefTypePrimitive _, DefTypePtr _ ->
+       if is_integer_type from_tp then
+         build_inttoptr e (make_llvm_tp to_tp) "cast" data.bldr
+       else Report.err_internal __FILE__ __LINE__
+         "What's the deal with casting floats to ptrs?"
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("build_cast: Incomplete implementation (from "
