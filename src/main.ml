@@ -52,6 +52,12 @@ let set_compile_llvm v =
   set_param compile_llvm v compile_llvm_is_set
     "Specified -emit-llvm multiple times."
 
+let codegen_debug = ref false
+let codegen_debug_is_set = ref false
+let set_codegen_debug () =
+  set_param codegen_debug true codegen_debug_is_set
+    "Specified -cgdebug multiple times."
+
 let parameter_set =
   [ ("-o", String set_output_file,
      "Set the output file.");
@@ -60,7 +66,10 @@ let parameter_set =
     ("-S", Unit (fun () -> set_comp_depth COMPILE_ASM),
      "Compile the module to a .s assembly file.");
     ("-c", Unit (fun () -> set_comp_depth COMPILE_OBJ),
-     "Compile the module to a .o object file.") ]
+     "Compile the module to a .o object file.");
+    ("-cgdebug", Unit (fun () -> set_codegen_debug ()),
+     "Mode for debugging LLVM code generation.")
+  ]
 
 let anon_arg = set_input_file
 
@@ -215,7 +224,7 @@ let compile_def_file infilename =
   let stmts = add_builtin_fcns stmts in
   let stmts = scrub stmts in
   let program = lower_cfg (convert_ast stmts) in
-  let llvm_module = process_cfg infilename program in
+  let llvm_module = process_cfg !codegen_debug infilename program in
 
   (* Output the raw LLVM if that's the compilation level. *)
   if !comp_depth = COMPILE_ASM && !compile_llvm then

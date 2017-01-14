@@ -1,1 +1,1 @@
-val process_cfg : string -> Cfg.program -> Llvm.llmodule
+val process_cfg : bool -> string -> Cfg.program -> Llvm.llmodule

@@ -133,7 +133,7 @@ let process_expr data varmap =
        | _, Expr_StaticStruct members ->
           let base = expr_gen false left in
           let assign n (_, expr) =
-            let v = expr_gen false expr in
+            let v = expr_gen true expr in
             let dest = build_struct_gep base n "ssfield" bldr in
             ignore (build_store v dest bldr)
           in
@@ -433,7 +433,7 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
   in
   List.fold_left process_bb entry_bb cfg_bbs
 
-let process_fcn data symbols fcn =
+let process_fcn cgdebug data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
   let varmap = push_symtab_scope symbols in
@@ -454,7 +454,7 @@ let process_fcn data symbols fcn =
     in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
     fcn.local_vars;
   ignore (process_body data llfcn varmap fcn.bbs bb);
-  Llvm_analysis.assert_valid_function llfcn
+  if not cgdebug then Llvm_analysis.assert_valid_function llfcn
 
 let declare_globals data symbols name decl =
   let llfcn =
@@ -466,7 +466,7 @@ let declare_globals data symbols name decl =
   if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llfcn)
 
-let process_cfg module_name program =
+let process_cfg cgdebug module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let bldr = builder ctx in
@@ -479,5 +479,5 @@ let process_cfg module_name program =
                zero_i32 = const_null (the (lookup_symbol typemap "i32")) } in
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols) program.global_decls;
-  List.iter (process_fcn data symbols) program.fcnlist;
+  List.iter (process_fcn cgdebug data symbols) program.fcnlist;
   mdl
