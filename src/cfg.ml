@@ -36,10 +36,10 @@ and conditional_block =
     branch_cond  : cfg_expr;
 
     mutable then_scope : cfg_basic_block list;
-    then_returns : bool;
+    then_has_exit : bool;
 
     mutable else_scope : cfg_basic_block list;
-    else_returns : bool
+    else_has_exit : bool
   }
 
 and loop_block =
@@ -47,6 +47,7 @@ and loop_block =
     precheck   : bool;
     loop_cond  : cfg_expr;
     mutable body_scope : cfg_basic_block list;
+    can_exit   : bool;
   }
 
 and decl =
@@ -74,6 +75,11 @@ type program =
 let label_of_pos pos =
   pos.pos_fname ^ "_" ^ (string_of_int pos.pos_lnum)
   ^ "_" ^ (string_of_int (pos.pos_cnum - pos.pos_bol))
+
+(* FIXME: Unify with (not expr_must_be_true) in Scrubber. *)
+let loop_can_exit = function
+  | Expr_Literal (LitBool true) -> false
+  | _ -> true
 
 (** Get the type of an Ast.literal value. *)
 let typeof_literal lit =
@@ -170,26 +176,26 @@ let get_fcntype_profile = function
   | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
 (** Return true iff the series of Ast.stmts returns on all paths. *)
-let rec returns_p stmts =
+let rec has_exit_p stmts =
   let r ret = function
     | StmtExpr _ -> ret
-    | Block (_, stmts) -> (returns_p stmts) || ret
+    | Block (_, stmts) -> (has_exit_p stmts) || ret
     | DeclFcn _
     | DefFcn _ -> Report.err_internal __FILE__ __LINE__
-       "FIXME: Unhandled case in Cfg.returns_p (DefFcn)"
+       "FIXME: Unhandled case in Cfg.has_exit_p (DefFcn)"
     | VarDecl _ -> ret
     | IfStmt (_, _, t, None) -> ret
     | IfStmt (_, _, t, Some e) ->
-       ((returns_p t) && (returns_p e)) || ret
+       ((has_exit_p t) && (has_exit_p e)) || ret
     | WhileLoop _ -> ret
     | Return _ -> true
     | ReturnVoid _ -> true
     | TypeDecl _ -> Report.err_internal __FILE__ __LINE__
-       "FIXME: Unhandled case in Cfg.returns_p (TypeDecl)"
+       "FIXME: Unhandled case in Cfg.has_exit_p (TypeDecl)"
     | Label _ -> ret
-    | Continue _ -> ret
-    | Goto _ -> ret (* FIXME: unstructured goto is a little weird.  Think
-                       about this some more... *)
+    | Continue _ -> true
+    | Goto _ -> true (* FIXME: unstructured goto is a little weird.  Think
+                        about this some more... *)
   in List.fold_left r false stmts
 
 (** Return a casted version of the expression, if the original type doesn't
@@ -513,16 +519,18 @@ let rec build_bbs name decltable typemap body =
          | None -> (mappedname, decl) :: decls, bbs
          | Some (pos, expr) ->
             (* FIXME: Need to cast type. *)
-            let (_, expr) = convert_expr typemap scope expr in
+            let (etp, expr) = convert_expr typemap scope expr in
+            let () = check_castability pos typemap etp t in
             ((mappedname, decl) :: decls,
-             BB_Expr (pos, (label_of_pos pos), expr) :: bbs)
+             BB_Expr (pos, (label_of_pos pos),
+                      maybe_cast typemap etp t expr) :: bbs)
          end
        in
        List.fold_left process_var (decls, bbs) (List.rev vars)
     | IfStmt (pos, cond, then_block, else_block_maybe) ->
-       let (decls, else_scope), else_returns = match else_block_maybe with
+       let (decls, else_scope), else_has_exit = match else_block_maybe with
          | None -> (decls, []), false
-         | Some stmts -> process_block scope decls stmts, returns_p stmts
+         | Some stmts -> process_block scope decls stmts, has_exit_p stmts
        in
        let decls, then_scope = process_block scope decls then_block in
        let tp, conv_cond = convert_expr typemap scope cond in
@@ -533,9 +541,9 @@ let rec build_bbs name decltable typemap body =
            branch_cond =
              maybe_cast typemap tp (DefTypePrimitive PrimBool) conv_cond;
            then_scope = List.rev then_scope;
-           then_returns = returns_p then_block;
+           then_has_exit = has_exit_p then_block;
            else_scope = List.rev else_scope;
-           else_returns = else_returns
+           else_has_exit = else_has_exit
          }
        in
        decls, (BB_Cond (label_of_pos pos, block)) :: bbs
@@ -549,7 +557,8 @@ let rec build_bbs name decltable typemap body =
            precheck = precheck;
            loop_cond =
              maybe_cast typemap tp (DefTypePrimitive PrimBool) conv_cond;
-           body_scope = List.rev body_scope
+           body_scope = List.rev body_scope;
+           can_exit = loop_can_exit conv_cond
          }
        in decls, (BB_Loop (label_of_pos pos, block)) :: bbs
 
@@ -557,7 +566,27 @@ let rec build_bbs name decltable typemap body =
        let tp, expr = convert_expr typemap scope expr in
        begin
          check_castability pos typemap tp ret_type;
-         decls, BB_Return (pos, (maybe_cast typemap tp ret_type expr)) :: bbs
+         match tp, expr with
+         | DefTypeStaticStruct _, Expr_StaticStruct elist ->
+            let decl = { decl_pos = pos;
+                         mappedname = "__defret";
+                         vis = VisLocal;
+                         tp = tp;
+                         params = []
+                       } in
+            let structvar = Expr_Variable "__defret" in
+            let stmts =
+              BB_Return (pos, (maybe_cast typemap tp ret_type structvar)) ::
+                (List.mapi (fun n (t, e) ->
+                  BB_Expr (pos, (label_of_pos pos),
+                           Expr_Binary (OperAssign, t,
+                                        Expr_SelectField (structvar, n),
+                                        e)))
+                   elist) in
+            ("__defret", decl) :: decls, stmts @ bbs
+         | _ ->
+            (decls,
+             BB_Return (pos, (maybe_cast typemap tp ret_type expr)) :: bbs)
        end
     | ReturnVoid pos ->
        if ret_type == DefTypeVoid then

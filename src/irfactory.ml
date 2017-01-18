@@ -37,9 +37,12 @@ let deftype2llvmtype ctx typemap =
        pointer_type (convert wrap_fcn_ptr pointed_to_tp)
     | DefTypeNamedStruct name ->
        the (lookup_symbol typemap name)
+    | DefTypeStaticStruct members
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
        struct_type ctx (Array.of_list llvm_members)
+    | _ ->
+       Report.err_internal __FILE__ __LINE__ "deftype2llvmtype"
   in convert
 
 let build_types ctx deftypes =
@@ -102,7 +105,12 @@ let process_expr data varmap =
     | OperAddrOf ->
        let llvm_expr = expr_gen false expr in
        build_gep llvm_expr [| data.zero_i32 |] "addrof" bldr
-    | _ -> failwith "llvm_unop not fully implemented."
+    | OperLogicalNot ->
+       let llvm_expr = expr_gen true expr in
+       build_not llvm_expr "lnot" bldr
+    | _ ->
+       Report.err_internal __FILE__ __LINE__
+         ("llvm_unop not fully implemented: operator " ^ (operator2string op))
   and llvm_binop op tp left right bldr =
     let standard_op fnc name =
       fnc (expr_gen true left) (expr_gen true right) name bldr
@@ -127,8 +135,9 @@ let process_expr data varmap =
     | OperGTE, false -> standard_op (build_fcmp Fcmp.Oge) "def_ge_f"
     | OperEquals, true -> standard_op (build_icmp Icmp.Eq) "def_eq"
     | OperEquals, false -> standard_op (build_fcmp Fcmp.Oeq) "def_eq_f"
-    | OperBitwiseAnd, true -> standard_op build_and "def_land"
-    | OperBitwiseOr, true -> standard_op build_or "def_lor"
+    | OperBitwiseAnd, true -> standard_op build_and "def_band"
+    | OperBitwiseOr, true -> standard_op build_or "def_bor"
+    | OperLogicalAnd, true -> standard_op build_and "def_land" (* FIXME!!! *)
     | OperAssign, _ ->
        begin match left, right with
        | _, Expr_Cast (_, _, Expr_StaticStruct members)
@@ -297,6 +306,10 @@ let process_expr data varmap =
          build_inttoptr e (make_llvm_tp to_tp) "cast" data.bldr
        else Report.err_internal __FILE__ __LINE__
          "What's the deal with casting floats to ptrs?"
+    | DefTypeStaticStruct _, _ ->
+       (* FIXME: I think this might be correct, actually, but need to think
+          about it some more. *)
+       e
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("build_cast: Incomplete implementation (from "
@@ -352,15 +365,36 @@ let process_expr data varmap =
        let addr = build_struct_gep base n "maddr" data.bldr in
        if rvalue_p then build_load addr "mval" data.bldr
        else addr
-    | Expr_StaticStruct _ ->
+    | Expr_StaticStruct members ->
        Report.err_internal __FILE__ __LINE__ "Static struct."
     | Expr_Nil ->
        Report.err_internal __FILE__ __LINE__ "Nil."
-    | Expr_Atomic _ ->
-       Report.err_internal __FILE__ __LINE__ "Atomic."
+    | Expr_Atomic (AtomicCAS, [(_, dexpr);
+                               (_, cexpr);
+                               (_, vexpr)]) ->
+       (* FIXME: Broken!  Not atomic!  Need to find a way to generate this
+          instruction. *)
+       let dest = expr_gen false dexpr in
+       let cmp = expr_gen true cexpr in
+       let v = expr_gen true vexpr in
+       (*build_cmpxchg dest cmp orig AcquireRelease data.bldr*)
+       let _ = build_store v dest data.bldr in
+       build_icmp Icmp.Eq cmp v "atomiccmpxchg" data.bldr
+    | Expr_Atomic (AtomicCAS, _) ->
+       Report.err_internal __FILE__ __LINE__ "CAS on != 3 parameters"
   in expr_gen true
 
 let rec process_body data llfcn varmap cfg_bbs entry_bb =
+  let find_bb label =
+    let rec f = function
+      | [] -> None
+      | bb :: rest ->
+         let nm = value_name (value_of_block bb) in
+         if nm <> label then f rest
+         else Some bb
+    in
+    f (Array.to_list (basic_blocks llfcn))
+  in
   let process_bb bb = function
     | BB_Cond (_, conditional) ->
        let cond = process_expr data varmap conditional.branch_cond in
@@ -381,16 +415,16 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
        let () = position_at_end bb data.bldr in
        let _ = build_cond_br cond then_start else_start data.bldr in
 
-       if conditional.then_returns && conditional.else_returns then else_end
+       if conditional.then_has_exit && conditional.else_has_exit then else_end
        else let merge_bb = append_block data.ctx "merge" llfcn in
             begin
               position_at_end merge_bb data.bldr;
-              if not conditional.then_returns then
+              if not conditional.then_has_exit then
                 begin
                   position_at_end then_end data.bldr;
                   ignore (build_br merge_bb data.bldr)
                 end;
-              if not conditional.else_returns then
+              if not conditional.else_has_exit then
                 begin
                   position_at_end else_end data.bldr;
                   ignore (build_br merge_bb data.bldr)
@@ -398,46 +432,69 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
               position_at_end merge_bb data.bldr;
               merge_bb
             end
-    | BB_Loop (_, block) ->
+    | BB_Loop (l, block) ->
+       let label str = str ^ "_" ^ l in
+       let needs_br body =
+         (* FIXME: Temporary hack.  This all needs rewriting with a proper
+            control-flow graph. *)
+         match List.rev body with
+         | BB_Continue :: _
+         | BB_Loop (_, { can_exit = false }) :: _ -> false
+         | _ -> true
+       in
 
        (* Check whether the loop is a while or a do-while loop. *)
        if block.precheck then
          (* New block for the condition. *)
-         let cond_bb = append_block data.ctx "loop_cond" llfcn in
+         let cond_bb = append_block data.ctx (label "loop_cond") llfcn in
          let _ = build_br cond_bb data.bldr in
          let () = position_at_end cond_bb data.bldr in
          let cond = process_expr data varmap block.loop_cond in
 
          (* Loop body. *)
-         let body_bb = append_block data.ctx "loop_body" llfcn in
+         let body_bb = append_block data.ctx (label "loop_body") llfcn in
          let () = position_at_end body_bb data.bldr in
          let _ = process_body data llfcn varmap block.body_scope body_bb in
-         let _ = build_br cond_bb data.bldr in
+         let () = if needs_br block.body_scope then
+             ignore (build_br cond_bb data.bldr)
+         in
+         (*let _ = build_br cond_bb data.bldr in*)
 
-         (* Follow block. *)
-         let follow_bb = append_block data.ctx "loop_follow" llfcn in
-         let () = position_at_end cond_bb data.bldr in
-         let _ = build_cond_br cond body_bb follow_bb data.bldr in
-         let () = position_at_end follow_bb data.bldr in
-         follow_bb
+         if block.can_exit then
+           (* Follow block. *)
+           let follow_bb = append_block data.ctx (label "loop_follow") llfcn in
+           let () = position_at_end cond_bb data.bldr in
+           let _ = build_cond_br cond body_bb follow_bb data.bldr in
+           let () = position_at_end follow_bb data.bldr in
+           follow_bb
+         else
+           (* No follow block. *)
+           let () = position_at_end cond_bb data.bldr in
+           let _ = build_br body_bb data.bldr in
+           body_bb
        else
          (* Loop body. *)
-         let body_bb = append_block data.ctx "loop_body" llfcn in
+         let body_bb = append_block data.ctx (label "loop_body") llfcn in
          let _ = build_br body_bb data.bldr in
          let () = position_at_end body_bb data.bldr in
          let _ = process_body data llfcn varmap block.body_scope body_bb in
 
          (* Block for the conditional. *)
-         let cond_bb = append_block data.ctx "loop_cond" llfcn in
+         let cond_bb = append_block data.ctx (label "loop_cond") llfcn in
          let _ = build_br cond_bb data.bldr in
          let () = position_at_end cond_bb data.bldr in
          let cond = process_expr data varmap block.loop_cond in
 
-         (* Follow block. *)
-         let follow_bb = append_block data.ctx "loop_follow" llfcn in
-         let _ = build_cond_br cond body_bb follow_bb data.bldr in
-         let () = position_at_end follow_bb data.bldr in
-         follow_bb
+         if block.can_exit then
+           (* Follow block. *)
+           let follow_bb = append_block data.ctx (label "loop_follow") llfcn in
+           let _ = build_cond_br cond body_bb follow_bb data.bldr in
+           let () = position_at_end follow_bb data.bldr in
+           follow_bb
+         else
+           (* No follow block. *)
+           let _ = build_br body_bb data.bldr in
+           body_bb
 
     | BB_Expr (_, _, expr) ->
        begin ignore (process_expr data varmap expr); bb end
@@ -450,6 +507,20 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
     | BB_LocalFcn fcn ->
        Report.err_internal __FILE__ __LINE__
          ("Unlifted function: " ^ fcn.name)
+    | BB_Label name ->
+       (* FIXME: Label name should be mangled. *)
+       let label_bb = append_block data.ctx name llfcn in
+       let _ = build_br label_bb data.bldr in
+       let () = position_at_end label_bb data.bldr in
+       label_bb
+    | BB_Goto label ->
+       (* FIXME: This needs, very badly, to be rewritten.  Currently only
+          works if the label has already appeared. *)
+       let target = the (find_bb label) in
+       let _ = build_br target data.bldr in
+       bb
+    | BB_Continue ->
+       Report.err_internal __FILE__ __LINE__ "continue not implemented."
   in
   List.fold_left process_bb entry_bb cfg_bbs
 

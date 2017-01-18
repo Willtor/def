@@ -31,10 +31,10 @@ and conditional_block =
     branch_cond  : cfg_expr;
 
     mutable then_scope : cfg_basic_block list;
-    then_returns : bool;
+    then_has_exit : bool;
 
     mutable else_scope : cfg_basic_block list;
-    else_returns : bool
+    else_has_exit : bool
   }
 
 and loop_block =
@@ -42,6 +42,7 @@ and loop_block =
     precheck   : bool;
     loop_cond  : cfg_expr;
     mutable body_scope : cfg_basic_block list;
+    can_exit   : bool;
   }
 
 and decl =
