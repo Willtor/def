@@ -4,11 +4,17 @@
       `(
         ; Keywords
         (,(regexp-opt '("def" "begin" "end" "do" "done" "while" "if"
-                        "then" "fi" "return")
+                        "then" "fi" "return" "var" "export" "continue"
+                        "typedef" "cast" "as" "goto" "type")
                       'words)
          . font-lock-keyword-face)
         ; Constants.
         (,(regexp-opt '("true" "false") 'words) . font-lock-constant-face)
+        ; Builtins
+        (,(regexp-opt '("sizeof" "forkscan_alloc" "forkscan_retire"
+                        "forkscan_free" "builtin_cas")
+                      'words)
+         . font-lock-builtin-face)
         ; Single-line comments.
         (,"//.*" . font-lock-comment-face)
         ; Multi-line comments.
