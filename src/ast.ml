@@ -70,7 +70,6 @@ type stmt =
   | Block of position * stmt list
   | DeclFcn of position * Types.visibility * string * vartype
   | DefFcn of position * Types.visibility * string * vartype * stmt list
-  (*| VarDecl of position * string * vartype * (position * expr) option*)
   | VarDecl of (position * string * (position * expr) option) list * vartype
   | IfStmt of position * expr * stmt list * stmt list option
   (* WhileLoop: start-pos * pre-check * cond * body *)
