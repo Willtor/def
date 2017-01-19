@@ -135,6 +135,8 @@ let process_expr data varmap =
     | OperGTE, false -> standard_op (build_fcmp Fcmp.Oge) "def_ge_f"
     | OperEquals, true -> standard_op (build_icmp Icmp.Eq) "def_eq"
     | OperEquals, false -> standard_op (build_fcmp Fcmp.Oeq) "def_eq_f"
+    | OperNEquals, true -> standard_op (build_icmp Icmp.Ne) "def_neq"
+    | OperNEquals, false -> standard_op (build_fcmp Fcmp.One) "def_neq_f"
     | OperBitwiseAnd, true -> standard_op build_and "def_band"
     | OperBitwiseOr, true -> standard_op build_or "def_bor"
     | OperLogicalAnd, true -> standard_op build_and "def_land" (* FIXME!!! *)
@@ -384,7 +386,7 @@ let process_expr data varmap =
        Report.err_internal __FILE__ __LINE__ "CAS on != 3 parameters"
   in expr_gen true
 
-let rec process_body data llfcn varmap cfg_bbs entry_bb =
+let rec process_body data llfcn varmap enclosing_loop cfg_bbs entry_bb =
   let find_bb label =
     let rec f = function
       | [] -> None
@@ -403,13 +405,15 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
        let then_start = append_block data.ctx "then" llfcn in
        let () = position_at_end then_start data.bldr in
        let then_end =
-         process_body data llfcn varmap conditional.then_scope then_start in
+         process_body data llfcn varmap enclosing_loop
+           conditional.then_scope then_start in
 
        (* else-branch *)
        let else_start = append_block data.ctx "else" llfcn in
        let () = position_at_end else_start data.bldr in
        let else_end =
-         process_body data llfcn varmap conditional.else_scope else_start in
+         process_body data llfcn varmap enclosing_loop
+           conditional.else_scope else_start in
 
        (* conditional *)
        let () = position_at_end bb data.bldr in
@@ -454,7 +458,8 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
          (* Loop body. *)
          let body_bb = append_block data.ctx (label "loop_body") llfcn in
          let () = position_at_end body_bb data.bldr in
-         let _ = process_body data llfcn varmap block.body_scope body_bb in
+         let _ = process_body data llfcn varmap (Some cond_bb)
+           block.body_scope body_bb in
          let () = if needs_br block.body_scope then
              ignore (build_br cond_bb data.bldr)
          in
@@ -477,7 +482,9 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
          let body_bb = append_block data.ctx (label "loop_body") llfcn in
          let _ = build_br body_bb data.bldr in
          let () = position_at_end body_bb data.bldr in
-         let _ = process_body data llfcn varmap block.body_scope body_bb in
+         let _ = process_body data llfcn varmap None
+           (* FIXME: Should be (Some cond_bb) instead of None. *)
+           block.body_scope body_bb in
 
          (* Block for the conditional. *)
          let cond_bb = append_block data.ctx (label "loop_cond") llfcn in
@@ -520,7 +527,12 @@ let rec process_body data llfcn varmap cfg_bbs entry_bb =
        let _ = build_br target data.bldr in
        bb
     | BB_Continue ->
-       Report.err_internal __FILE__ __LINE__ "continue not implemented."
+       begin match enclosing_loop with
+       | None -> Report.err_internal __FILE__ __LINE__
+          "No enclosing loop to continue."
+       | Some cond_bb ->
+          let _ = build_br cond_bb data.bldr in bb
+       end
   in
   List.fold_left process_bb entry_bb cfg_bbs
 
@@ -544,7 +556,7 @@ let process_fcn cgdebug data symbols fcn =
       (deftype2llvmtype data.ctx data.typemap true decl.tp) name data.bldr
     in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
     fcn.local_vars;
-  ignore (process_body data llfcn varmap fcn.bbs bb);
+  ignore (process_body data llfcn varmap None fcn.bbs bb);
   if not cgdebug then Llvm_analysis.assert_valid_function llfcn
 
 let declare_globals data symbols name decl =
