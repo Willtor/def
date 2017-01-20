@@ -2,6 +2,10 @@
 ;; Font coloring.
 (setq def-font-lock-keywords
       `(
+        ; Single-line comments.
+        (,"//.*" . font-lock-comment-face)
+        ; Multi-line comments.
+        (,"/\\*\\([^*]*\\*+\\)+/" . font-lock-comment-delimiter-face)
         ; Keywords
         (,(regexp-opt '("def" "begin" "end" "do" "done" "while" "if"
                         "then" "fi" "return" "var" "export" "continue"
@@ -9,16 +13,14 @@
                       'words)
          . font-lock-keyword-face)
         ; Constants.
-        (,(regexp-opt '("true" "false") 'words) . font-lock-constant-face)
+        (,(regexp-opt '("true" "false" "nil")
+                      'words)
+         . font-lock-constant-face)
         ; Builtins
         (,(regexp-opt '("sizeof" "forkscan_alloc" "forkscan_retire"
                         "forkscan_free" "builtin_cas")
                       'words)
          . font-lock-builtin-face)
-        ; Single-line comments.
-        (,"//.*" . font-lock-comment-face)
-        ; Multi-line comments.
-        (,"/\\*\\([^*]*\\*+\\)+/" . font-lock-comment-delimiter-face)
         ))
 
 (define-derived-mode def-mode fundamental-mode "def mode"
