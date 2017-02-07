@@ -1,7 +1,7 @@
 type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
-  | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * bool
+  | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
@@ -15,34 +15,31 @@ and atomic_op =
   | AtomicCAS
 
 type cfg_basic_block =
+  | BB_Seq of string * sequential_block
   | BB_Cond of string * conditional_block
-  | BB_Loop of string * loop_block
-  | BB_Expr of Lexing.position * string * cfg_expr
-  | BB_Return of Lexing.position * cfg_expr
-  | BB_ReturnVoid of Lexing.position
-  | BB_LocalFcn of function_defn
-  | BB_Label of string
-  | BB_Goto of string
-  | BB_Continue
+  | BB_Term of string * terminal_block
+  | BB_Goto of string * sequential_block
+  | BB_Error
 
-and conditional_block =
-  { if_pos       : Lexing.position;
-    fi_pos       : Lexing.position;
-    branch_cond  : cfg_expr;
-
-    mutable then_scope : cfg_basic_block list;
-    then_has_exit : bool;
-
-    mutable else_scope : cfg_basic_block list;
-    else_has_exit : bool
+and sequential_block =
+  { mutable seq_prev  : cfg_basic_block list;
+    mutable seq_next  : cfg_basic_block;
+    mutable seq_expr  : (Lexing.position * cfg_expr) list;
+    mutable seq_mark_bit : bool
   }
 
-and loop_block =
-  { while_pos  : Lexing.position;
-    precheck   : bool;
-    loop_cond  : cfg_expr;
-    mutable body_scope : cfg_basic_block list;
-    can_exit   : bool;
+and conditional_block =
+  { mutable cond_prev : cfg_basic_block list;
+    mutable cond_next : cfg_basic_block;
+    mutable cond_else : cfg_basic_block;
+    cond_branch       : (Lexing.position * cfg_expr);
+    mutable cond_mark_bit : bool
+  }
+
+and terminal_block =
+  { mutable term_prev : cfg_basic_block list;
+    term_expr         : (Lexing.position * cfg_expr) option;
+    mutable term_mark_bit : bool
   }
 
 and decl =
@@ -58,13 +55,20 @@ and function_defn =
     defn_end   : Lexing.position;
     name       : string;
     local_vars : (string * decl) list;
-    mutable bbs : cfg_basic_block list;
+    mutable entry_bb : cfg_basic_block;
   }
 
-and program =
+type program =
   { global_decls : decl Util.symtab;
     fcnlist : function_defn list;
     deftypemap : Types.deftype Util.symtab
   }
+
+(* Visit a graph, depth-first. *)
+val visit_df :
+  ('a -> cfg_basic_block -> 'a) -> bool -> 'a -> cfg_basic_block -> 'a
+
+(* Reset the marked bit throughout a CFG. *)
+val reset_bbs : cfg_basic_block -> unit
 
 val convert_ast : Ast.stmt list -> program

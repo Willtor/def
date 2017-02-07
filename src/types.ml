@@ -166,7 +166,10 @@ let rec string_of_type = function
   | DefTypePtr t -> "*" ^ (string_of_type t)
   | DefTypeNullPtr -> "nil"
   | DefTypeNamedStruct nm -> "struct " ^ nm
-  | DefTypeLiteralStruct (members, _)
+  | DefTypeLiteralStruct (members, _) ->
+     "<literal>{ "
+     ^ (String.concat ", " (List.map string_of_type members))
+     ^ " }"
   | DefTypeStaticStruct members ->
      "{ "
      ^ (String.concat ", " (List.map string_of_type members))

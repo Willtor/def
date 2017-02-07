@@ -33,6 +33,9 @@ let deftype2llvmtype ctx typemap =
     | DefTypePrimitive prim ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
+    | DefTypePtr DefTypeVoid ->
+       (* Void pointer isn't natively supported by LLVM.  Use char* instead. *)
+       pointer_type (the (lookup_symbol typemap "i8"))
     | DefTypePtr pointed_to_tp ->
        pointer_type (convert wrap_fcn_ptr pointed_to_tp)
     | DefTypeNamedStruct name ->
@@ -99,7 +102,7 @@ let process_literal typemap lit = match lit with
   | LitF64 n ->
      const_float (the (lookup_symbol typemap "f64")) n
 
-let process_expr data varmap =
+let process_expr data varmap pos_n_expr =
   let rec llvm_unop op (*tp*)_ expr (*pre_p*)_ bldr =
     match op with
     | OperAddrOf ->
@@ -171,13 +174,16 @@ let process_expr data varmap =
           ^ (operator2string op))
 
   and make_llvm_tp = function
-      | DefTypePtr t -> pointer_type (make_llvm_tp t)
-      | DefTypePrimitive pt ->
-         the (lookup_symbol data.typemap (primitive2string pt))
-      | DefTypeNamedStruct nm ->
-         the (lookup_symbol data.typemap nm)
-      | t -> Report.err_internal __FILE__ __LINE__
-         ("make_llvm_tp incomplete: " ^ (string_of_type t))
+    | DefTypePtr t ->
+       pointer_type (make_llvm_tp t)
+    | DefTypePrimitive pt ->
+       the (lookup_symbol data.typemap (primitive2string pt))
+    | DefTypeNamedStruct nm ->
+       the (lookup_symbol data.typemap nm)
+    | DefTypeVoid ->
+       the (lookup_symbol data.typemap "i8")
+    | t -> Report.err_internal __FILE__ __LINE__
+       ("make_llvm_tp incomplete: " ^ (string_of_type t))
 
   and build_cast from_tp to_tp e =
     let build_primitive_cast t1 t2 =
@@ -312,6 +318,8 @@ let process_expr data varmap =
        (* FIXME: I think this might be correct, actually, but need to think
           about it some more. *)
        e
+    | DefTypeLiteralStruct _, DefTypeStaticStruct _ ->
+       e
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("build_cast: Incomplete implementation (from "
@@ -368,7 +376,9 @@ let process_expr data varmap =
        if rvalue_p then build_load addr "mval" data.bldr
        else addr
     | Expr_StaticStruct members ->
-       Report.err_internal __FILE__ __LINE__ "Static struct."
+       let _, elements = List.split members in
+       const_struct data.ctx
+         (Array.of_list (List.map (expr_gen true) elements))
     | Expr_Nil ->
        Report.err_internal __FILE__ __LINE__ "Nil."
     | Expr_Atomic (AtomicCAS, [(_, dexpr);
@@ -384,164 +394,65 @@ let process_expr data varmap =
        build_icmp Icmp.Eq cmp v "atomiccmpxchg" data.bldr
     | Expr_Atomic (AtomicCAS, _) ->
        Report.err_internal __FILE__ __LINE__ "CAS on != 3 parameters"
-  in expr_gen true
-
-let rec process_body data llfcn varmap enclosing_loop cfg_bbs entry_bb =
-  let find_bb label =
-    let rec f = function
-      | [] -> None
-      | bb :: rest ->
-         let nm = value_name (value_of_block bb) in
-         if nm <> label then f rest
-         else Some bb
-    in
-    f (Array.to_list (basic_blocks llfcn))
   in
-  let process_bb bb = function
-    | BB_Cond (_, conditional) ->
-       let cond = process_expr data varmap conditional.branch_cond in
-
-       (* then-branch *)
-       let then_start = append_block data.ctx "then" llfcn in
-       let () = position_at_end then_start data.bldr in
-       let then_end =
-         process_body data llfcn varmap enclosing_loop
-           conditional.then_scope then_start in
-
-       (* else-branch *)
-       let else_start = append_block data.ctx "else" llfcn in
-       let () = position_at_end else_start data.bldr in
-       let else_end =
-         process_body data llfcn varmap enclosing_loop
-           conditional.else_scope else_start in
-
-       (* conditional *)
-       let () = position_at_end bb data.bldr in
-       let _ = build_cond_br cond then_start else_start data.bldr in
-
-       if conditional.then_has_exit && conditional.else_has_exit then else_end
-       else let merge_bb = append_block data.ctx "merge" llfcn in
-            begin
-              position_at_end merge_bb data.bldr;
-              if not conditional.then_has_exit then
-                begin
-                  position_at_end then_end data.bldr;
-                  ignore (build_br merge_bb data.bldr)
-                end;
-              if not conditional.else_has_exit then
-                begin
-                  position_at_end else_end data.bldr;
-                  ignore (build_br merge_bb data.bldr)
-                end;
-              position_at_end merge_bb data.bldr;
-              merge_bb
-            end
-    | BB_Loop (l, block) ->
-       let label str = str ^ "_" ^ l in
-       let needs_br body =
-         (* FIXME: Temporary hack.  This all needs rewriting with a proper
-            control-flow graph. *)
-         match List.rev body with
-         | BB_Continue :: _
-         | BB_Loop (_, { can_exit = false }) :: _ -> false
-         | _ -> true
-       in
-
-       (* Check whether the loop is a while or a do-while loop. *)
-       if block.precheck then
-         (* New block for the condition. *)
-         let cond_bb = append_block data.ctx (label "loop_cond") llfcn in
-         let _ = build_br cond_bb data.bldr in
-         let () = position_at_end cond_bb data.bldr in
-         let cond = process_expr data varmap block.loop_cond in
-
-         (* Loop body. *)
-         let body_bb = append_block data.ctx (label "loop_body") llfcn in
-         let () = position_at_end body_bb data.bldr in
-         let _ = process_body data llfcn varmap (Some cond_bb)
-           block.body_scope body_bb in
-         let () = if needs_br block.body_scope then
-             ignore (build_br cond_bb data.bldr)
-         in
-         (*let _ = build_br cond_bb data.bldr in*)
-
-         if block.can_exit then
-           (* Follow block. *)
-           let follow_bb = append_block data.ctx (label "loop_follow") llfcn in
-           let () = position_at_end cond_bb data.bldr in
-           let _ = build_cond_br cond body_bb follow_bb data.bldr in
-           let () = position_at_end follow_bb data.bldr in
-           follow_bb
-         else
-           (* No follow block. *)
-           let () = position_at_end cond_bb data.bldr in
-           let _ = build_br body_bb data.bldr in
-           body_bb
-       else
-         (* Loop body. *)
-         let body_bb = append_block data.ctx (label "loop_body") llfcn in
-         let _ = build_br body_bb data.bldr in
-         let () = position_at_end body_bb data.bldr in
-         let _ = process_body data llfcn varmap None
-           (* FIXME: Should be (Some cond_bb) instead of None. *)
-           block.body_scope body_bb in
-
-         (* Block for the conditional. *)
-         let cond_bb = append_block data.ctx (label "loop_cond") llfcn in
-         let _ = build_br cond_bb data.bldr in
-         let () = position_at_end cond_bb data.bldr in
-         let cond = process_expr data varmap block.loop_cond in
-
-         if block.can_exit then
-           (* Follow block. *)
-           let follow_bb = append_block data.ctx (label "loop_follow") llfcn in
-           let _ = build_cond_br cond body_bb follow_bb data.bldr in
-           let () = position_at_end follow_bb data.bldr in
-           follow_bb
-         else
-           (* No follow block. *)
-           let _ = build_br body_bb data.bldr in
-           body_bb
-
-    | BB_Expr (_, _, expr) ->
-       begin ignore (process_expr data varmap expr); bb end
-    | BB_Return (_, expr) ->
-       let ret = process_expr data varmap expr in
-       let _ = build_ret ret data.bldr in
-       bb
-    | BB_ReturnVoid _ ->
-       let _ = build_ret_void data.bldr in bb
-    | BB_LocalFcn fcn ->
-       Report.err_internal __FILE__ __LINE__
-         ("Unlifted function: " ^ fcn.name)
-    | BB_Label name ->
-       (* FIXME: Label name should be mangled. *)
-       let label_bb = append_block data.ctx name llfcn in
-       let _ = build_br label_bb data.bldr in
-       let () = position_at_end label_bb data.bldr in
-       label_bb
-    | BB_Goto label ->
-       (* FIXME: This needs, very badly, to be rewritten.  Currently only
-          works if the label has already appeared. *)
-       let target = the (find_bb label) in
-       let _ = build_br target data.bldr in
-       bb
-    | BB_Continue ->
-       begin match enclosing_loop with
-       | None -> Report.err_internal __FILE__ __LINE__
-          "No enclosing loop to continue."
-       | Some cond_bb ->
-          let _ = build_br cond_bb data.bldr in bb
-       end
-  in
-  List.fold_left process_bb entry_bb cfg_bbs
+  let _, expr = pos_n_expr in
+  expr_gen true expr
 
 let process_fcn cgdebug data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
+  let llblocks = Hashtbl.create 32 in
+  let make_llbbs () = function
+    | BB_Seq (label, _)
+    | BB_Cond (label, _)
+    | BB_Term (label, _) ->
+       Hashtbl.add llblocks label (append_block data.ctx label llfcn)
+    | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
+  in
+
   let varmap = push_symtab_scope symbols in
-  let bb = append_block data.ctx "entry" llfcn in
-  position_at_end bb data.bldr;
+  let () = Cfg.reset_bbs fcn.entry_bb in
+  let () = Cfg.visit_df make_llbbs true () fcn.entry_bb in
+
+  let get_bb = Hashtbl.find llblocks in
+
+  let get_label = function
+    | BB_Seq (label, _)
+    | BB_Cond (label, _)
+    | BB_Term (label, _) -> label
+    | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
+  in
+
+  let populate_blocks () = function
+    | BB_Seq (label, block) ->
+       let bb = get_bb label in
+       let () = position_at_end bb data.bldr in
+       let () = List.iter
+         (fun expr -> ignore (process_expr data varmap expr)) block.seq_expr in
+       let next_bb = get_bb (get_label block.seq_next) in
+       let _ = build_br next_bb data.bldr in
+       ()
+    | BB_Cond (label, block) ->
+       let bb = get_bb label in
+       let () = position_at_end bb data.bldr in
+       let cond = process_expr data varmap block.cond_branch
+       and then_bb = get_bb (get_label block.cond_next)
+       and else_bb = get_bb (get_label block.cond_else) in
+       let _ = build_cond_br cond then_bb else_bb data.bldr in
+       ()
+    | BB_Term (label, block) ->
+       let bb = get_bb label in
+       let () = position_at_end bb data.bldr in
+       begin match block.term_expr with
+       | None -> let _ = build_ret_void data.bldr in ()
+       | Some e ->
+          let _ = build_ret (process_expr data varmap e) data.bldr in ()
+       end
+    | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
+  in
+
+  let entry = get_bb "entry" in
+  position_at_end entry data.bldr;
   let (args, _) = get_fcntype profile.tp in
   let llparams = params llfcn in
   List.iteri (fun i ((pos, n), tp) ->
@@ -556,7 +467,9 @@ let process_fcn cgdebug data symbols fcn =
       (deftype2llvmtype data.ctx data.typemap true decl.tp) name data.bldr
     in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
     fcn.local_vars;
-  ignore (process_body data llfcn varmap None fcn.bbs bb);
+
+  let () = Cfg.visit_df populate_blocks false () fcn.entry_bb in
+
   if not cgdebug then Llvm_analysis.assert_valid_function llfcn
 
 let declare_globals data symbols name decl =

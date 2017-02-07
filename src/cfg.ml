@@ -20,40 +20,37 @@ and atomic_op =
   | AtomicCAS
 
 type cfg_basic_block =
+  | BB_Seq of string * sequential_block
   | BB_Cond of string * conditional_block
-  | BB_Loop of string * loop_block
-  | BB_Expr of Lexing.position * string * cfg_expr
-  | BB_Return of Lexing.position * cfg_expr
-  | BB_ReturnVoid of Lexing.position
-  | BB_LocalFcn of function_defn
-  | BB_Label of string
-  | BB_Goto of string
-  | BB_Continue
+  | BB_Term of string * terminal_block
+  | BB_Goto of string * sequential_block
+  | BB_Error
 
-and conditional_block =
-  { if_pos       : Lexing.position;
-    fi_pos       : Lexing.position;
-    branch_cond  : cfg_expr;
-
-    mutable then_scope : cfg_basic_block list;
-    then_has_exit : bool;
-
-    mutable else_scope : cfg_basic_block list;
-    else_has_exit : bool
+and sequential_block =
+  { mutable seq_prev  : cfg_basic_block list;
+    mutable seq_next  : cfg_basic_block;
+    mutable seq_expr  : (Lexing.position * cfg_expr) list;
+    mutable seq_mark_bit : bool
   }
 
-and loop_block =
-  { while_pos  : Lexing.position;
-    precheck   : bool;
-    loop_cond  : cfg_expr;
-    mutable body_scope : cfg_basic_block list;
-    can_exit   : bool;
+and conditional_block =
+  { mutable cond_prev : cfg_basic_block list;
+    mutable cond_next : cfg_basic_block;
+    mutable cond_else : cfg_basic_block;
+    cond_branch       : (Lexing.position * cfg_expr);
+    mutable cond_mark_bit : bool
+  }
+
+and terminal_block =
+  { mutable term_prev : cfg_basic_block list;
+    term_expr         : (Lexing.position * cfg_expr) option;
+    mutable term_mark_bit : bool
   }
 
 and decl =
   { decl_pos   : Lexing.position;
     mappedname : string;
-    vis        : visibility;
+    vis        : Types.visibility;
     tp         : Types.deftype;
     params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
   }
@@ -63,14 +60,43 @@ and function_defn =
     defn_end   : Lexing.position;
     name       : string;
     local_vars : (string * decl) list;
-    mutable bbs : cfg_basic_block list;
+    mutable entry_bb : cfg_basic_block;
   }
 
 type program =
   { global_decls : decl Util.symtab;
     fcnlist : function_defn list;
-    deftypemap : Types.deftype symtab
+    deftypemap : Types.deftype Util.symtab
   }
+
+(* Visit a graph, depth-first. *)
+let visit_df f bit =
+  let rec visit param node =
+    match node with
+    | BB_Seq (_, block)
+    | BB_Goto (_, block) ->
+       if block.seq_mark_bit = bit then param
+       else
+         (block.seq_mark_bit <- bit;
+          visit (f param node) block.seq_next)
+    | BB_Cond (_, block) ->
+       if block.cond_mark_bit = bit then param
+       else
+         (block.cond_mark_bit <- bit;
+          let param = visit (f param node) block.cond_next in
+          visit param block.cond_else)
+    | BB_Term (_, block) ->
+       if block.term_mark_bit = bit then param
+       else
+         (block.term_mark_bit <- bit;
+          f param node)
+    | BB_Error ->
+       f param node
+  in
+  visit
+
+(* Reset the marked bit throughout a CFG. *)
+let reset_bbs = visit_df (fun _ _ -> ()) false ()
 
 let label_of_pos pos =
   pos.pos_fname ^ "_" ^ (string_of_int pos.pos_lnum)
@@ -223,6 +249,8 @@ let rec maybe_cast typemap orig cast_as expr =
      end
   | _ -> Expr_Cast (orig, cast_as, expr)
 
+(** Determine whether one type can be cast as another.  This function returns
+    unit, as it only reports an error if it fails. *)
 let check_castability pos typemap ltype rtype =
   let rec similar = function
     | DefTypePrimitive lprim, DefTypePrimitive rprim ->
@@ -448,6 +476,42 @@ let nonconflicting_name pos scope name =
   end
   | Some decl -> Report.err_redeclared_variable pos decl.decl_pos name
 
+let make_decl pos scope nm tp =
+  { decl_pos = pos;
+    mappedname = nonconflicting_name pos scope nm;
+    vis = VisLocal;
+    tp = tp;
+    params = []
+  }
+
+let make_sequential_bb label exprs =
+  BB_Seq (label, { seq_prev = [];
+                   seq_next = BB_Error;
+                   seq_expr = exprs;
+                   seq_mark_bit = false
+                 })
+
+let make_conditional_bb label cond =
+  BB_Cond (label, { cond_prev = [];
+                    cond_next = BB_Error;
+                    cond_else = BB_Error;
+                    cond_branch = cond;
+                    cond_mark_bit = false
+                  })
+
+let make_terminal_bb label rexpr =
+  BB_Term (label, { term_prev = [];
+                    term_expr = rexpr;
+                    term_mark_bit = false
+                  })
+
+let make_goto_bb label =
+  BB_Goto (label, { seq_prev = [];
+                    seq_next = BB_Error;
+                    seq_expr = [];
+                    seq_mark_bit = false
+                  })
+
 let rec build_bbs name decltable typemap body =
   let fcndecl = the (lookup_symbol decltable name) in
   let param_types, ret_type = get_fcntype_profile fcndecl.tp in
@@ -464,157 +528,238 @@ let rec build_bbs name decltable typemap body =
     param_types
     fcndecl.params;
 
-  let rec process_block scope decls =
-    List.fold_left
-      (process_bb (push_symtab_scope scope)) (decls, [])
-  and process_bb scope (decls, bbs) = function
-    | StmtExpr (pos, expr) ->
+  (* Create a two-way link between bb1 -> bb2. *)
+  let add_next bb1 bb2 =
+    let push_next bb = function
+      | BB_Seq (_, block) ->
+         block.seq_next <- bb
+      | BB_Cond (_, block) ->
+         if block.cond_next = BB_Error then block.cond_next <- bb
+         else block.cond_else <- bb
+      | BB_Goto _ (* Goto doesn't get a "next." *)
+      | BB_Term _
+      | BB_Error -> ()
+    in
+    let push_prev bb = function
+      | BB_Seq (_, block)
+      | BB_Goto (_, block) ->
+         block.seq_prev <- bb :: block.seq_prev
+      | BB_Cond (_, block) ->
+         block.cond_prev <- bb :: block.cond_prev
+      | BB_Term (_, block) ->
+         block.term_prev <- bb :: block.term_prev
+      | BB_Error -> ()
+    in
+    push_next bb2 bb1;
+    push_prev bb1 bb2
+  in
+
+  (* Iterate through the basic blocks and convert them to the CFG structure
+     along with all of the contained expressions.  This function will leave
+     temporary placeholders, like BB_Goto and BB_Error, so the CFG needs
+     cleanup. *)
+  let rec process_bb scope decls prev_bb cont_bb = function
+    | [] -> decls, prev_bb
+    | StmtExpr (pos, expr) :: rest ->
        let _, expr = convert_expr typemap scope expr in
-       decls, BB_Expr (pos, (label_of_pos pos), expr) :: bbs
-    | Block (_, stmts) -> (* FIXME: scope should shadow new variables. *)
-       List.fold_left
-         (process_bb (push_symtab_scope scope)) (decls, bbs) stmts
-    | DeclFcn _ ->
+       let bb =
+         make_sequential_bb ("expr_" ^ (label_of_pos pos)) [(pos, expr)] in
+       let () = add_next prev_bb bb in
+       process_bb scope decls bb cont_bb rest
+    | Block (_, stmts) :: rest ->
+       let decls, bb =
+         process_bb (push_symtab_scope scope) decls prev_bb cont_bb stmts in
+       process_bb scope decls bb cont_bb rest
+    | DeclFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DeclFcn not expected."
-    | DefFcn (pos, vis, name, tp, body) ->
-       begin
-         if vis != VisLocal then
-           Report.err_local_fcn_with_nonlocal_vis pos name;
-         let () = match lookup_symbol_local decltable name with
-           | Some _ -> ()
-           | None ->
-              let decl =
-                { decl_pos = pos;
-                  mappedname = name;
-                  vis = vis;
-                  tp = convert_type false typemap tp;
-                  params = param_pos_names tp
-                }
-              in
-              add_symbol decltable name decl
-         in
-         let decltable = push_symtab_scope decltable in
-         let local_decls, local_bbs =
-           build_bbs name decltable typemap body in
-         let fcn =
-           { defn_begin = pos;
-             defn_end = pos; (* FIXME: Should collect actual positions. *)
-             name = name;
-             local_vars = local_decls;
-             bbs = local_bbs;
-           }
-         in decls, BB_LocalFcn fcn :: bbs
-       end
-    | VarDecl (vars, tp) ->
+    | DefFcn _ :: _ ->
+       Report.err_internal __FILE__ __LINE__ "DefFcn not supported."
+    | VarDecl (vars, tp) :: rest ->
        let t = convert_type false typemap tp in
-       let process_var (decls, bbs) (pos, name, initializer_maybe) =
-         let mappedname = nonconflicting_name pos scope name in
-         let decl = { decl_pos = pos;
-                      mappedname = mappedname;
-                      vis = VisLocal;
-                      tp = t;
-                      params = param_pos_names tp } in
-         add_symbol scope name decl;
-         begin match initializer_maybe with
-         | None -> (mappedname, decl) :: decls, bbs
-         | Some (pos, expr) ->
-            (* FIXME: Need to cast type. *)
-            let (etp, expr) = convert_expr typemap scope expr in
-            let () = check_castability pos typemap etp t in
-            ((mappedname, decl) :: decls,
-             BB_Expr (pos, (label_of_pos pos),
-                      maybe_cast typemap etp t expr) :: bbs)
-         end
+       let separate_vars (dlist, ilist) (pos, nm, init_maybe) =
+         let decl = make_decl pos scope nm t in
+         let () = add_symbol scope nm decl in
+         let ilist = match init_maybe with
+           | None -> ilist
+           | Some (pos, expr) ->
+              let oldtp, converted = convert_expr typemap scope expr in
+              (pos, maybe_cast typemap oldtp t converted) :: ilist
+         in
+         (nm, decl) :: dlist, ilist
        in
-       List.fold_left process_var (decls, bbs) (List.rev vars)
-    | IfStmt (pos, cond, then_block, else_block_maybe) ->
-       let (decls, else_scope), else_has_exit = match else_block_maybe with
-         | None -> (decls, []), false
-         | Some stmts -> process_block scope decls stmts, has_exit_p stmts
+       let dlist, ilist = List.fold_left separate_vars (decls, []) vars in
+       let bb = match ilist with
+         | (pos, _) :: _ ->
+            let bb =
+              make_sequential_bb ("initializers_" ^ (label_of_pos pos)) ilist
+            in
+            let () = add_next prev_bb bb in
+            bb
+         | [] -> prev_bb
        in
-       let decls, then_scope = process_block scope decls then_block in
-       let tp, conv_cond = convert_expr typemap scope cond in
-       let () = check_castability pos typemap tp (DefTypePrimitive PrimBool) in
-       let block =
-         { if_pos = pos;
-           fi_pos = pos; (* FIXME! *)
-           branch_cond =
-             maybe_cast typemap tp (DefTypePrimitive PrimBool) conv_cond;
-           then_scope = List.rev then_scope;
-           then_has_exit = has_exit_p then_block;
-           else_scope = List.rev else_scope;
-           else_has_exit = else_has_exit
-         }
+       process_bb scope (dlist @ decls) bb cont_bb rest
+    | IfStmt (pos, cond, then_block, else_block_maybe) :: rest ->
+       let _, cexpr = convert_expr typemap scope cond in
+       let bb =
+         make_conditional_bb ("cond_" ^ (label_of_pos pos)) (pos, cexpr) in
+       let () = add_next prev_bb bb in
+       let decls, then_bb =
+         process_bb (push_symtab_scope scope) decls bb cont_bb then_block in
+       let merge_bb = make_sequential_bb ("merge_" ^ (label_of_pos pos)) [] in
+       let () = add_next then_bb merge_bb in
+       let decls = match else_block_maybe with
+         | None ->
+            (add_next bb merge_bb; decls)
+         | Some stmts ->
+            let decls, else_bb =
+              process_bb (push_symtab_scope scope) decls bb cont_bb stmts in
+            (add_next else_bb merge_bb; decls)
        in
-       decls, (BB_Cond (label_of_pos pos, block)) :: bbs
-
-    | WhileLoop (pos, precheck, cond, body) ->
-       let decls, body_scope = process_block scope decls body in
-       let tp, conv_cond = convert_expr typemap scope cond in
-       let () = check_castability pos typemap tp (DefTypePrimitive PrimBool) in
-       let block =
-         { while_pos = pos;
-           precheck = precheck;
-           loop_cond =
-             maybe_cast typemap tp (DefTypePrimitive PrimBool) conv_cond;
-           body_scope = List.rev body_scope;
-           can_exit = loop_can_exit conv_cond
-         }
-       in decls, (BB_Loop (label_of_pos pos, block)) :: bbs
-
-    | Return (pos, expr) ->
+       process_bb scope decls merge_bb cont_bb rest
+    | WhileLoop (pos, precheck, cond, body) :: rest ->
+       let _, cexpr = convert_expr typemap scope cond in
+       let cond_bb =
+         if loop_can_exit cexpr then
+           make_conditional_bb ("while_" ^ (label_of_pos pos)) (pos, cexpr)
+         else
+           make_sequential_bb ("loop_" ^ (label_of_pos pos)) []
+       in
+       let body_begin =
+         make_sequential_bb ("loop_body_" ^ (label_of_pos pos)) [] in
+       if precheck then
+         let () = add_next prev_bb cond_bb in
+         let () = add_next cond_bb body_begin in
+         let decls, body_end =
+           process_bb (push_symtab_scope scope) decls body_begin
+             (Some cond_bb) body in
+         let () = add_next body_end cond_bb in
+         process_bb scope decls cond_bb cont_bb rest
+       else
+         let () = add_next prev_bb body_begin in
+         let decls, body_end =
+           process_bb (push_symtab_scope scope) decls body_begin
+             (Some cond_bb) body in
+         let () = add_next cond_bb body_begin in
+         process_bb scope decls cond_bb cont_bb rest
+    | Return (pos, expr) :: rest ->
        let tp, expr = convert_expr typemap scope expr in
        begin
          check_castability pos typemap tp ret_type;
          match tp, expr with
          | DefTypeStaticStruct _, Expr_StaticStruct elist ->
             let decl = { decl_pos = pos;
-                         mappedname = "__defret";
+                         mappedname = "__defret"; (* FIXME: Unique name. *)
                          vis = VisLocal;
                          tp = tp;
                          params = []
                        } in
             let structvar = Expr_Variable "__defret" in
-            let stmts =
-              BB_Return (pos, (maybe_cast typemap tp ret_type structvar)) ::
-                (List.mapi (fun n (t, e) ->
-                  BB_Expr (pos, (label_of_pos pos),
-                           Expr_Binary (OperAssign, t,
-                                        Expr_SelectField (structvar, n),
-                                        e)))
-                   elist) in
-            ("__defret", decl) :: decls, stmts @ bbs
+            let exprs =
+              List.mapi (fun n (t, e) ->
+                pos,
+                Expr_Binary (OperAssign, t,
+                             Expr_SelectField (structvar, n),
+                             e))
+                elist
+            in
+            let expr_bb =
+              make_sequential_bb ("static_" ^ (label_of_pos pos)) exprs in
+            let () = add_next prev_bb expr_bb in
+            let retexpr = Expr_Variable "__defret" in
+            let term_bb = make_terminal_bb
+              ("ret_" ^ (label_of_pos pos))
+              (Some (pos, (maybe_cast typemap tp ret_type retexpr))) in
+            let () = add_next expr_bb term_bb in
+            process_bb scope (("__defret", decl) :: decls) term_bb cont_bb rest
          | _ ->
-            (decls,
-             BB_Return (pos, (maybe_cast typemap tp ret_type expr)) :: bbs)
+            let term_bb = make_terminal_bb
+              ("ret_" ^ (label_of_pos pos))
+              (Some (pos, (maybe_cast typemap tp ret_type expr))) in
+            let () = add_next prev_bb term_bb in
+            process_bb scope decls term_bb cont_bb rest
        end
-    | ReturnVoid pos ->
-       if ret_type == DefTypeVoid then
-         decls, BB_ReturnVoid pos :: bbs
-       else
-         Report.err_returned_void pos
-    | TypeDecl _ ->
+    | ReturnVoid pos :: rest ->
+       let term_bb = make_terminal_bb ("ret_" ^ (label_of_pos pos)) None in
+       let () = add_next prev_bb term_bb in
+       process_bb scope decls term_bb cont_bb rest
+    | TypeDecl _ :: _ ->
        Report.err_internal __FILE__ __LINE__
          "FIXME: TypeDecl not implemented Cfg.build_bbs (TypeDecl)"
-    | Label (_, label) ->
-       decls, BB_Label label :: bbs
-    | Goto (_, label) ->
-       decls, BB_Goto label :: bbs
-    | Continue _ ->
-       decls, BB_Continue :: bbs
+    | Label (_, label) :: rest ->
+       let bb = make_sequential_bb label [] in
+       let () = add_next prev_bb bb in
+       process_bb scope decls bb cont_bb rest
+    | Goto (pos, label) :: rest ->
+       let bb = make_goto_bb label in
+       let () = add_next prev_bb bb in
+       process_bb scope decls bb cont_bb rest
+    | Continue pos :: rest ->
+       begin match cont_bb with
+       | None ->
+          Report.err_internal __FILE__ __LINE__
+            "Tried to continue without an enclosing loop scope."
+       | Some condition ->
+          let bb = make_sequential_bb ("cont_" ^ (label_of_pos pos)) [] in
+          let () = add_next prev_bb bb in
+          let () = add_next bb condition in
+          process_bb scope decls bb cont_bb rest
+       end
   in
-  let decls, bbs = List.fold_left (process_bb fcnscope) ([], []) body in
-  List.rev decls, List.rev bbs
+  let replace_gotos table () = function
+    | BB_Goto (label, block) as old_bb ->
+       let replacement = BB_Seq ("goto_stmt", block) in
+       let replace_in_prev = function
+         | BB_Seq (_, blk) -> blk.seq_next <- replacement
+         | BB_Cond (_, blk) ->
+            if blk.cond_next = old_bb then blk.cond_next <- replacement
+            else blk.cond_else <- replacement
+         | _ -> Report.err_internal __FILE__ __LINE__
+            "Unexpected bb type in CFG."
+       in
+       let () = List.iter replace_in_prev block.seq_prev in
+       let next = Hashtbl.find table label in
+       block.seq_next <- next
+    | _ -> ()
+  in
+  let entry_bb = make_sequential_bb "entry" [] in
+  let decls, bb = process_bb fcnscope [] entry_bb None body in
+  let bb_table = Hashtbl.create 32 in
+  let () = visit_df (fun () bb -> match bb with
+    | BB_Seq (label, _)
+    | BB_Cond (label, _)
+    | BB_Term (label, _) -> Hashtbl.add bb_table label bb
+    | _ -> ())
+    true
+    ()
+    entry_bb
+  in
+  let () = visit_df (replace_gotos bb_table) false () entry_bb in
+  List.rev decls, entry_bb
+
+let verify_cfg name =
+  let verify () = function
+    | BB_Seq (label, _)
+    | BB_Cond (label, _)
+    | BB_Term (label, _) -> ()
+    | BB_Goto (label, _) ->
+       Report.err_internal __FILE__ __LINE__
+         ("Found BB_Goto " ^ label ^ " in " ^ name)
+    | BB_Error ->
+       Report.err_internal __FILE__ __LINE__ ("Found BB_Error in " ^ name)
+  in
+  visit_df verify true ()
 
 let build_fcns decltable typemap fcns = function
   | DefFcn (pos, _, name, _, body) ->
-     let decls, bbs = build_bbs name decltable typemap body in
+     let decls, entry_bb = build_bbs name decltable typemap body in
+     let () = verify_cfg name entry_bb in
+     let () = reset_bbs entry_bb in
      let fcn =
        { defn_begin = pos;
          defn_end = pos;
          name = name;
          local_vars = decls;
-         bbs = bbs;
+         entry_bb = entry_bb;
        }
      in fcn :: fcns
   | _ -> fcns
