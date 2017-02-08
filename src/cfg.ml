@@ -532,15 +532,17 @@ let rec build_bbs name decltable typemap body =
   let add_next bb1 bb2 =
     let push_next bb = function
       | BB_Seq (_, block) ->
-         block.seq_next <- bb
+         if block.seq_next = BB_Error then
+           block.seq_next <- bb
       | BB_Cond (_, block) ->
          if block.cond_next = BB_Error then block.cond_next <- bb
-         else block.cond_else <- bb
+         else if block.cond_else = BB_Error then block.cond_else <- bb
       | BB_Goto _ (* Goto doesn't get a "next." *)
       | BB_Term _
       | BB_Error -> ()
     in
     let push_prev bb = function
+      (* FIXME: Shouldn't add if push_next didn't make the change. *)
       | BB_Seq (_, block)
       | BB_Goto (_, block) ->
          block.seq_prev <- bb :: block.seq_prev
@@ -711,7 +713,7 @@ let rec build_bbs name decltable typemap body =
        let replace_in_prev = function
          | BB_Seq (_, blk) -> blk.seq_next <- replacement
          | BB_Cond (_, blk) ->
-            if blk.cond_next = old_bb then blk.cond_next <- replacement
+            if blk.cond_next == old_bb then blk.cond_next <- replacement
             else blk.cond_else <- replacement
          | _ -> Report.err_internal __FILE__ __LINE__
             "Unexpected bb type in CFG."

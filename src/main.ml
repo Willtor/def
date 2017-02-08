@@ -83,13 +83,13 @@ let add_builtin_fcns stmts =
             }
   in
   let builtins =
-    [ DeclFcn (pos, Types.VisExported pos, "forkscan_alloc",
+    [ DeclFcn (pos, Types.VisExported pos, "forkgc_malloc",
                FcnType ([(pos, "size", VarType (pos, "u64"))],
                         PtrType (pos, VarType (pos, "void"))));
-      DeclFcn (pos, Types.VisExported pos, "forkscan_free",
+      DeclFcn (pos, Types.VisExported pos, "forkgc_free",
                FcnType ([(pos, "ptr", PtrType (pos, VarType (pos, "void")))],
                          VarType (pos, "void")));
-      DeclFcn (pos, Types.VisExported pos, "forkscan_retire",
+      DeclFcn (pos, Types.VisExported pos, "forkgc_retire",
                FcnType ([(pos, "ptr", PtrType (pos, VarType (pos, "void")))],
                          VarType (pos, "void")))
     ]
