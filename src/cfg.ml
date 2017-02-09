@@ -585,7 +585,11 @@ let rec build_bbs name decltable typemap body =
            | None -> ilist
            | Some (pos, expr) ->
               let oldtp, converted = convert_expr typemap scope expr in
-              (pos, maybe_cast typemap oldtp t converted) :: ilist
+              let cast_expr = maybe_cast typemap oldtp t converted in
+              let assignment = Expr_Binary (OperAssign, t,
+                                            Expr_Variable decl.mappedname,
+                                            cast_expr) in
+              (pos, assignment) :: ilist
          in
          (nm, decl) :: dlist, ilist
        in
