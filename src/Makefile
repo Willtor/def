@@ -3,14 +3,16 @@ TARGET = defc
 OCAMLC = ocamlfind ocamlopt
 PACKAGE = -package llvm,llvm.analysis,unix
 LINKPKG = -linkpkg $(PACKAGE)
+CLANGPP = clang++-3.9
+CPPFLAGS = -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I/usr/include/llvm-c-3.9 -I/usr/include/llvm-3.9
 
-SRC = util.ml report.ml types.ml ast.ml cfg.ml lower.ml defparse.mly deflex.mll scrubber.ml irfactory.ml main.ml
-GENERATED = report.mli ast.mli defparse.ml defparse.mli deflex.ml deflex.mli
+SRC = llvmext.ml util.ml report.ml types.ml ast.ml cfg.ml lower.ml defparse.mly deflex.mll scrubber.ml irfactory.ml main.ml
+GENERATED = llvmext.mli report.mli ast.mli defparse.ml defparse.mli deflex.ml deflex.mli
 
 FILES1 = $(SRC:.mly=.ml)
 FILES2 = $(FILES1:.mll=.ml)
 
-OBJ = $(FILES2:.ml=.cmx)
+OBJ = cmpxchg.o $(FILES2:.ml=.cmx)
 INTERFACE_OBJ = $(FILES2:.ml=.cmi)
 
 $(TARGET): $(INTERFACE_OBJ) $(OBJ)
@@ -18,6 +20,9 @@ $(TARGET): $(INTERFACE_OBJ) $(OBJ)
 
 clean:
 	rm -f $(TARGET) $(OBJ) $(GENERATED) *.cmx *.cmi *.o
+
+%.o:	%.cpp
+	$(CLANGPP) -o $@ -c $(CPPFLAGS) $<
 
 %.cmx: %.ml
 	$(OCAMLC) $(PACKAGE) -c $<
@@ -42,3 +47,6 @@ defparse.mli: defparse.ml
 
 deflex.mli: deflex.ml
 	$(OCAMLC) -i $< > $@
+
+llvmext.mli: llvmext.ml
+	$(OCAMLC) $(PACKAGE) -i $< > $@

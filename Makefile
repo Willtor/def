@@ -4,6 +4,7 @@ BUILDDEFC = $(BUILDDIR)/defc
 DEFC = bin/defc
 SRCDIR = src
 SRCFILES = 		\
+	cmpxchg.cpp	\
 	ast.ml		\
 	cfg.ml		\
 	cfg.mli		\
@@ -11,6 +12,7 @@ SRCFILES = 		\
 	defparse.mly	\
 	irfactory.ml	\
 	irfactory.mli	\
+	llvmext.ml	\
 	lower.ml	\
 	lower.mli	\
 	main.ml		\

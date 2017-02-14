@@ -1,6 +1,7 @@
 open Ast
 open Cfg
 open Llvm
+open Llvmext (* build_cmpxchg *)
 open Types
 open Util
 
@@ -384,15 +385,15 @@ let process_expr data varmap pos_n_expr =
     | Expr_Atomic (AtomicCAS, [(_, dexpr);
                                (_, cexpr);
                                (_, vexpr)]) ->
-       (* FIXME: Broken!  Not atomic!  Need to find a way to generate this
-          instruction. *)
        let dest = expr_gen false dexpr in
-       let old_val = build_load dest "oldval" data.bldr in
        let cmp = expr_gen true cexpr in
        let v = expr_gen true vexpr in
-       (*build_cmpxchg dest cmp orig AcquireRelease data.bldr*)
-       let _ = build_store v dest data.bldr in
-       build_icmp Icmp.Eq cmp old_val "atomiccmpxchg" data.bldr
+       let cmpxchg = build_cmpxchg dest cmp v
+         AtomicOrdering.SequentiallyConsistent
+         AtomicOrdering.SequentiallyConsistent
+         "cmpxchg"
+         data.bldr in
+       build_extractvalue cmpxchg 1 "cmpxchg_succ" data.bldr
     | Expr_Atomic (AtomicCAS, _) ->
        Report.err_internal __FILE__ __LINE__ "CAS on != 3 parameters"
   in
