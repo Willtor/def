@@ -50,6 +50,9 @@ rule deflex = parse
 | "as" { AS (lexeme_start_p lexbuf) }
 | "goto" { GOTO (lexeme_start_p lexbuf) }
 | "continue" { CONTINUE (lexeme_start_p lexbuf) }
+| "new" { NEW (lexeme_start_p lexbuf) }
+| "delete" { DELETE (lexeme_start_p lexbuf) }
+| "retire" { RETIRE (lexeme_start_p lexbuf) }
 | "nil" { NIL (lexeme_start_p lexbuf) }
 | "true" { LITERALBOOL (lexeme_start_p lexbuf, true) }
 | "false" { LITERALBOOL (lexeme_start_p lexbuf, false) }

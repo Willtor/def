@@ -14,7 +14,8 @@
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE TYPEDEF
 %token <Lexing.position> EXPORT DEF VAR RETURN BEGIN END IF THEN ELSE FI
-%token <Lexing.position> WHILE DO DONE CAST AS GOTO CONTINUE NIL
+%token <Lexing.position> WHILE DO DONE CAST AS GOTO CONTINUE NEW DELETE
+%token <Lexing.position> RETIRE NIL
 
 (* Operators *)
 %token <Lexing.position> RARROW
@@ -99,6 +100,26 @@ statement:
         VarDecl (vars, t)
       with _ -> Report.err_var_decl_list_length_mismatch eq
         (List.length ids) (List.length elist);
+    }
+| p = DELETE p_n_e = expr SEMICOLON
+    { let _, e = p_n_e in
+      let expr =
+        ExprFcnCall { fc_pos = p;
+                      fc_name = "forkgc_free";
+                      fc_args = [ e ]
+                    }
+      in
+      StmtExpr (p, expr)
+    }
+| p = RETIRE p_n_e = expr SEMICOLON
+    { let _, e = p_n_e in
+      let expr =
+        ExprFcnCall { fc_pos = p;
+                      fc_name = "forkgc_retire";
+                      fc_args = [ e ]
+                    }
+      in
+      StmtExpr (p, expr)
     }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
@@ -187,6 +208,20 @@ exprlist:
 | e = expr { [e] }
 
 expr:
+| p = NEW tp = deftype
+    { let tp_p, t = tp in
+      let sizeof =
+        ExprFcnCall { fc_pos = tp_p;
+                      fc_name = "sizeof";
+                      fc_args = [ ExprType (tp_p, t) ] }
+      in
+      let forkscan_alloc =
+        ExprFcnCall { fc_pos = p;
+                      fc_name = "forkgc_malloc";
+                      fc_args = [ sizeof ] }
+      in
+      p, ExprCast (p, PtrType (p, t), forkscan_alloc)
+    }
 | p = NIL { p, ExprNil p }
 | p = CAST p_n_e = expr AS tp = deftype
     { let _, e = p_n_e
