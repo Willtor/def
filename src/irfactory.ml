@@ -1,5 +1,6 @@
 open Ast
 open Cfg
+open Iropt
 open Llvm
 open Llvmext (* build_cmpxchg *)
 open Types
@@ -400,7 +401,7 @@ let process_expr data varmap pos_n_expr =
   let _, expr = pos_n_expr in
   expr_gen true expr
 
-let process_fcn cgdebug data symbols fcn =
+let process_fcn cgdebug data symbols pass_manager fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
   let llblocks = Hashtbl.create 32 in
@@ -472,7 +473,8 @@ let process_fcn cgdebug data symbols fcn =
 
   let () = Cfg.visit_df populate_blocks false () fcn.entry_bb in
 
-  if not cgdebug then Llvm_analysis.assert_valid_function llfcn
+  if not cgdebug then Llvm_analysis.assert_valid_function llfcn;
+  ignore (Llvm.PassManager.run_function llfcn pass_manager)
 
 let declare_globals data symbols name decl =
   let llfcn =
@@ -484,10 +486,11 @@ let declare_globals data symbols name decl =
   if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llfcn)
 
-let process_cfg cgdebug module_name program =
+let process_cfg cgdebug module_name program opt_level =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let bldr = builder ctx in
+  let pass_manager = optimize_ir opt_level mdl in
   let typemap = build_types ctx program.deftypemap in
   let data = { ctx = ctx;
                mdl = mdl;
@@ -497,5 +500,5 @@ let process_cfg cgdebug module_name program =
                zero_i32 = const_null (the (lookup_symbol typemap "i32")) } in
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols) program.global_decls;
-  List.iter (process_fcn cgdebug data symbols) program.fcnlist;
+  List.iter (process_fcn cgdebug data symbols pass_manager) program.fcnlist;
   mdl

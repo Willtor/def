@@ -12,6 +12,8 @@ SRCFILES = 		\
 	defparse.mly	\
 	irfactory.ml	\
 	irfactory.mli	\
+	iropt.ml	\
+	iropt.mli	\
 	llvmext.ml	\
 	lower.ml	\
 	lower.mli	\

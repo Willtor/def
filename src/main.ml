@@ -28,6 +28,12 @@ let set_param param v is_set failure_msg =
   if Util.ref_set param v is_set then ()
   else Report.err_param failure_msg
 
+let opt_level = ref 1
+let opt_level_is_set = ref false
+let set_opt_level v =
+  set_param opt_level v  opt_level_is_set
+    "Multiple optimization levels set."
+
 let input_files = ref []
 let input_file_is_set = ref false
 let set_input_file v =
@@ -68,7 +74,15 @@ let parameter_set =
     ("-c", Unit (fun () -> set_comp_depth COMPILE_OBJ),
      "Compile the module to a .o object file.");
     ("-cgdebug", Unit (fun () -> set_codegen_debug ()),
-     "Mode for debugging LLVM code generation.")
+     "Mode for debugging LLVM code generation.");
+    ("-O0", Unit (fun () -> set_opt_level 0),
+     "Disable compiler optimizations.");
+    ("-O1", Unit (fun () -> set_opt_level 1),
+     "Level 1 compiler optimizations (default).");
+    ("-O2", Unit (fun () -> set_opt_level 2),
+     "Level 2 compiler optimizations.");
+    ("-O3", Unit (fun () -> set_opt_level 3),
+     "Level 3 compiler optimizations. (identical to -O2 at this time)")
   ]
 
 let anon_arg = set_input_file
@@ -224,7 +238,8 @@ let compile_def_file infilename =
   let stmts = add_builtin_fcns stmts in
   let stmts = scrub stmts in
   let program = lower_cfg (convert_ast stmts) in
-  let llvm_module = process_cfg !codegen_debug infilename program in
+  let llvm_module =
+    process_cfg !codegen_debug infilename program !opt_level in
 
   (* Output the raw LLVM if that's the compilation level. *)
   if !comp_depth = COMPILE_ASM && !compile_llvm then
