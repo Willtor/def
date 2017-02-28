@@ -1,40 +1,24 @@
+(* Copyright (C) 2017  DEFC Authors
+
+   This program is free software; you can redistribute it and/or
+   modify it under the terms of the GNU General Public License
+   as published by the Free Software Foundation; either version 2
+   of the License, or (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+   02110-1301, USA.
+ *)
+
 open Ast
 open Cfg
 open Types
-
-(*
-let lift_local_fcns program =
-  let rec search fcnlist fcn =
-    let rec iter locals accum = function
-      | [] -> locals, List.rev accum
-      | BB_Cond (label, cblock) :: rest ->
-         let then_locals, then_bbs = iter locals [] cblock.then_scope in
-         let else_locals, else_bbs = iter then_locals [] cblock.else_scope in
-         let () = cblock.then_scope <- then_bbs
-         and () = cblock.else_scope <- else_bbs in
-         iter else_locals (BB_Cond (label, cblock) :: accum) rest
-      | BB_Loop (label, loop) :: rest ->
-         let body_locals, body_bbs = iter locals [] loop.body_scope in
-         let () = loop.body_scope <- body_bbs in
-         iter body_locals (BB_Loop (label, loop) :: accum) rest
-      | BB_LocalFcn f :: rest ->
-         let nested_locals = search locals f in
-         let subsequent_locals, bbs = iter nested_locals accum rest in
-         f :: subsequent_locals, bbs
-      | bb :: rest ->
-         iter locals (bb :: accum) rest
-    in
-    let locals, bbs = iter fcnlist [] fcn.bbs in
-    let () = fcn.bbs <- bbs in
-    locals
-  in
-  let fcnlist = List.fold_left search program.fcnlist program.fcnlist
-  in
-  { global_decls = program.global_decls;
-    fcnlist = fcnlist;
-    deftypemap = program.deftypemap
-  }
-*)
 
 let lift_lhs_static_structs program =
   let lift fcn =

@@ -1,1 +1,1 @@
-val optimize_ir : int -> Llvm.llmodule -> [ `Function ] Llvm.PassManager.t
+val create_fpm : int -> Llvm.llmodule -> [ `Function ] Llvm.PassManager.t
