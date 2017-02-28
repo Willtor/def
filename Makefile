@@ -37,9 +37,6 @@ $(BINDIR):
 
 $(BUILDDIR):
 	mkdir -p $@
-#	cp $(SRCDIR)/*.ml $(SRCDIR)/*.mli $(SRCDIR)/*.mll $(SRCDIR)/*.mly $@
-#	cp $(SRCDIR)/Makefile $@
-#	ocamldep $(BUILDDIR)/*.ml $(BUILDDIR)/*.mli >> $(BUILDDIR)/Makefile
 
 $(DEFC): $(BUILDDEFC) $(BINDIR)
 	cp $< $@
@@ -49,6 +46,10 @@ $(BUILDDEFC): $(BUILDDIR) $(BUILDSRC)
 
 clean:
 	rm -rf $(BINDIR) $(BUILDDIR)
+
+$(BUILDDIR)/Makefile: $(SRCDIR)/Makefile
+	cp $< $@
+	(cd $(BUILDDIR); ocamldep *.ml *.mli >> Makefile)
 
 $(BUILDDIR)/%: $(SRCDIR)/%
 	cp $< $@
