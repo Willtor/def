@@ -34,7 +34,7 @@ clean:
 	ocamllex $<
 
 %.ml: %.mly
-	menhir $<
+	menhir --infer $<
 
 ast.mli: ast.ml
 	$(OCAMLC) -i $< > $@

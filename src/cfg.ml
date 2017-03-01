@@ -21,6 +21,8 @@ open Lexing
 open Types
 open Util
 
+exception Arg2ParamMismatch
+
 type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
@@ -145,10 +147,18 @@ let rec convert_type defining_p typemap = function
        | Some t -> t
      end
   | FcnType (params, ret) ->
-     DefTypeFcn
-       (List.map (fun (_, _, tp) ->
-         convert_type defining_p typemap tp) params,
-        convert_type defining_p typemap ret)
+     let rec pconvert accum = function
+       | [] -> false, List.rev accum
+       | [ (_, _, Ellipsis _) ] -> true, List.rev accum
+       | (_, _, Ellipsis pos) :: _ ->
+          Report.err_vararg_not_last pos
+       | (_, _, tp) :: rest ->
+          pconvert (convert_type defining_p typemap tp :: accum) rest
+     in
+     let variadic, converted_params = pconvert [] params in
+     DefTypeFcn (converted_params,
+                 convert_type defining_p typemap ret,
+                 variadic)
   | StructType elements ->
      let process (names, deftypes) (_, name, tp) =
        (name :: names, (convert_type defining_p typemap tp) :: deftypes)
@@ -156,11 +166,16 @@ let rec convert_type defining_p typemap = function
      let names, deftypes = List.fold_left process ([], []) elements in
      DefTypeLiteralStruct (List.rev deftypes, List.rev names)
   | PtrType (pos, tp) -> DefTypePtr (convert_type defining_p typemap tp)
+  | Ellipsis pos ->
+     Report.err_internal __FILE__ __LINE__
+       ("Found an ellipsis at an unexpected location: "
+        ^ (format_position pos))
 
 let param_pos_names = function
-  | VarType _ -> []
-  | PtrType _ -> []
-  | StructType _ -> []
+  | VarType _
+  | PtrType _
+  | StructType _
+  | Ellipsis _ -> []
   | FcnType (params, _) ->
      List.map (fun (pos, name, _) -> (pos, name)) params
 
@@ -183,10 +198,10 @@ let resolve_type typemap typename oldtp =
     | DefTypeNamedStruct _ as tp -> tp
     | DefTypeVoid as tp -> tp
     | DefTypePrimitive _ as tp -> tp
-    | DefTypeFcn (params, ret) ->
+    | DefTypeFcn (params, ret, variadic) ->
        let params = List.map v params
        and ret = v ret
-       in DefTypeFcn (params, ret)
+       in DefTypeFcn (params, ret, variadic)
     | DefTypePtr tp -> DefTypePtr (v tp)
     | DefTypeNullPtr -> DefTypeNullPtr
     | DefTypeLiteralStruct (fields, names) ->
@@ -216,7 +231,7 @@ let global_decls decltable typemap = function
      "FIXME: Incomplete implementation of Cfg.global_decls."
 
 let get_fcntype_profile = function
-  | DefTypeFcn (params, ret) -> params, ret
+  | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
   | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
 (** Return true iff the series of Ast.stmts returns on all paths. *)
@@ -273,10 +288,11 @@ let check_castability pos typemap ltype rtype =
   let rec similar = function
     | DefTypePrimitive lprim, DefTypePrimitive rprim ->
        ()  (* FIXME: Implement. *)
-    | DefTypeFcn (plist1, ret1), DefTypeFcn (plist2, ret2) ->
+    | DefTypeFcn (plist1, ret1, v1), DefTypeFcn (plist2, ret2, v2) ->
        begin
          List.iter identical (List.combine plist1 plist2);
-         identical (ret1, ret2)
+         identical (ret1, ret2);
+         if v1 != v2 then Report.err_type_mismatch pos
        end
     | DefTypePtr DefTypeVoid, DefTypePtr _
     | DefTypePtr _, DefTypePtr DefTypeVoid ->
@@ -365,6 +381,8 @@ let binary_reconcile typemap =
         ^ (operator2string op) ^ ").")
   in reconcile
 
+(** Convert a function call, verifying the function profile and matching
+    arguments with parameters. *)
 let build_fcn_call scope typemap pos name args =
   match lookup_symbol scope name with
   | None ->
@@ -378,10 +396,6 @@ let build_fcn_call scope typemap pos name args =
      | _ -> Report.err_unknown_fcn_call pos name
      end
   | Some decl ->
-     let match_param_with_arg ptype (atype, expr) =
-       check_castability pos typemap atype ptype;
-       maybe_cast typemap atype ptype expr
-     in
      begin match decl.tp with
      | DefTypeUnresolved _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call an unresolved type."
@@ -389,11 +403,24 @@ let build_fcn_call scope typemap pos name args =
         "Tried to call a named-struct-type."
      | DefTypeVoid -> Report.err_internal __FILE__ __LINE__
         "Tried to call a void."
-     | DefTypeFcn (params, rettp) ->
+     | DefTypeFcn (params, rettp, variadic) ->
+        let rec match_params_with_args accum = function
+          | [], [] -> List.rev accum
+          | [], (_, expr) :: args ->
+             if variadic then
+               match_params_with_args (expr :: accum) ([], args)
+             else
+               raise Arg2ParamMismatch
+          | params, [] -> raise Arg2ParamMismatch
+          | ptype :: params, (atype, expr) :: args ->
+             let () = check_castability pos typemap atype ptype in
+             let cast_arg = maybe_cast typemap atype ptype expr in
+             match_params_with_args (cast_arg :: accum) (params, args)
+        in
         begin
           try
-            let casted_args = List.map2 match_param_with_arg params args in
-            rettp, Expr_FcnCall (decl.mappedname, casted_args)
+            let cast_args = match_params_with_args [] (params, args) in
+            rettp, Expr_FcnCall (decl.mappedname, cast_args)
           with _ ->
             Report.err_wrong_number_of_args pos decl.decl_pos name
               (List.length params) (List.length args)
@@ -408,6 +435,8 @@ let build_fcn_call scope typemap pos name args =
         "Tried to call a struct."
      end
 
+(** Convert an expression, verifying that all operations are valid on the
+    types, and things like variables are valid in the current scope. *)
 let convert_expr typemap scope =
   let rec convert = function
     | ExprFcnCall call ->
@@ -532,7 +561,7 @@ let make_goto_bb label =
 
 let rec build_bbs name decltable typemap body =
   let fcndecl = the (lookup_symbol decltable name) in
-  let param_types, ret_type = get_fcntype_profile fcndecl.tp in
+  let param_types, ret_type, _ = get_fcntype_profile fcndecl.tp in
 
   (* Add the function's parameters to the scope table. *)
   let fcnscope = push_symtab_scope decltable in

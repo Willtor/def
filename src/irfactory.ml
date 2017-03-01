@@ -34,7 +34,7 @@ type llvm_data =
   }
 
 let get_fcntype = function
-  | DefTypeFcn (params, ret) -> params, ret
+  | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
   | _ -> Report.err_internal __FILE__ __LINE__ "Expected a DefTypeFcn."
 
 let deftype2llvmtype ctx typemap =
@@ -44,10 +44,11 @@ let deftype2llvmtype ctx typemap =
          ("Tried to convert a placeholder type: " ^ name)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
-    | DefTypeFcn (args, ret) ->
+    | DefTypeFcn (args, ret, variadic) ->
        let llvmargs = List.map (fun argtp -> convert true argtp) args in
-       let ftype = function_type (convert true ret) (Array.of_list llvmargs)
+       let fbuild = if variadic then var_arg_function_type else function_type
        in
+       let ftype = fbuild (convert true ret) (Array.of_list llvmargs) in
        if wrap_fcn_ptr then pointer_type ftype
        else ftype
     | DefTypePrimitive prim ->
@@ -356,7 +357,7 @@ let process_expr data varmap pos_n_expr =
          | _ -> build_load var "callee" data.bldr
        in
        let retname = match tp with
-         | DefTypeFcn (_, DefTypeVoid) -> ""
+         | DefTypeFcn (_, DefTypeVoid, _) -> ""
          | _ -> "def_call"
        in
        build_call callee (Array.of_list arg_vals) retname data.bldr
@@ -474,7 +475,7 @@ let process_fcn cgdebug data symbols pass_manager fcn =
 
   let entry = get_bb "entry" in
   position_at_end entry data.bldr;
-  let (args, _) = get_fcntype profile.tp in
+  let (args, _, _) = get_fcntype profile.tp in
   let llparams = params llfcn in
   List.iteri (fun i ((pos, n), tp) ->
     let alloc =

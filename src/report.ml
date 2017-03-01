@@ -63,6 +63,14 @@ let err_bad_escaped_char pos c =
     ^ (show_source pos)
   in fatal_error err
 
+(** The ... in a parameter list did not appear last. *)
+let err_vararg_not_last pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  The ellipsis denoting a variadic function must appear at the end\n"
+    ^ "  of the parameter list.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Initializing variables: There was a mismatch between the count of
     variables being declared and initializers. *)
 let err_var_decl_list_length_mismatch pos vars inits =

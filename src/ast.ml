@@ -53,6 +53,7 @@ type vartype =
   | FcnType of (position * string * vartype) list * vartype
   | StructType of (position * string * vartype) list
   | PtrType of position * vartype
+  | Ellipsis of position
 
 type fcn_call =
   { fc_pos  : position;

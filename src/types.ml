@@ -36,7 +36,7 @@ type deftype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
   | DefTypePrimitive of primitive
-  | DefTypeFcn of deftype list * deftype
+  | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype
   | DefTypeNullPtr
   | DefTypeNamedStruct of string

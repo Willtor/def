@@ -36,7 +36,7 @@
 %token <Lexing.position> RETIRE NIL
 
 (* Operators *)
-%token <Lexing.position> RARROW
+%token <Lexing.position> ELLIPSIS RARROW
 %token <Lexing.position> INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS
 %token <Lexing.position> STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS
 %token <Lexing.position> DBLRANGLEEQUALS AMPERSANDEQUALS VBAREQUALS
@@ -167,15 +167,16 @@ elseclause:
 | ELSE slist = statementlist { Some slist }
 | { None }
 
-fcntype_with_param_names:
-| LPAREN RPAREN RARROW ret = deftype
-    { let pos, rtype = ret in (pos, [], rtype) }
-| LPAREN plist = parameterlist RPAREN RARROW ret = deftype
-    { let pos, rtype = ret in (pos, plist, rtype) }
+param:
+| var = variabledecl { var }
+| tp = deftype { let p, t = tp in p, "", t }
+| pos = ELLIPSIS { pos, "", Ellipsis pos }
+
+paramlist:
+| plist = separated_list(COMMA, param) { plist }
 
 fcntype:
-| f = fcntype_with_param_names { f }
-| LPAREN plist = unnamedplist RPAREN RARROW ret = deftype
+| LPAREN plist = paramlist RPAREN RARROW ret = deftype
     { let pos, rtype = ret in (pos, plist, rtype) }
 
 deftype:
@@ -194,10 +195,6 @@ idlist:
 | id = IDENT { [id] }
 | id = IDENT COMMA l = idlist { id :: l }
 
-parameterlist:
-| p = variabledecl { [p] }
-| p = variabledecl COMMA plist = parameterlist { p :: plist }
-
 unnamedplist:
 | dt = deftype { let pos, tp = dt in [(pos, "", tp)] }
 | dt = deftype COMMA plist = unnamedplist
@@ -210,7 +207,7 @@ variabledecl:
       in (pos, ident, t) }
 
 fcndef:
-| export_p = EXPORT? DEF s = IDENT ftype = fcntype_with_param_names
+| export_p = EXPORT? DEF s = IDENT ftype = fcntype
     {
       let vis = match export_p with
         | Some p -> VisExported p

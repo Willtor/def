@@ -145,6 +145,7 @@ rule deflex = parse
     { IDENT (lexeme_start_p lexbuf, ident) }
 
 (* Operators. *)
+| "..." { ELLIPSIS (lexeme_start_p lexbuf) }
 | "->" { RARROW (lexeme_start_p lexbuf) }
 | "++" { INCREMENT (lexeme_start_p lexbuf) }
 | "--" { DECREMENT (lexeme_start_p lexbuf) }
