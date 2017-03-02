@@ -17,6 +17,7 @@ type deftype =
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype
+  | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list

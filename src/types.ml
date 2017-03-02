@@ -38,6 +38,7 @@ type deftype =
   | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype
+  | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
@@ -169,6 +170,7 @@ let rec size_of typemap = function
      end
   | DefTypeFcn _ -> ptr_size
   | DefTypePtr _ -> ptr_size
+  | DefTypeArray (tp, n) -> n * (size_of typemap tp)
   | DefTypeNullPtr -> ptr_size
   | DefTypeNamedStruct nm -> size_of typemap (the (lookup_symbol typemap nm))
   | DefTypeLiteralStruct (members, _)
@@ -182,6 +184,8 @@ let rec string_of_type = function
   | DefTypeVoid -> "void"
   | DefTypePrimitive t -> primitive2string t
   | DefTypePtr t -> "*" ^ (string_of_type t)
+  | DefTypeArray (tp, n) ->
+     "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)
   | DefTypeNullPtr -> "nil"
   | DefTypeNamedStruct nm -> "struct " ^ nm
   | DefTypeLiteralStruct (members, _) ->

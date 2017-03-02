@@ -39,6 +39,8 @@
       | '\'' -> '\''  (* Single-quote *)
       | _ -> Report.err_bad_escaped_char pos c
     else c
+
+  let remove_quotes s = String.sub s 1 ((String.length s) - 2)
 }
 
 rule deflex = parse
@@ -55,6 +57,7 @@ rule deflex = parse
 | "end" { END (lexeme_start_p lexbuf) }
 | "export" { EXPORT (lexeme_start_p lexbuf) }
 | "def" { DEF (lexeme_start_p lexbuf) }
+| "decl" { DECL (lexeme_start_p lexbuf) }
 | "var" { VAR (lexeme_start_p lexbuf) }
 | "return" { RETURN (lexeme_start_p lexbuf) }
 | "if" { IF (lexeme_start_p lexbuf) }
@@ -74,7 +77,8 @@ rule deflex = parse
 | "nil" { NIL (lexeme_start_p lexbuf) }
 | "true" { LITERALBOOL (lexeme_start_p lexbuf, true) }
 | "false" { LITERALBOOL (lexeme_start_p lexbuf, false) }
-| ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf, str) }
+| ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf,
+                                     remove_quotes str) }
 
 (* Integers. *)
 

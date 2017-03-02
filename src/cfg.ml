@@ -18,6 +18,7 @@
 
 open Ast
 open Lexing
+open Str
 open Types
 open Util
 
@@ -25,6 +26,7 @@ exception Arg2ParamMismatch
 
 type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
+  | Expr_String of string * string (* label, contents *)
   | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
   | Expr_Literal of Ast.literal
@@ -88,6 +90,10 @@ type program =
     fcnlist : function_defn list;
     deftypemap : Types.deftype Util.symtab
   }
+
+(* FIXME: Fill out the list of regular expressions. *)
+let re_set = [(regexp "\\\\n", "\n")   (* newline *)
+             ]
 
 (* Visit a graph, depth-first. *)
 let visit_df f bit =
@@ -203,6 +209,7 @@ let resolve_type typemap typename oldtp =
        and ret = v ret
        in DefTypeFcn (params, ret, variadic)
     | DefTypePtr tp -> DefTypePtr (v tp)
+    | DefTypeArray (tp, n) -> DefTypeArray (v tp, n)
     | DefTypeNullPtr -> DefTypeNullPtr
     | DefTypeLiteralStruct (fields, names) ->
        DefTypeLiteralStruct (List.map v fields, names)
@@ -313,6 +320,7 @@ let check_castability pos typemap ltype rtype =
        Report.err_internal __FILE__ __LINE__ (Util.format_position pos)
     | DefTypePtr _, DefTypeNullPtr
     | DefTypeNullPtr, DefTypePtr _ -> ()
+    | DefTypeArray _, DefTypePtr _ -> ()
     | _ -> Report.err_internal __FILE__ __LINE__
        ("incomplete cast implementation for " ^ (Util.format_position pos))
   and identical (ltype, rtype) =
@@ -428,6 +436,8 @@ let build_fcn_call scope typemap pos name args =
      | DefTypePrimitive _ -> Report.err_called_non_fcn pos decl.decl_pos name
      | DefTypePtr _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call a pointer."
+     | DefTypeArray _ -> Report.err_internal __FILE__ __LINE__
+        "Tried to call an array."
      | DefTypeNullPtr -> Report.err_internal __FILE__ __LINE__
         "Tried to call nil."
      | DefTypeLiteralStruct _
@@ -442,6 +452,15 @@ let convert_expr typemap scope =
     | ExprFcnCall call ->
        let converted_args = List.map convert call.fc_args in
        build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
+    | ExprString (pos, str) ->
+       let raw =
+         List.fold_left
+           (fun s (re, subst) -> global_replace re subst s)
+           str
+           re_set
+       in
+       let tp = DefTypeArray (DefTypePrimitive PrimI8, String.length raw) in
+       tp, Expr_String (label_of_pos pos, raw)
     | ExprBinary op ->
        let rettp, tp, lhs, rhs =
          binary_reconcile typemap op.op_pos op.op_op

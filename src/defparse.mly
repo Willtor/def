@@ -31,7 +31,7 @@
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE TYPEDEF
-%token <Lexing.position> EXPORT DEF VAR RETURN BEGIN END IF THEN ELSE FI
+%token <Lexing.position> EXPORT DEF DECL VAR RETURN BEGIN END IF THEN ELSE FI
 %token <Lexing.position> WHILE DO DONE CAST AS GOTO CONTINUE NEW DELETE
 %token <Lexing.position> RETIRE NIL
 
@@ -98,6 +98,10 @@ statement:
               ReturnVoid semi_pos]
           | _ -> [Return (epos, e)])
 }
+| f = fcndecl
+    { let pos, vis, name, tp = f in
+      DeclFcn (pos, vis, name, tp)
+    }
 | f = fcndef b = block
     { let (pos, vis, name, tp) = f in
       let (_, stmts) = b in
@@ -206,10 +210,16 @@ variabledecl:
       and _, t = tp
       in (pos, ident, t) }
 
+fcndecl:
+| DECL s = IDENT ftype = fcntype
+    { let _, plist, ret = ftype
+      and pos, ident = s in
+      (pos, VisExported pos, ident, FcnType (plist, ret))
+    }
+
 fcndef:
 | export_p = EXPORT? DEF s = IDENT ftype = fcntype
-    {
-      let vis = match export_p with
+    { let vis = match export_p with
         | Some p -> VisExported p
         | None -> VisLocal
       in

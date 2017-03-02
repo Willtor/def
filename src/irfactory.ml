@@ -341,6 +341,8 @@ let process_expr data varmap pos_n_expr =
        e
     | DefTypeLiteralStruct _, DefTypeStaticStruct _ ->
        e
+    | DefTypeArray (tp, n), DefTypePtr _ ->
+       build_in_bounds_gep e [|data.zero_i32; data.zero_i32|] "cast" data.bldr
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("build_cast: Incomplete implementation (from "
@@ -361,6 +363,11 @@ let process_expr data varmap pos_n_expr =
          | _ -> "def_call"
        in
        build_call callee (Array.of_list arg_vals) retname data.bldr
+    | Expr_String (label, value) ->
+       let str = const_stringz data.ctx value in
+       let ptr = define_global label str data.mdl in
+       (* FIXME: what about rvalue? *)
+       ptr
     | Expr_Literal lit -> process_literal data.typemap lit
     | Expr_Variable name ->
        begin match lookup_symbol varmap name with
