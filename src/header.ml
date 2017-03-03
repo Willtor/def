@@ -29,8 +29,16 @@ let begin_cpp_mode =
 let end_cpp_mode =
   "#ifdef __cplusplus\n} // extern \"C\"\n#endif\n"
 
+let ctype_of =
+  let map = Hashtbl.create 32 in
+  List.iter
+    (fun (name, _, _, ctype) -> Hashtbl.add map name ctype)
+    Types.map_builtin_types;
+  fun name ->
+    try Hashtbl.find map name with _ -> name
+
 let rec cstring_of_type = function
-  | VarType (_, nm) -> nm
+  | VarType (_, nm) -> ctype_of nm
   | FcnType _ -> Report.err_internal __FILE__ __LINE__
      "FcnType not implemented."
   | StructType _ -> Report.err_internal __FILE__ __LINE__

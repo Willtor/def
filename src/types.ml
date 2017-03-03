@@ -106,22 +106,23 @@ let compare t1 t2 =
      compare_primitives p1 p2
   | _ -> failwith "Types.compare not fully implemented."
 
-(** name, type, llvm type constructor *)
+(** name, type, llvm type constructor, C type *)
 let map_builtin_types =
-  [ ("void", DefTypeVoid, void_type);
-    ("bool", DefTypePrimitive PrimBool, i1_type); 
-    ("char", DefTypePrimitive PrimI8, i8_type);
-    ("uchar", DefTypePrimitive PrimU8, i8_type);
-    ("i8",  DefTypePrimitive PrimI8,  i8_type);
-    ("u8",  DefTypePrimitive PrimU8,  i8_type);
-    ("i16", DefTypePrimitive PrimI16, i16_type);
-    ("u16", DefTypePrimitive PrimU16, i16_type);
-    ("i32", DefTypePrimitive PrimI32, i32_type);
-    ("u32", DefTypePrimitive PrimU32, i32_type);
-    ("i64", DefTypePrimitive PrimI64, i64_type);
-    ("u64", DefTypePrimitive PrimU64, i64_type);
-    ("f32", DefTypePrimitive PrimF32, float_type);
-    ("f64", DefTypePrimitive PrimF64, double_type) ]
+  [ ("void", DefTypeVoid, void_type, "void");
+    ("bool", DefTypePrimitive PrimBool, i1_type, "char"); 
+    ("char", DefTypePrimitive PrimI8, i8_type, "char");
+    ("uchar", DefTypePrimitive PrimU8, i8_type, "unsigned char");
+    ("i8",  DefTypePrimitive PrimI8,  i8_type, "char");
+    ("u8",  DefTypePrimitive PrimU8,  i8_type, "unsigned char");
+    ("i16", DefTypePrimitive PrimI16, i16_type, "short");
+    ("u16", DefTypePrimitive PrimU16, i16_type, "unsigned short");
+    ("i32", DefTypePrimitive PrimI32, i32_type, "int");
+    ("u32", DefTypePrimitive PrimU32, i32_type, "unsigned int");
+    ("i64", DefTypePrimitive PrimI64, i64_type, "long long");
+    ("u64", DefTypePrimitive PrimU64, i64_type, "unsigned long long");
+    ("f32", DefTypePrimitive PrimF32, float_type, "float");
+    ("f64", DefTypePrimitive PrimF64, double_type, "double")
+  ]
 
 (** Convert a primitive type to its string representation. *)
 let primitive2string = function

@@ -30,9 +30,9 @@ val generalize_primitives : primitive -> primitive -> primitive
     the types are identical and non-zero indicates non-identical. *)
 val compare : deftype -> deftype -> int
 
-(** name, type, llvm type constructor *)
+(** name, type, llvm type constructor, C type *)
 val map_builtin_types :
-  (string * deftype * (Llvm.llcontext -> Llvm.lltype)) list
+  (string * deftype * (Llvm.llcontext -> Llvm.lltype) * string) list
 
 (** Convert a primitive type to its string representation. *)
 val primitive2string : primitive -> string

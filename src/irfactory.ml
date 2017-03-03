@@ -94,7 +94,7 @@ let build_types ctx deftypes =
     | _ -> ()
   in
   List.iter
-    (fun (name, _, f) -> add_symbol typemap name (f ctx))
+    (fun (name, _, f, _) -> add_symbol typemap name (f ctx))
     Types.map_builtin_types;
   symtab_iter forward_declare_structs deftypes;
   symtab_iter build_structs deftypes;
