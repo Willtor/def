@@ -377,10 +377,9 @@ let binary_reconcile typemap =
        end
     | OperAssign ->
        begin
-         (* FIXME: WORKING HERE -- Do automatic casting of static structs
-            to named or literal structs, if possible.  Otherwise, casting
-            doesn't work.  Literal structs need to be the correct type at
-            instantiation. *)
+         (* FIXME: Do automatic casting of static structs to named or literal
+            structs, if possible.  Otherwise, casting doesn't work.  Literal
+            structs need to be the correct type at instantiation. *)
          check_castability pos typemap ltype rtype;
          ltype, ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
        end
@@ -622,6 +621,23 @@ let rec build_bbs name decltable typemap body =
     push_prev bb1 bb2
   in
 
+  (* Make a conditional CFG that does short-circuiting for logical operators.
+  *)
+  let rec generate_conditional str pos expr succ fail =
+    match expr with
+    | Expr_Binary (OperLogicalAnd, _, left, right) ->
+       let right_bb = generate_conditional (str ^ "r") pos right succ fail in
+       generate_conditional (str ^ "l") pos left right_bb fail
+    | Expr_Binary (OperLogicalOr, _, left, right) ->
+       let right_bb = generate_conditional (str ^ "r") pos right succ fail in
+       generate_conditional (str ^ "l") pos left succ right_bb
+    | e ->
+       let cond_bb = make_conditional_bb str (pos, e) in
+       let () = add_next cond_bb succ in
+       let () = add_next cond_bb fail in
+       cond_bb
+  in
+
   (* Iterate through the basic blocks and convert them to the CFG structure
      along with all of the contained expressions.  This function will leave
      temporary placeholders, like BB_Goto and BB_Error, so the CFG needs
@@ -672,47 +688,60 @@ let rec build_bbs name decltable typemap body =
        process_bb scope (dlist @ decls) bb cont_bb rest
     | IfStmt (pos, cond, then_block, else_block_maybe) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
-       let bb =
-         make_conditional_bb ("cond_" ^ (label_of_pos pos)) (pos, cexpr) in
-       let () = add_next prev_bb bb in
+       let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
+       let fail_bb = make_sequential_bb ("fail_" ^ (label_of_pos pos)) [] in
+       let cond_bb = generate_conditional ("cond_" ^ (label_of_pos pos))
+         pos cexpr succ_bb fail_bb
+       in
+       let () = add_next prev_bb cond_bb in
        let decls, then_bb =
-         process_bb (push_symtab_scope scope) decls bb cont_bb then_block in
+         process_bb
+           (push_symtab_scope scope) decls succ_bb cont_bb then_block in
        let merge_bb = make_sequential_bb ("merge_" ^ (label_of_pos pos)) [] in
        let () = add_next then_bb merge_bb in
        let decls = match else_block_maybe with
          | None ->
-            (add_next bb merge_bb; decls)
+            (add_next fail_bb merge_bb; decls)
          | Some stmts ->
             let decls, else_bb =
-              process_bb (push_symtab_scope scope) decls bb cont_bb stmts in
+              process_bb
+                (push_symtab_scope scope) decls fail_bb cont_bb stmts in
             (add_next else_bb merge_bb; decls)
        in
        process_bb scope decls merge_bb cont_bb rest
     | WhileLoop (pos, precheck, cond, body) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
-       let cond_bb =
-         if loop_can_exit cexpr then
-           make_conditional_bb ("while_" ^ (label_of_pos pos)) (pos, cexpr)
-         else
-           make_sequential_bb ("loop_" ^ (label_of_pos pos)) []
+       let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
+       let cond_bb, fail_bb = match loop_can_exit cexpr with
+         | true ->
+            let fail = make_sequential_bb ("fail_" ^ (label_of_pos pos)) [] in
+            let cond = generate_conditional ("while_" ^ (label_of_pos pos))
+              pos cexpr succ_bb fail in
+            let () = add_next cond succ_bb in
+            let () = add_next cond fail in
+            cond, fail
+         | false ->
+            let cond = make_sequential_bb ("loop_" ^ (label_of_pos pos)) [] in
+            let () = add_next cond succ_bb in
+            cond, cond
        in
        let body_begin =
          make_sequential_bb ("loop_body_" ^ (label_of_pos pos)) [] in
        if precheck then
          let () = add_next prev_bb cond_bb in
-         let () = add_next cond_bb body_begin in
+         let () = add_next succ_bb body_begin in
          let decls, body_end =
            process_bb (push_symtab_scope scope) decls body_begin
              (Some cond_bb) body in
          let () = add_next body_end cond_bb in
-         process_bb scope decls cond_bb cont_bb rest
+         process_bb scope decls fail_bb cont_bb rest
        else
          let () = add_next prev_bb body_begin in
          let decls, body_end =
            process_bb (push_symtab_scope scope) decls body_begin
              (Some cond_bb) body in
-         let () = add_next cond_bb body_begin in
-         process_bb scope decls cond_bb cont_bb rest
+         let () = add_next succ_bb body_begin in
+         process_bb scope decls fail_bb cont_bb rest
     | Return (pos, expr) :: rest ->
        let tp, expr = convert_expr typemap scope expr in
        begin
