@@ -16,21 +16,17 @@
    02110-1301, USA.
  *)
 
-open Arg
 open Ast
 open Cfg
+open Cmdline
 open Defparse
 open Deflex
+open Header
 open Irfactory
 open Lexing
 open Lower
 open Scrubber
 open Util
-
-type compilation_level =
-  | COMPILE_ASM
-  | COMPILE_OBJ
-  | COMPILE_BINARY
 
 let llc_bin = "llc-3.9"
 let llvm_as_bin = "llvm-as-3.9"
@@ -41,71 +37,6 @@ let as_bin = "/usr/bin/as"
 let ld_cmd = "/usr/bin/ld -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2"
 let ld_paths = "/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../.. -L/usr/lib/llvm-3.8/bin/../lib -L/lib -L/usr/lib"
 let ld_libs = "-lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crtn.o"
-
-let set_param param v is_set failure_msg =
-  if Util.ref_set param v is_set then ()
-  else Report.err_param failure_msg
-
-let opt_level = ref 1
-let opt_level_is_set = ref false
-let set_opt_level v =
-  set_param opt_level v  opt_level_is_set
-    "Multiple optimization levels set."
-
-let input_files = ref []
-let input_file_is_set = ref false
-let set_input_file v =
-  input_files := v :: !input_files;
-  input_file_is_set := true
-
-let output_file = ref ""
-let output_file_is_set = ref false
-let set_output_file v =
-  set_param output_file v output_file_is_set
-    "Multiple output files specified."
-
-let comp_depth = ref COMPILE_BINARY
-let comp_depth_is_set = ref false
-let set_comp_depth v =
-  set_param comp_depth v comp_depth_is_set
-    "Multiple compilation levels specified."
-
-let compile_llvm = ref false
-let compile_llvm_is_set = ref false
-let set_compile_llvm v =
-  set_param compile_llvm v compile_llvm_is_set
-    "Specified -emit-llvm multiple times."
-
-let codegen_debug = ref false
-let codegen_debug_is_set = ref false
-let set_codegen_debug () =
-  set_param codegen_debug true codegen_debug_is_set
-    "Specified -cgdebug multiple times."
-
-let parameter_set =
-  [ ("-o", String set_output_file,
-     "Set the output file.");
-    ("-emit-llvm", Unit (fun () -> set_compile_llvm true),
-     "Compile the module to llvm IR (.ll extension).");
-    ("-S", Unit (fun () -> set_comp_depth COMPILE_ASM),
-     "Compile the module to a .s assembly file.");
-    ("-c", Unit (fun () -> set_comp_depth COMPILE_OBJ),
-     "Compile the module to a .o object file.");
-    ("-cgdebug", Unit (fun () -> set_codegen_debug ()),
-     "Mode for debugging LLVM code generation.");
-    ("-O0", Unit (fun () -> set_opt_level 0),
-     "Disable compiler optimizations.");
-    ("-O1", Unit (fun () -> set_opt_level 1),
-     "Level 1 compiler optimizations (default).");
-    ("-O2", Unit (fun () -> set_opt_level 2),
-     "Level 2 compiler optimizations.");
-    ("-O3", Unit (fun () -> set_opt_level 3),
-     "Level 3 compiler optimizations. (identical to -O2 at this time)")
-  ]
-
-let anon_arg = set_input_file
-
-let usage_msg = "defc: The DEF compiler."
 
 let add_builtin_fcns stmts =
   let pos = { pos_fname = "builtin";
@@ -144,13 +75,15 @@ let obj_name_of file =
   base ^ ".o"
 
 let infile2outfile file =
-  if !output_file_is_set then !output_file
-  else
-    let base = Filename.chop_extension (Filename.basename file) in
-    match !comp_depth with
-    | COMPILE_ASM -> if !compile_llvm then base ^ ".ll" else base ^ ".s"
-    | COMPILE_OBJ -> if !compile_llvm then base ^ ".bc" else base ^ ".o"
-    | COMPILE_BINARY -> "a.out"
+  match !output_file with
+  | Some ofile -> ofile
+  | None ->
+     let base = Filename.chop_extension (Filename.basename file) in
+     match !comp_depth with
+     | COMPILE_GENERATE_HEADER -> base ^ ".h"
+     | COMPILE_ASM -> if !compile_llvm then base ^ ".ll" else base ^ ".s"
+     | COMPILE_OBJ -> if !compile_llvm then base ^ ".bc" else base ^ ".o"
+     | COMPILE_BINARY -> "a.out"
 
 let get_lines input =
   let rec get accum =
@@ -252,6 +185,10 @@ let compile_def_file infilename =
   in
   close_in infile;
 
+  if !comp_depth = COMPILE_GENERATE_HEADER then
+    (header_of (infile2outfile infilename) stmts;
+     exit 0);
+
   (* Generate and process the CFG. *)
   let stmts = add_builtin_fcns stmts in
   let stmts = scrub stmts in
@@ -290,8 +227,8 @@ let compile_input filename =
      "unknown filename extension.  Should've been caught earlier."
 
 let main () =
-  Arg.parse parameter_set anon_arg usage_msg;
-  if not !input_file_is_set then Report.err_no_input_file ();
+  parse_cmdline ();
+  if !input_files = [] then Report.err_no_input_file ();
   List.iter verify_extension !input_files;
   let objects = List.map compile_input !input_files in
   match !comp_depth with

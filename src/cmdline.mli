@@ -1,4 +1,5 @@
 type compilation_level =
+  | COMPILE_GENERATE_HEADER
   | COMPILE_ASM
   | COMPILE_OBJ
   | COMPILE_BINARY

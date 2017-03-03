@@ -4,12 +4,16 @@ BUILDDEFC = $(BUILDDIR)/defc
 DEFC = bin/defc
 SRCDIR = src
 SRCFILES = 		\
+	cmdline.ml	\
+	cmdline.mli	\
 	cmpxchg.cpp	\
 	ast.ml		\
 	cfg.ml		\
 	cfg.mli		\
 	deflex.mll	\
 	defparse.mly	\
+	header.ml	\
+	header.mli	\
 	irfactory.ml	\
 	irfactory.mli	\
 	iropt.ml	\

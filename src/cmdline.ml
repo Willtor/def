@@ -19,6 +19,7 @@
 open Arg
 
 type compilation_level =
+  | COMPILE_GENERATE_HEADER
   | COMPILE_ASM
   | COMPILE_OBJ
   | COMPILE_BINARY
@@ -82,7 +83,9 @@ let parameter_set =
     ("-O2", Unit (fun () -> set_opt_level 2),
      "Level 2 compiler optimizations.");
     ("-O3", Unit (fun () -> set_opt_level 3),
-     "Level 3 compiler optimizations. (identical to -O2 at this time)")
+     "Level 3 compiler optimizations. (identical to -O2 at this time)");
+    ("-gh", Unit (fun () -> set_comp_depth COMPILE_GENERATE_HEADER),
+     "Generate a C/C++-compatible header file.")
   ]
 
 let anon_arg = set_input_file
