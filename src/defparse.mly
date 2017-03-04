@@ -215,7 +215,7 @@ variabledecl:
       in (pos, ident, t) }
 
 fcndecl:
-| DECL s = IDENT ftype = fcntype
+| DECL s = IDENT ftype = fcntype SEMICOLON
     { let _, plist, ret = ftype
       and pos, ident = s in
       (pos, VisExported pos, ident, FcnType (plist, ret))
