@@ -46,6 +46,30 @@ let rec cstring_of_type = function
   | PtrType (_, t) -> (cstring_of_type t) ^ "*"
   | Ellipsis _ -> "..."
 
+let output_typedefs oc = function
+  | TypeDecl (_, nm, StructType _, VisExported _) ->
+     output_string oc ("typedef struct " ^ nm ^ " " ^ nm ^ ";\n\n")
+  | TypeDecl (_, nm, _, VisExported _) ->
+     Report.err_internal __FILE__ __LINE__
+       "Non-struct types not yet supported."
+  | _ -> ()
+
+let output_structs oc = function
+  | TypeDecl (_, nm, StructType mlist, VisExported _) ->
+     begin
+       output_string oc ("struct " ^ nm ^ " {\n");
+       List.iter
+         (fun (_, mname, tp) ->
+           output_string oc ("  " ^ (cstring_of_type tp) ^ " "
+                             ^ mname ^ ";\n"))
+         mlist;
+       output_string oc "};\n\n"
+     end
+  | TypeDecl (_, nm, _, VisExported _) ->
+     Report.err_internal __FILE__ __LINE__
+       "Non-struct types not yet supported."
+  | _ -> ()
+
 let output_functions oc = function
   | DefFcn (_, VisExported _, name, FcnType (args, ret), _) ->
      begin
@@ -68,6 +92,8 @@ let header_of outfile stmts =
   output_string oc ("/* " ^ outfile ^ ": " ^ autogen ^ "\n */\n");
   output_string oc "#pragma once\n";
   output_string oc begin_cpp_mode;
+  List.iter (output_typedefs oc) stmts;
+  List.iter (output_structs oc) stmts;
   List.iter (output_functions oc) stmts;
   output_string oc end_cpp_mode;
   close_out oc
