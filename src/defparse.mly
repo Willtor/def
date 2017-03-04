@@ -127,7 +127,7 @@ statement:
     { let _, e = p_n_e in
       let expr =
         ExprFcnCall { fc_pos = p;
-                      fc_name = "forkgc_free";
+                      fc_name = "forkscan_free";
                       fc_args = [ e ]
                     }
       in
@@ -137,7 +137,7 @@ statement:
     { let _, e = p_n_e in
       let expr =
         ExprFcnCall { fc_pos = p;
-                      fc_name = "forkgc_retire";
+                      fc_name = "forkscan_retire";
                       fc_args = [ e ]
                     }
       in
@@ -246,7 +246,7 @@ expr:
       in
       let forkscan_alloc =
         ExprFcnCall { fc_pos = p;
-                      fc_name = "forkgc_malloc";
+                      fc_name = "forkscan_malloc";
                       fc_args = [ sizeof ] }
       in
       p, ExprCast (p, PtrType (p, t), forkscan_alloc)
