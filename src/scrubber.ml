@@ -40,7 +40,7 @@ let position_of_stmt = function
   | WhileLoop (pos, _, _, _)
   | Return (pos, _)
   | ReturnVoid pos
-  | TypeDecl (pos, _, _)
+  | TypeDecl (pos, _, _, _)
   | Label (pos, _)
   | Goto (pos, _)
   | Continue pos

@@ -152,10 +152,14 @@ statement:
 | p = RETURN p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in Return (p, e) }
 | p = RETURN SEMICOLON { ReturnVoid p }
-| TYPEDEF id = IDENT EQUALS tp = deftype SEMICOLON
+| export_p = EXPORT? TYPEDEF id = IDENT EQUALS tp = deftype SEMICOLON
     { let pos, name = id
-      and _, t = tp in
-      TypeDecl (pos, name, t) }
+      and _, t = tp
+      and vis = match export_p with
+        | None -> VisLocal
+        | Some pos -> VisExported pos
+      in
+      TypeDecl (pos, name, t, vis) }
 | pos = GOTO p_n_id = IDENT SEMICOLON
     { let _, id = p_n_id in
       Goto (pos, id)
