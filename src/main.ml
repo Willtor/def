@@ -175,13 +175,19 @@ let compile_bc_file infilename =
   Report.err_internal __FILE__ __LINE__
     ("compile_bc_file not implemented: " ^ infilename)
 
+let parse_input lexer lexbuf =
+  try
+    (defparse deflex) lexbuf
+  with Defparse.Error ->
+    Report.err_syntax (lexeme_start_p lexbuf)
+
 let compile_def_file infilename =
   let infile = try open_in infilename
     with _ -> Report.err_unable_to_open_file infilename
   in
   let stmts =
     let lexbuf = set_fname infilename (Lexing.from_channel infile)
-    in ((defparse deflex) lexbuf)
+    in parse_input deflex lexbuf
   in
   close_in infile;
 

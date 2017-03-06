@@ -55,6 +55,13 @@ let err_lexing pos character =
     ^ (show_source pos)
   in fatal_error err
 
+(** Syntax error. *)
+let err_syntax pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Syntax error:\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Escaped character was unknown. *)
 let err_bad_escaped_char pos c =
   let err = "At " ^ (format_position pos) ^ ":\n"
