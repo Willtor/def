@@ -138,6 +138,7 @@ let primitive2string = function
   | PrimF32 -> "f32"
   | PrimF64 -> "f64"
 
+(** Return true iff the given type is an integer type. *)
 let is_integer_type = function
   | DefTypePrimitive prim ->
      begin match prim with
@@ -148,6 +149,11 @@ let is_integer_type = function
      | PrimI64 | PrimU64 -> true
      | PrimF32 | PrimF64 -> false
      end
+  | _ -> false
+
+(** Return true iff the type is a pointer. *)
+let is_pointer_type = function
+  | DefTypePtr _ -> true
   | _ -> false
 
 let ptr_size = 8

@@ -97,6 +97,7 @@ type stmt =
   | TypeDecl of position * string * vartype * Types.visibility
   | Label of position * string
   | Goto of position * string
+  | Break of position
   | Continue of position
 
 let operator2string = function

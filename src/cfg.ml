@@ -133,6 +133,23 @@ let loop_can_exit = function
   | Expr_Literal (LitBool true) -> false
   | _ -> true
 
+(* Detect if the loop can be exited (apart from a return from the actual
+   function) from inside; i.e., see if there is a break or a goto. *)
+let rec can_escape_body = function
+  | [] -> false
+  | Break _ :: _ -> true
+  | Goto _ :: _ -> true
+  | IfStmt (_, _, tblock, eblock_maybe) :: rest ->
+     begin
+       if can_escape_body tblock then  true
+       else match eblock_maybe with
+       | None -> can_escape_body rest
+       | Some eblock ->
+          if can_escape_body eblock then true
+          else can_escape_body rest
+     end
+  | stmt :: rest -> can_escape_body rest
+
 (** Get the type of an Ast.literal value. *)
 let typeof_literal lit =
   DefTypePrimitive (literal2primitive lit)
@@ -262,6 +279,7 @@ let rec has_exit_p stmts =
     | Continue _ -> true
     | Goto _ -> true (* FIXME: unstructured goto is a little weird.  Think
                         about this some more... *)
+    | Break _ -> true (* Also, break. *)
   in List.fold_left r false stmts
 
 (** Return a casted version of the expression, if the original type doesn't
@@ -341,6 +359,9 @@ let binary_reconcile typemap =
     match ltype, rtype with
     | DefTypePrimitive lprim, DefTypePrimitive rprim ->
        DefTypePrimitive (generalize_primitives lprim rprim)
+    | DefTypeNullPtr, DefTypePtr p
+    | DefTypePtr p, DefTypeNullPtr ->
+       DefTypePtr p
     | _ -> failwith "FIXME: more_general_of incomplete."
   in
   let reconcile pos op (ltype, lexpr) (rtype, rexpr) =
@@ -473,8 +494,12 @@ let convert_expr typemap scope =
        in
        rettp, Expr_Unary (op.op_op, tp, subexpr, true)
     | ExprVar (pos, name) ->
-       let var = the (lookup_symbol scope name)
-       in var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
+       begin match lookup_symbol scope name with
+       | Some var ->
+          var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
+       | None ->
+          Report.err_undefined_var pos name
+       end
     | ExprLit (pos, literal) ->
        (typeof_literal literal), Expr_Literal literal
     | ExprIndex (bpos, base, ipos, idx) ->
@@ -712,7 +737,8 @@ let rec build_bbs name decltable typemap body =
     | WhileLoop (pos, precheck, cond, body) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
-       let cond_bb, fail_bb = match loop_can_exit cexpr with
+       let cond_bb, fail_bb =
+         match (loop_can_exit cexpr) || (can_escape_body body) with
          | true ->
             let fail = make_sequential_bb ("fail_" ^ (label_of_pos pos)) [] in
             let cond = generate_conditional ("while_" ^ (label_of_pos pos))
@@ -794,6 +820,19 @@ let rec build_bbs name decltable typemap body =
        let bb = make_goto_bb label in
        let () = add_next prev_bb bb in
        process_bb scope decls bb cont_bb rest
+    | Break pos :: rest ->
+       begin match cont_bb with
+       | None ->
+          Report.err_internal __FILE__ __LINE__
+            "Tried to break out of a non-loop.  Write a suitable user error."
+       | Some (BB_Cond (_, { cond_else = follow_bb })) ->
+          let bb = make_sequential_bb ("break_" ^ (label_of_pos pos)) [] in
+          let () = add_next prev_bb bb in
+          let () = add_next bb follow_bb in
+          process_bb scope decls bb cont_bb rest
+       | _ ->
+          Report.err_internal __FILE__ __LINE__ "No follow block."
+       end
     | Continue pos :: rest ->
        begin match cont_bb with
        | None ->

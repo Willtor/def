@@ -1,6 +1,6 @@
 TARGET = defc
 
-OCAMLC = ocamlfind ocamlopt
+OCAMLC = ocamlfind ocamlopt -g
 PACKAGE = -package llvm,llvm.analysis,llvm.scalar_opts,str,unix
 LINKPKG = -linkpkg $(PACKAGE)
 CLANGPP = clang++-3.9

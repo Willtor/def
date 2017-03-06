@@ -245,5 +245,12 @@ let main () =
      end
   | _ -> ()
 
-let () = main ()
-
+let () =
+  try
+    main ()
+  with Failure failure ->
+    let msg = failure ^ "\n" ^
+      (if Printexc.backtrace_status () then (Printexc.get_backtrace ())
+       else "Backtrace disabled.  Use OCAMLRUNPARAM=b to see the stack.")
+    in
+    fatal_error msg

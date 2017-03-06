@@ -139,7 +139,7 @@ let process_expr data varmap pos_n_expr =
     let standard_op fnc name =
       fnc (expr_gen true left) (expr_gen true right) name bldr
     in
-    match op, is_integer_type tp with
+    match op, (is_integer_type tp) || (is_pointer_type tp) with
     (* FIXME: Distinguish between signed/unsigned integers. *)
     | OperMult, true -> standard_op build_mul "def_mult"
     | OperMult, false -> standard_op build_fmul "def_mult_f"

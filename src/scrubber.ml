@@ -43,6 +43,7 @@ let position_of_stmt = function
   | TypeDecl (pos, _, _, _)
   | Label (pos, _)
   | Goto (pos, _)
+  | Break pos
   | Continue pos
     -> pos
   | VarDecl _ ->
@@ -85,6 +86,7 @@ let kill_dead_code =
       | (Return _ as stmt) :: rest
       | (ReturnVoid _ as stmt) :: rest
       | (Goto _ as stmt) :: rest
+      | (Break _ as stmt) :: rest
       | (Continue _ as stmt) :: rest ->
          let () = match rest with
            | [] -> ()
@@ -140,6 +142,7 @@ let return_all_paths =
       | TypeDecl _ :: rest
       | Label _ :: rest
       | Goto _ :: rest (* FIXME: Think about Goto case some more... *)
+      | Break _ :: rest (* FIXME: Also the break case. *)
       | Continue _ :: rest (* FIXME: Also, the Continue case. *)
         -> returns_p rest
       | IfStmt (_, _, then_branch, Some else_branch) :: rest ->

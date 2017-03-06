@@ -87,10 +87,18 @@ let err_no_return pos fcn =
     ^ (show_source pos)
   in fatal_error err
 
+(** Local function was declared "export" which is not allowed. *)
 let err_local_fcn_with_nonlocal_vis pos fcn =
   let err = "At " ^ (format_position pos) ^ ":\n"
     ^ "  Function " ^ fcn ^ " has non-global scope, and must have local "
-    ^ "visibility."
+    ^ "visibility.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
+(** Used an undefined variable. *)
+let err_undefined_var pos name =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Variable " ^ name ^ " is undefined.\n"
     ^ (show_source pos)
   in fatal_error err
 

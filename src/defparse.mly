@@ -32,7 +32,7 @@
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE TYPEDEF
 %token <Lexing.position> EXPORT DEF DECL VAR RETURN BEGIN END IF THEN ELSE FI
-%token <Lexing.position> WHILE DO DONE CAST AS GOTO CONTINUE NEW DELETE
+%token <Lexing.position> WHILE DO DONE CAST AS GOTO BREAK CONTINUE NEW DELETE
 %token <Lexing.position> RETIRE NIL
 
 (* Operators *)
@@ -164,6 +164,8 @@ statement:
     { let _, id = p_n_id in
       Goto (pos, id)
     }
+| pos = BREAK SEMICOLON
+    { Break pos }
 | p_n_id = IDENT COLON
     { let pos, id = p_n_id in
       Label (pos, id)

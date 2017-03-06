@@ -70,6 +70,7 @@ rule deflex = parse
 | "cast" { CAST (lexeme_start_p lexbuf) }
 | "as" { AS (lexeme_start_p lexbuf) }
 | "goto" { GOTO (lexeme_start_p lexbuf) }
+| "break" { BREAK (lexeme_start_p lexbuf) }
 | "continue" { CONTINUE (lexeme_start_p lexbuf) }
 | "new" { NEW (lexeme_start_p lexbuf) }
 | "delete" { DELETE (lexeme_start_p lexbuf) }
