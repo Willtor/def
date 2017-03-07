@@ -90,6 +90,9 @@ type stmt =
   | DefFcn of position * Types.visibility * string * vartype * stmt list
   | VarDecl of (position * string * (position * expr) option) list * vartype
   | IfStmt of position * expr * stmt list * stmt list option
+  (* ForLoop: start-pos * init * cond * iter * body *)
+  | ForLoop of position * stmt option * (position * expr)
+    * (position * expr) option * stmt list
   (* WhileLoop: start-pos * pre-check * cond * body *)
   | WhileLoop of position * bool * expr * stmt list
   | Return of position * expr

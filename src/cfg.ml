@@ -258,30 +258,6 @@ let get_fcntype_profile = function
   | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
   | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
-(** Return true iff the series of Ast.stmts returns on all paths. *)
-let rec has_exit_p stmts =
-  let r ret = function
-    | StmtExpr _ -> ret
-    | Block (_, stmts) -> (has_exit_p stmts) || ret
-    | DeclFcn _
-    | DefFcn _ -> Report.err_internal __FILE__ __LINE__
-       "FIXME: Unhandled case in Cfg.has_exit_p (DefFcn)"
-    | VarDecl _ -> ret
-    | IfStmt (_, _, t, None) -> ret
-    | IfStmt (_, _, t, Some e) ->
-       ((has_exit_p t) && (has_exit_p e)) || ret
-    | WhileLoop _ -> ret
-    | Return _ -> true
-    | ReturnVoid _ -> true
-    | TypeDecl _ -> Report.err_internal __FILE__ __LINE__
-       "FIXME: Unhandled case in Cfg.has_exit_p (TypeDecl)"
-    | Label _ -> ret
-    | Continue _ -> true
-    | Goto _ -> true (* FIXME: unstructured goto is a little weird.  Think
-                        about this some more... *)
-    | Break _ -> true (* Also, break. *)
-  in List.fold_left r false stmts
-
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
 let rec maybe_cast typemap orig cast_as expr =
@@ -734,6 +710,37 @@ let rec build_bbs name decltable typemap body =
             (add_next else_bb merge_bb; decls)
        in
        process_bb scope decls merge_bb cont_bb rest
+    | ForLoop (pos, init, (_, cond), iter, body) :: rest ->
+       let body_scope = push_symtab_scope scope in
+       let init_decls, init_bb = match init with
+         | None -> decls, prev_bb
+         | Some stmt_or_decl ->
+            process_bb body_scope decls prev_bb None [stmt_or_decl]
+       in
+       let succ_bb = make_sequential_bb ("fsucc_" ^ (label_of_pos pos)) [] in
+       let fail_bb = make_sequential_bb ("ffail_" ^ (label_of_pos pos)) [] in
+       let _, cexpr = convert_expr typemap body_scope cond in
+       let cond_bb = generate_conditional ("for_" ^ (label_of_pos pos))
+         pos cexpr succ_bb fail_bb in
+       let iter_bb = match iter with
+         | None -> cond_bb
+         | Some (pos, e) ->
+            let _, iexpr = convert_expr typemap body_scope e in
+            let bb =
+              make_sequential_bb ("fiter_" ^ (label_of_pos pos)) [(pos, iexpr)]
+            in
+            let () = add_next bb cond_bb in
+            bb
+       in
+       let () = add_next prev_bb init_bb in
+       let () = add_next init_bb cond_bb in
+       let () = add_next cond_bb succ_bb in
+       let () = add_next cond_bb fail_bb in
+       let for_decls, for_body_end = process_bb body_scope init_decls succ_bb
+         (Some iter_bb) body
+       in
+       let () = add_next for_body_end iter_bb in
+       process_bb scope for_decls fail_bb cont_bb rest
     | WhileLoop (pos, precheck, cond, body) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
@@ -825,6 +832,9 @@ let rec build_bbs name decltable typemap body =
        | None ->
           Report.err_internal __FILE__ __LINE__
             "Tried to break out of a non-loop.  Write a suitable user error."
+       | Some (BB_Seq (_,
+                       { seq_next = BB_Cond (_,
+                                             { cond_else = follow_bb }) }))
        | Some (BB_Cond (_, { cond_else = follow_bb })) ->
           let bb = make_sequential_bb ("break_" ^ (label_of_pos pos)) [] in
           let () = add_next prev_bb bb in

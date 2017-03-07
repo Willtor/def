@@ -37,6 +37,7 @@ let position_of_stmt = function
   | DefFcn (pos, _, _, _, _)
   | VarDecl ((pos, _, _) :: _, _)
   | IfStmt (pos, _, _, _)
+  | ForLoop (pos, _, _, _, _)
   | WhileLoop (pos, _, _, _)
   | Return (pos, _)
   | ReturnVoid pos
@@ -75,6 +76,9 @@ let kill_dead_code =
                             | None -> None
                             | Some elseblk -> Some (proc [] elseblk))
          in proc (stmt :: accum) rest
+      | ForLoop (pos, init, cond, iter, body) :: rest ->
+         let stmt = ForLoop (pos, init, cond, iter, proc [] body)
+         in proc (stmt :: accum) rest
       | WhileLoop (pos, precheck, cond, body) :: rest ->
          let stmt = WhileLoop (pos, precheck, cond, proc [] body)
          in proc (stmt :: accum) rest
@@ -82,7 +86,6 @@ let kill_dead_code =
          proc (stmt :: accum) rest
       | Label _ as stmt :: rest ->
          proc (stmt :: accum) rest
-
       | (Return _ as stmt) :: rest
       | (ReturnVoid _ as stmt) :: rest
       | (Goto _ as stmt) :: rest
@@ -121,6 +124,7 @@ let return_all_paths =
          if contains_return tstmts then true
          else if contains_return estmts then true
          else contains_return rest
+      | ForLoop (_, _, _, _, body) :: rest
       | WhileLoop (_, _, _, body) :: rest ->
          if contains_return body then true
          else contains_return rest
@@ -148,6 +152,8 @@ let return_all_paths =
       | IfStmt (_, _, then_branch, Some else_branch) :: rest ->
          if (returns_p then_branch) && (returns_p else_branch) then true
          else returns_p rest
+      | ForLoop _ :: rest ->
+         returns_p rest
       | WhileLoop (_, _, cond, body) :: rest ->
          if expr_must_be_true cond then contains_return body
          else returns_p rest

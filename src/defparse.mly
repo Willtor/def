@@ -32,8 +32,8 @@
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE TYPEDEF
 %token <Lexing.position> EXPORT DEF DECL VAR RETURN BEGIN END IF THEN ELSE FI
-%token <Lexing.position> WHILE DO DONE CAST AS GOTO BREAK CONTINUE NEW DELETE
-%token <Lexing.position> RETIRE NIL
+%token <Lexing.position> FOR WHILE DO DONE CAST AS GOTO BREAK CONTINUE NEW
+%token <Lexing.position> DELETE RETIRE NIL
 
 (* Operators *)
 %token <Lexing.position> ELLIPSIS RARROW
@@ -84,6 +84,17 @@ statementlist:
 
 block:
 | p = BEGIN slist = statementlist END { (p, slist) }
+
+for_init:
+| p = VAR id = IDENT tp = deftype EQUALS p_n_e = expr
+    { let _, t = tp
+      and _, name = id in
+      VarDecl ([(p, name, Some p_n_e)], t)
+    }
+| p_n_e = expr
+    { let pos, expr = p_n_e in
+      StmtExpr (pos, expr)
+    }
 
 statement:
 | f = fcndef EQUALS p_n_e = expr semi_pos = SEMICOLON {
@@ -145,6 +156,12 @@ statement:
     }
 | p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
+| p = FOR
+    init = for_init? SEMICOLON
+    cond = expr SEMICOLON
+    iter = expr? DO
+    body = statementlist DONE
+    { ForLoop (p, init, cond, iter, body) }
 | p = WHILE p_n_e = expr DO slist = statementlist DONE
     { let (_, e) = p_n_e in WhileLoop (p, true, e, slist) }
 | p = DO slist = statementlist DONE WHILE p_n_e = expr SEMICOLON

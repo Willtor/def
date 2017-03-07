@@ -64,6 +64,7 @@ rule deflex = parse
 | "then" { THEN (lexeme_start_p lexbuf) }
 | "else" { ELSE (lexeme_start_p lexbuf) }
 | "fi"   { FI (lexeme_start_p lexbuf) }
+| "for" { FOR (lexeme_start_p lexbuf) }
 | "while" { WHILE (lexeme_start_p lexbuf) }
 | "do" { DO (lexeme_start_p lexbuf) }
 | "done" { DONE (lexeme_start_p lexbuf) }
