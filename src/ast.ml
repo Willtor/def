@@ -97,7 +97,7 @@ type stmt =
   | WhileLoop of position * bool * expr * stmt list
   | Return of position * expr
   | ReturnVoid of position
-  | TypeDecl of position * string * vartype * Types.visibility
+  | TypeDecl of position * string * vartype * Types.visibility * bool
   | Label of position * string
   | Goto of position * string
   | Break of position

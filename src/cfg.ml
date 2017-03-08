@@ -203,7 +203,7 @@ let param_pos_names = function
      List.map (fun (pos, name, _) -> (pos, name)) params
 
 let global_types typemap = function
-  | TypeDecl (pos, name, tp, _) ->
+  | TypeDecl (pos, name, tp, _, _) ->
      (* FIXME: When structs get added, check tp to see if it's a struct
         and add a symbolic reference, first, before converting the type. *)
      add_symbol typemap name (convert_type true typemap tp)

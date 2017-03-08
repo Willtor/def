@@ -56,6 +56,7 @@ rule deflex = parse
 | "begin" { BEGIN (lexeme_start_p lexbuf) }
 | "end" { END (lexeme_start_p lexbuf) }
 | "export" { EXPORT (lexeme_start_p lexbuf) }
+| "opaque" { OPAQUE (lexeme_start_p lexbuf) }
 | "def" { DEF (lexeme_start_p lexbuf) }
 | "decl" { DECL (lexeme_start_p lexbuf) }
 | "var" { VAR (lexeme_start_p lexbuf) }

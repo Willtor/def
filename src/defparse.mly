@@ -31,9 +31,9 @@
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE TYPEDEF
-%token <Lexing.position> EXPORT DEF DECL VAR RETURN BEGIN END IF THEN ELSE FI
-%token <Lexing.position> FOR WHILE DO DONE CAST AS GOTO BREAK CONTINUE NEW
-%token <Lexing.position> DELETE RETIRE NIL
+%token <Lexing.position> EXPORT OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
+%token <Lexing.position> ELSE FI FOR WHILE DO DONE CAST AS GOTO BREAK CONTINUE
+%token <Lexing.position> NEW DELETE RETIRE NIL
 
 (* Operators *)
 %token <Lexing.position> ELLIPSIS RARROW
@@ -169,14 +169,16 @@ statement:
 | p = RETURN p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in Return (p, e) }
 | p = RETURN SEMICOLON { ReturnVoid p }
-| export_p = EXPORT? TYPEDEF id = IDENT EQUALS tp = deftype SEMICOLON
+| vis_n_opa = pair(EXPORT, option(OPAQUE))? TYPEDEF id = IDENT EQUALS
+    tp = deftype SEMICOLON
     { let pos, name = id
       and _, t = tp
-      and vis = match export_p with
-        | None -> VisLocal
-        | Some pos -> VisExported pos
+      and vis, opacity = match vis_n_opa with
+        | None -> VisLocal, false
+        | Some (pos, None) -> VisExported pos, false
+        | Some (pos, Some _) -> VisExported pos, true
       in
-      TypeDecl (pos, name, t, vis) }
+      TypeDecl (pos, name, t, vis, opacity) }
 | pos = GOTO p_n_id = IDENT SEMICOLON
     { let _, id = p_n_id in
       Goto (pos, id)

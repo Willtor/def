@@ -47,15 +47,15 @@ let rec cstring_of_type = function
   | Ellipsis _ -> "..."
 
 let output_typedefs oc = function
-  | TypeDecl (_, nm, StructType _, VisExported _) ->
+  | TypeDecl (_, nm, StructType _, VisExported _, _) ->
      output_string oc ("typedef struct " ^ nm ^ " " ^ nm ^ ";\n\n")
-  | TypeDecl (_, nm, _, VisExported _) ->
+  | TypeDecl (_, nm, _, VisExported _, _) ->
      Report.err_internal __FILE__ __LINE__
        "Non-struct types not yet supported."
   | _ -> ()
 
 let output_structs oc = function
-  | TypeDecl (_, nm, StructType mlist, VisExported _) ->
+  | TypeDecl (_, nm, StructType mlist, VisExported _, false) ->
      begin
        output_string oc ("struct " ^ nm ^ " {\n");
        List.iter
@@ -65,7 +65,7 @@ let output_structs oc = function
          mlist;
        output_string oc "};\n\n"
      end
-  | TypeDecl (_, nm, _, VisExported _) ->
+  | TypeDecl (_, nm, _, VisExported _, false) ->
      Report.err_internal __FILE__ __LINE__
        "Non-struct types not yet supported."
   | _ -> ()
