@@ -310,6 +310,8 @@ let check_castability pos typemap ltype rtype =
     | DefTypeStaticStruct smembers, DefTypeLiteralStruct (lmembers, _)
     | DefTypeLiteralStruct (lmembers, _), DefTypeStaticStruct smembers ->
        List.iter similar (List.combine lmembers smembers)
+    | DefTypeLiteralStruct (lhs, _), DefTypeLiteralStruct (rhs, _) ->
+       List.iter similar (List.combine lhs rhs)
     | DefTypePrimitive _, _ ->
        Report.err_internal __FILE__ __LINE__ (Util.format_position pos)
     | DefTypePtr _, DefTypeNullPtr
@@ -490,17 +492,24 @@ let convert_expr typemap scope =
             Report.err_non_integer_index ipos
        | _ -> Report.err_index_non_ptr ipos
        end
-    | ExprSelectField (dpos, fpos, obj, fieldname) ->
+    | ExprSelectField (dpos, fpos, obj, field) ->
        let otype, converted_obj = convert obj in
        let rec struct_select obj = function
          | DefTypeLiteralStruct (mtypes, fields) ->
-            let rec get_field n = function
-              | [] -> Report.err_struct_no_such_member fpos fieldname
-              | f :: rest ->
-                 if f = fieldname then n else get_field (n + 1) rest
+            let id = match field with
+            | FieldNumber n ->
+               if n >= (List.length fields) then
+                 Report.err_struct_not_enough_fields fpos n
+               else n
+            | FieldName fieldname ->
+               let rec get_field n = function
+                 | [] -> Report.err_struct_no_such_member fpos fieldname
+                 | f :: rest ->
+                    if f = fieldname then n else get_field (n + 1) rest
+               in
+               get_field 0 fields
             in
-            let n = get_field 0 fields in
-            List.nth mtypes n, Expr_SelectField (obj, n)
+            List.nth mtypes id, Expr_SelectField (obj, id)
          | DefTypeNamedStruct sname ->
             struct_select obj (the (lookup_symbol typemap sname))
          | DefTypePtr p ->
@@ -687,6 +696,46 @@ let rec build_bbs name decltable typemap body =
          | [] -> prev_bb
        in
        process_bb scope (dlist @ decls) bb cont_bb rest
+    | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
+       let idecls = List.fold_left
+         (fun accum (pos, nm, tp) ->
+           let decl = make_decl pos scope nm (convert_type false typemap tp)
+           in
+           let () = add_symbol scope nm decl in
+           (nm, decl) :: accum)
+         decls
+         vars
+       in
+       let target_tp = convert_type false typemap (StructType vars) in
+       let target_struct = make_decl p scope "def_inline_struct" target_tp
+       in
+       let () = add_symbol scope "def_inline_struct" target_struct in
+       let _, cexpr = convert_expr typemap scope
+         (ExprBinary { op_pos = epos;
+                       op_op = OperAssign;
+                       op_left = ExprVar (p, "def_inline_struct");
+                       op_right = Some expr
+                     })
+       in
+       let assignments = List.mapi
+         (fun n (pos, nm, _) ->
+           let rhs = ExprSelectField (pos, pos,
+                                      ExprVar (pos, "def_inline_struct"),
+                                      FieldNumber n) in
+           let _, cexpr = convert_expr typemap scope
+             (ExprBinary { op_pos = pos;
+                           op_op = OperAssign;
+                           op_left = ExprVar (pos, nm);
+                           op_right = Some rhs
+                         })
+           in pos, cexpr)
+         vars
+       in
+       let bb =
+         make_sequential_bb (label_of_pos p) ((p, cexpr) :: assignments) in
+       let () = add_next prev_bb bb in
+       process_bb scope
+         (("def_inline_struct", target_struct) :: idecls) bb cont_bb rest
     | IfStmt (pos, cond, then_block, else_block_maybe) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
@@ -970,8 +1019,8 @@ let resolve_builtins stmts typemap =
        ExprCast (p, v, process_expr e)
     | ExprIndex (p1, base, p2, idx) ->
        ExprIndex (p1, process_expr base, p2, process_expr idx)
-    | ExprSelectField (p1, p2, e, fname) ->
-       ExprSelectField (p1, p2, process_expr e, fname)
+    | ExprSelectField (p1, p2, e, field) ->
+       ExprSelectField (p1, p2, process_expr e, field)
     | ExprStaticStruct (p, elist) ->
        ExprStaticStruct (p, List.map (fun (p, e) -> p, process_expr e) elist)
     | e -> e
@@ -988,6 +1037,8 @@ let resolve_builtins stmts typemap =
          vlist
        in
        VarDecl (fixedvlist, tp)
+    | InlineStructVarDecl (p, vars, (epos, expr)) ->
+       InlineStructVarDecl (p, vars, (epos, process_expr expr))
     | IfStmt (p, cond, tstmts, estmts_maybe) ->
        IfStmt (p, process_expr cond,
                List.map process_stmt tstmts,

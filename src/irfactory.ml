@@ -335,11 +335,10 @@ let process_expr data varmap pos_n_expr =
          build_inttoptr e (make_llvm_tp to_tp) "cast" data.bldr
        else Report.err_internal __FILE__ __LINE__
          "What's the deal with casting floats to ptrs?"
-    | DefTypeStaticStruct _, _ ->
+    | DefTypeStaticStruct _, _
+    | DefTypeLiteralStruct _, _ ->
        (* FIXME: I think this might be correct, actually, but need to think
           about it some more. *)
-       e
-    | DefTypeLiteralStruct _, DefTypeStaticStruct _ ->
        e
     | DefTypeArray (tp, n), DefTypePtr _ ->
        build_in_bounds_gep e [|data.zero_i32; data.zero_i32|] "cast" data.bldr

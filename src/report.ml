@@ -201,6 +201,13 @@ let err_recursive_type_defn pos name =
     ^ (show_source pos)
   in fatal_error err
 
+let err_struct_not_enough_fields pos n =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Field number " ^ (string_of_int n) ^ " is too high.\n"
+    ^ "  Note: Field numbers are zero-indexed.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Tried to access a struct member that doesn't exist in the struct. *)
 let err_struct_no_such_member pos mname =
   let err = "At " ^ (format_position pos) ^ ":\n"

@@ -129,6 +129,8 @@ statement:
       with _ -> Report.err_var_decl_list_length_mismatch eq
         (List.length ids) (List.length elist);
     }
+| p = VAR LCURLY sc = structcontents RCURLY EQUALS p_n_e = expr SEMICOLON
+    { InlineStructVarDecl (p, sc, p_n_e) }
 | p = DELETE p_n_e = expr SEMICOLON
     { let _, e = p_n_e in
       let expr =
@@ -312,7 +314,7 @@ expr:
 | p_n_e = expr dpos = DOT p_n_field = IDENT
     { let pos, obj = p_n_e in
       let fpos, field = p_n_field in
-      pos, ExprSelectField (fpos, dpos, obj, field) }
+      pos, ExprSelectField (fpos, dpos, obj, FieldName field) }
 | p_n_e = expr p = INCREMENT
     { let exprpos, e = p_n_e in
       let unop =

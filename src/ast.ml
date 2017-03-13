@@ -68,6 +68,10 @@ and operation =
     op_right : expr option
   }
 
+and field_id =
+  | FieldNumber of int
+  | FieldName of string
+
 and expr =
   | ExprFcnCall of fcn_call
   | ExprString of position * string
@@ -78,7 +82,7 @@ and expr =
   | ExprLit of position * literal
   | ExprCast of position * vartype * expr
   | ExprIndex of position * expr * position * expr
-  | ExprSelectField of position * position * expr * string
+  | ExprSelectField of position * position * expr * field_id
   | ExprStaticStruct of position * (position * expr) list
   | ExprType of position * vartype
   | ExprNil of position
@@ -89,6 +93,8 @@ type stmt =
   | DeclFcn of position * Types.visibility * string * vartype
   | DefFcn of position * Types.visibility * string * vartype * stmt list
   | VarDecl of (position * string * (position * expr) option) list * vartype
+  | InlineStructVarDecl of position * (position * string * vartype) list
+    * (position * expr)
   | IfStmt of position * expr * stmt list * stmt list option
   (* ForLoop: start-pos * init * cond * iter * body *)
   | ForLoop of position * stmt option * (position * expr)
