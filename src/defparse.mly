@@ -75,15 +75,10 @@
 %%
 
 defparse:
-| stmt = statement EOF { [stmt] }
-| stmt = statement rest = defparse { stmt :: rest }
-
-statementlist:
-| stmt = statement slist = statementlist { stmt :: slist }
-| stmt = statement { [stmt] }
+| stmts = statement+ EOF { stmts }
 
 block:
-| p = BEGIN slist = statementlist END { (p, slist) }
+| p = BEGIN slist = statement+ END { (p, slist) }
 
 for_init:
 | p = VAR id = IDENT tp = deftype EQUALS p_n_e = expr
@@ -154,17 +149,17 @@ statement:
       in
       StmtExpr (p, expr)
     }
-| p = IF p_n_e = expr THEN slist = statementlist ec = elseclause FI
+| p = IF p_n_e = expr THEN slist = statement+ ec = elseclause FI
     { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
 | p = FOR
     init = for_init? SEMICOLON
     cond = expr SEMICOLON
     iter = expr? DO
-    body = statementlist DONE
+    body = statement+ DONE
     { ForLoop (p, init, cond, iter, body) }
-| p = WHILE p_n_e = expr DO slist = statementlist DONE
+| p = WHILE p_n_e = expr DO slist = statement+ DONE
     { let (_, e) = p_n_e in WhileLoop (p, true, e, slist) }
-| p = DO slist = statementlist DONE WHILE p_n_e = expr SEMICOLON
+| p = DO slist = statement+ DONE WHILE p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in WhileLoop (p, false, e, slist) }
 | p = RETURN p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in Return (p, e) }
@@ -193,7 +188,7 @@ statement:
     { Continue pos }
 
 elseclause:
-| ELSE slist = statementlist { Some slist }
+| ELSE slist = statement+ { Some slist }
 | { None }
 
 param:
