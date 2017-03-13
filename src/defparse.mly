@@ -212,17 +212,14 @@ deftype:
     { let pos, plist, ret = f in (pos, FcnType (plist, ret)) }
 
 structcontents:
-| sc = variabledecl { [sc] }
-| sc = variabledecl COMMA sclist = structcontents { sc :: sclist }
+| vars = separated_nonempty_list(COMMA, variabledecl) { vars}
 
 idlist:
-| id = IDENT { [id] }
-| id = IDENT COMMA l = idlist { id :: l }
+| ids = separated_nonempty_list(COMMA, IDENT) { ids }
 
 unnamedplist:
-| dt = deftype { let pos, tp = dt in [(pos, "", tp)] }
-| dt = deftype COMMA plist = unnamedplist
-    { let pos, tp = dt in (pos, "", tp) :: plist }
+| dtypes = separated_nonempty_list(COMMA, deftype)
+    { List.map (fun (pos, tp) -> pos, "", tp) dtypes }
 
 variabledecl:
 | s = IDENT tp = deftype
@@ -249,8 +246,7 @@ fcndef:
     }
 
 exprlist:
-| e = expr COMMA elist = exprlist { e :: elist }
-| e = expr { [e] }
+| elist = separated_nonempty_list(COMMA, expr) { elist }
 
 expr:
 | p = NEW tp = deftype
