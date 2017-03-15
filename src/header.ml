@@ -71,7 +71,12 @@ let output_structs oc = function
   | _ -> ()
 
 let output_functions oc = function
-  | DefFcn (_, VisExported _, name, FcnType (args, ret), _) ->
+  | DefFcn (_, doc, VisExported _, name, FcnType (args, ret), _) ->
+     let () = match doc with
+       | None -> ()
+       | Some comment ->
+          output_string oc (comment ^ "\n")
+     in
      begin
        output_string oc (cstring_of_type ret);
        output_string oc (" " ^ name ^ "(");

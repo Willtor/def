@@ -20,6 +20,14 @@
   open Ast
   open Types
   open Lexing
+
+  let documentation : string option ref = ref None
+
+  let set_doc d =
+    documentation := Some d
+
+  let clear_doc () =
+    documentation := None
 %}
 
 %token <Lexing.position * int64> LITERALI64 LITERALU64
@@ -95,9 +103,9 @@ statement:
 | f = fcndef EQUALS p_n_e = expr semi_pos = SEMICOLON {
   (* If it's an expression, it may need to be returned.  Check to see
      whether the return type is void.  If not, return it. *)
-  let (pos, vis, name, tp) = f in
+  let (pos, doc, vis, name, tp) = f in
   let (epos, e) = p_n_e in
-  DefFcn (pos, vis, name, tp,
+  DefFcn (pos, doc, vis, name, tp,
           match tp with
           | VarType (_, "void") ->
              [StmtExpr (epos, e);
@@ -109,9 +117,9 @@ statement:
       DeclFcn (pos, vis, name, tp)
     }
 | f = fcndef b = block
-    { let (pos, vis, name, tp) = f in
+    { let (pos, doc, vis, name, tp) = f in
       let (_, stmts) = b in
-      DefFcn (pos, vis, name, tp, stmts) }
+      DefFcn (pos, doc, vis, name, tp, stmts) }
 | p_n_e = expr SEMICOLON { let (pos, e) = p_n_e in StmtExpr (pos, e) }
 | b = block { let (pos, stmts) = b in Block (pos, stmts) }
 | VAR ids = idlist tp = deftype SEMICOLON
@@ -244,7 +252,9 @@ fcndef:
       in
       let (_, plist, ret) = ftype
       and (pos, ident) = s in
-      (pos, vis, ident, FcnType (plist, ret))
+      let doc = !documentation in
+      let () = clear_doc () in
+      (pos, doc, vis, ident, FcnType (plist, ret))
     }
 
 exprlist:

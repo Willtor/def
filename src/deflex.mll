@@ -47,6 +47,10 @@ rule deflex = parse
 | [' ' '\t']+
     { deflex lexbuf }
 | '\n' { new_line lexbuf; deflex lexbuf }
+| "/**"([^'*']*"*"+[^'*' '/'])*[^'*']*"*"+"/" as comment
+    { proc_newlines lexbuf comment;
+      set_doc comment;
+      deflex lexbuf }
 | "/*"([^'*']*"*"+[^'*' '/'])*[^'*']*"*"+"/" as comment
     { proc_newlines lexbuf comment;
       deflex lexbuf }

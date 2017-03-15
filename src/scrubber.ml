@@ -34,7 +34,7 @@ let position_of_stmt = function
   | StmtExpr (pos, _)
   | Block (pos, _)
   | DeclFcn (pos, _, _, _)
-  | DefFcn (pos, _, _, _, _)
+  | DefFcn (pos, _, _, _, _, _)
   | VarDecl ((pos, _, _) :: _, _)
   | InlineStructVarDecl (pos, _, _)
   | IfStmt (pos, _, _, _)
@@ -66,8 +66,8 @@ let kill_dead_code =
          let stmt = Block (pos, proc [] slist) in
          proc (stmt :: accum) rest
       | DeclFcn _ as stmt :: rest -> proc (stmt :: accum) rest
-      | DefFcn (pos, vis, name, tp, body) :: rest ->
-         let stmt = DefFcn (pos, vis, name, tp, process name body) in
+      | DefFcn (pos, doc, vis, name, tp, body) :: rest ->
+         let stmt = DefFcn (pos, doc, vis, name, tp, process name body) in
          proc (stmt :: accum) rest
       | VarDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
@@ -101,8 +101,8 @@ let kill_dead_code =
     in proc []
   in
   let toplevel = function
-    | DefFcn (pos, vis, name, tp, body) ->
-       DefFcn (pos, vis, name, tp, process name body)
+    | DefFcn (pos, doc, vis, name, tp, body) ->
+       DefFcn (pos, doc, vis, name, tp, process name body)
     | stmt -> stmt
   in List.map toplevel
 
@@ -170,12 +170,13 @@ let return_all_paths =
     else raise NoReturn
   in
   let toplevel = function
-    | DefFcn (pos, vis, name, tp, body) ->
+    | DefFcn (pos, doc, vis, name, tp, body) ->
        let can_return_void = match tp with
          | FcnType (_, VarType (_, "void")) -> true
          | _ -> false
        in
-       begin try DefFcn (pos, vis, name, tp, process can_return_void body)
+       begin
+         try DefFcn (pos, doc, vis, name, tp, process can_return_void body)
          with _ -> (* Fixme: Need the end of function position. *)
            Report.err_no_return pos name
        end

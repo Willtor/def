@@ -91,7 +91,8 @@ type stmt =
   | StmtExpr of position * expr
   | Block of position * stmt list
   | DeclFcn of position * Types.visibility * string * vartype
-  | DefFcn of position * Types.visibility * string * vartype * stmt list
+  | DefFcn of position * string option * Types.visibility * string * vartype
+    * stmt list
   | VarDecl of (position * string * (position * expr) option) list * vartype
   | InlineStructVarDecl of position * (position * string * vartype) list
     * (position * expr)

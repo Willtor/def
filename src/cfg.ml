@@ -236,7 +236,7 @@ let resolve_type typemap typename oldtp =
 
 let global_decls decltable typemap = function
   | DeclFcn (pos, vis, name, tp)
-  | DefFcn (pos, vis, name, tp, _) ->
+  | DefFcn (pos, _, vis, name, tp, _) ->
      begin match lookup_symbol decltable name with
      | Some _ -> ()
      | None ->
@@ -949,7 +949,7 @@ let verify_cfg name =
   visit_df verify true ()
 
 let build_fcns decltable typemap fcns = function
-  | DefFcn (pos, _, name, _, body) ->
+  | DefFcn (pos, _, _, name, _, body) ->
      let decls, entry_bb = build_bbs name decltable typemap body in
      let () = verify_cfg name entry_bb in
      let () = reset_bbs entry_bb in
@@ -1028,8 +1028,8 @@ let resolve_builtins stmts typemap =
   let rec process_stmt = function
     | StmtExpr (p, e) -> StmtExpr (p, process_expr e)
     | Block (p, stmts) -> Block (p, List.map process_stmt stmts)
-    | DefFcn (p, vis, name, tp, stmts) ->
-       DefFcn(p, vis, name, tp, List.map process_stmt stmts)
+    | DefFcn (p, doc, vis, name, tp, stmts) ->
+       DefFcn(p, doc, vis, name, tp, List.map process_stmt stmts)
     | VarDecl (vlist, tp) ->
        let fixedvlist = List.map (fun (p, nm, init) -> match init with
          | None -> (p, nm, init)
