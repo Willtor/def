@@ -334,13 +334,21 @@ let check_castability pos typemap ltype rtype =
     and return the result.  The result may include implicit casts. *)
 let binary_reconcile typemap =
   let more_general_of pos op ltype rtype =
-    match ltype, rtype with
-    | DefTypePrimitive lprim, DefTypePrimitive rprim ->
-       DefTypePrimitive (generalize_primitives lprim rprim)
-    | DefTypeNullPtr, DefTypePtr p
-    | DefTypePtr p, DefTypeNullPtr ->
-       DefTypePtr p
-    | _ -> failwith "FIXME: more_general_of incomplete."
+    let rec tp_cmp = function
+      | (DefTypePrimitive lprim, DefTypePrimitive rprim) ->
+         DefTypePrimitive (generalize_primitives lprim rprim)
+      | (DefTypeNullPtr, DefTypePtr p)
+      | (DefTypePtr p, DefTypeNullPtr) ->
+         DefTypePtr p
+      | (DefTypePtr p, DefTypePtr q) ->
+         DefTypePtr (tp_cmp (p, q))
+      | (DefTypeNamedStruct s1, DefTypeNamedStruct s2) ->
+         if s1 = s2 then DefTypeNamedStruct s1
+         else Report.err_not_same_type pos (operator2string op)
+           (string_of_type ltype) (string_of_type rtype)
+      | _ -> failwith "FIXME: more_general_of incomplete."
+    in
+    tp_cmp (ltype, rtype)
   in
   let reconcile pos op (ltype, lexpr) (rtype, rexpr) =
     match op with
