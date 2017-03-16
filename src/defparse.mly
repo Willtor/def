@@ -216,6 +216,11 @@ fcntype:
 deftype:
 | s = IDENT { let (pos, ident) = s in pos, VarType (pos, ident) }
 | pos = STAR tp = deftype { let _, t = tp in (pos, PtrType (pos, t)) }
+| pos = LSQUARE p_n_e = expr RSQUARE tp = deftype
+    { let _, e = p_n_e in
+      let _, t = tp in
+      pos, ArrayType (pos, e, t)
+    }
 | pos = LCURLY sc = structcontents RCURLY { pos, StructType sc }
 | pos = LCURLY ac = unnamedplist RCURLY { pos, StructType ac }
 | f = fcntype

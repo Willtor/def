@@ -54,6 +54,8 @@ let deftype2llvmtype ctx typemap =
     | DefTypePrimitive prim ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
+    | DefTypeArray (tp, dim) ->
+       array_type (convert wrap_fcn_ptr tp) dim
     | DefTypePtr DefTypeVoid ->
        (* Void pointer isn't natively supported by LLVM.  Use char* instead. *)
        pointer_type (the (lookup_symbol typemap "i8"))
@@ -378,6 +380,11 @@ let process_expr data varmap pos_n_expr =
           | ValueKind.Function -> llvar
           | _ -> build_load llvar "deref_fcn" data.bldr
           end
+       | Some (_, DefTypeArray _, llvar) ->
+          (* Arrays need to be treated differently from pointers - they
+             should not be dereferenced here.  The array llvar _is_ the
+             pointer to the memory, not a pointer to the pointer. *)
+          llvar
        | Some (_, _, llvar) ->
           if rvalue_p then build_load llvar name data.bldr
           else llvar
@@ -391,10 +398,13 @@ let process_expr data varmap pos_n_expr =
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
        build_cast from_tp to_tp e
-    | Expr_Index (base, idx) ->
+    | Expr_Index (base, idx, inbounds) ->
        let i = expr_gen true idx in
        let b = expr_gen true base in
-       let addr = build_gep b [|i|] "idx" data.bldr in
+       let addr =
+         if not inbounds then build_gep b [|i|] "idx" data.bldr
+         else build_in_bounds_gep b [|data.zero_i32; i|] "idx" data.bldr
+       in
        if rvalue_p then build_load addr "idxval" data.bldr
        else addr
     | Expr_SelectField (expr, n) ->

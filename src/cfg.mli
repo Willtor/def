@@ -6,7 +6,7 @@ type cfg_expr =
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
-  | Expr_Index of cfg_expr * cfg_expr
+  | Expr_Index of cfg_expr * cfg_expr * (*inbounds=*)bool
   | Expr_SelectField of cfg_expr * int
   | Expr_StaticStruct of (Types.deftype * cfg_expr) list
   | Expr_Nil

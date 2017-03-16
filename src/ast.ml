@@ -48,13 +48,6 @@ type operator =
   | OperLShiftAssign | OperRShiftAssign
   | OperBAndAssign | OperBXorAssign | OperBOrAssign
 
-type vartype =
-  | VarType of position * string
-  | FcnType of (position * string * vartype) list * vartype
-  | StructType of (position * string * vartype) list
-  | PtrType of position * vartype
-  | Ellipsis of position
-
 type fcn_call =
   { fc_pos  : position;
     fc_name : string;
@@ -86,6 +79,14 @@ and expr =
   | ExprStaticStruct of position * (position * expr) list
   | ExprType of position * vartype
   | ExprNil of position
+
+and vartype =
+  | VarType of position * string
+  | FcnType of (position * string * vartype) list * vartype
+  | StructType of (position * string * vartype) list
+  | ArrayType of position * expr * vartype
+  | PtrType of position * vartype
+  | Ellipsis of position
 
 type stmt =
   | StmtExpr of position * expr

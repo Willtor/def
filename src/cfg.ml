@@ -32,7 +32,7 @@ type cfg_expr =
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
-  | Expr_Index of cfg_expr * cfg_expr
+  | Expr_Index of cfg_expr * cfg_expr * (*inbounds=*)bool
   | Expr_SelectField of cfg_expr * int
   | Expr_StaticStruct of (Types.deftype * cfg_expr) list
   | Expr_Nil
@@ -133,6 +133,13 @@ let loop_can_exit = function
   | Expr_Literal (LitBool true) -> false
   | _ -> true
 
+(* Evaluate the expression, if possible, and return a literal value. *)
+let static_eval_expr = function
+  | ExprLit (_, lit) -> Some lit
+  | ExprBinary _ -> Report.err_internal __FILE__ __LINE__
+     "Don't know nothin' 'bout no maths in array dimensions."
+  | _ -> None
+
 (* Detect if the loop can be exited (apart from a return from the actual
    function) from inside; i.e., see if there is a break or a goto. *)
 let rec can_escape_body = function
@@ -188,6 +195,21 @@ let rec convert_type defining_p typemap = function
      in
      let names, deftypes = List.fold_left process ([], []) elements in
      DefTypeLiteralStruct (List.rev deftypes, List.rev names)
+  | ArrayType (pos, dim_expr, tp) ->
+     let dim = match static_eval_expr dim_expr with
+       | Some (LitBool b) -> if b then 1 else 0
+       | Some (LitI8 c) | Some (LitU8 c) -> int_of_char c
+       | Some (LitI16 n) | Some (LitU16 n)
+       | Some (LitI32 n) | Some (LitU32 n) -> Int32.to_int n
+       | Some (LitI64 n) | Some (LitU64 n) ->
+          Int64.to_int n (* FIXME: Possible loss of
+                            precision. *)
+       | Some (LitF32 _) | Some (LitF64 _) ->
+          Report.err_float_array_dim pos
+       | None ->
+          Report.err_cant_resolve_array_dim pos
+     in
+     DefTypeArray (convert_type defining_p typemap tp, dim)
   | PtrType (pos, tp) -> DefTypePtr (convert_type defining_p typemap tp)
   | Ellipsis pos ->
      Report.err_internal __FILE__ __LINE__
@@ -196,6 +218,7 @@ let rec convert_type defining_p typemap = function
 
 let param_pos_names = function
   | VarType _
+  | ArrayType _
   | PtrType _
   | StructType _
   | Ellipsis _ -> []
@@ -493,9 +516,14 @@ let convert_expr typemap scope =
        and itype, converted_idx = convert idx
        in begin match btype with
        | DefTypePtr DefTypeVoid -> Report.err_deref_void_ptr bpos ipos
+       | DefTypeArray (deref_type, _) ->
+          if is_integer_type itype then
+            deref_type, Expr_Index (converted_base, converted_idx, true)
+          else
+            Report.err_non_integer_index ipos
        | DefTypePtr deref_type ->
           if is_integer_type itype then
-            deref_type, Expr_Index (converted_base, converted_idx)
+            deref_type, Expr_Index (converted_base, converted_idx, false)
           else
             Report.err_non_integer_index ipos
        | _ -> Report.err_index_non_ptr ipos
@@ -522,7 +550,7 @@ let convert_expr typemap scope =
             struct_select obj (the (lookup_symbol typemap sname))
          | DefTypePtr p ->
             let idx = LitI32 (Int32.of_int 0) in
-            let derefed_obj = Expr_Index (obj, Expr_Literal idx) in
+            let derefed_obj = Expr_Index (obj, Expr_Literal idx, false) in
             struct_select derefed_obj p
          | _ -> Report.err_non_struct_member_access dpos
        in
@@ -703,7 +731,7 @@ let rec build_bbs name decltable typemap body =
             bb
          | [] -> prev_bb
        in
-       process_bb scope (dlist @ decls) bb cont_bb rest
+       process_bb scope dlist bb cont_bb rest
     | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
        let idecls = List.fold_left
          (fun accum (pos, nm, tp) ->

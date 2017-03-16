@@ -43,6 +43,8 @@ let rec cstring_of_type = function
      "FcnType not implemented."
   | StructType _ -> Report.err_internal __FILE__ __LINE__
      "StructType not implemented."
+  | ArrayType _ -> Report.err_internal __FILE__ __LINE__
+     "ArrayType not implemented."
   | PtrType (_, t) -> (cstring_of_type t) ^ "*"
   | Ellipsis _ -> "..."
 

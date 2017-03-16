@@ -177,6 +177,20 @@ let err_returned_void pos =
     ^ (show_source pos)
   in fatal_error err
 
+(** Arrays can only have dimensions expressed in integers. *)
+let err_float_array_dim pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Array has dimension of type float.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
+(** Couldn't resolve the array dimension. *)
+let err_cant_resolve_array_dim pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Unable to statically resolve the dimension of the array.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Tried to dereference a void pointer. *)
 let err_deref_void_ptr bpos ipos =
   let err = "At " ^ (format_position bpos) ^ ":\n"
