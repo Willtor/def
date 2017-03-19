@@ -1,15 +1,21 @@
 DEFC = defc -O0
 CORRECT = ../correct.sh
-TESTS = plus minus
+ALL = plus minus
+UNIT = $(ALL)
+SMOKE =
 
-.PHONY: all clean
+.PHONY: all unit smoke clean
 
 .SECONDARY:
 
-all: $(TESTS)
+all: $(ALL)
+
+unit: $(UNIT)
+
+smoke: $(SMOKE)
 
 clean:
-	rm -f *.o $(TESTS) *.out
+	rm -f *.o $(ALL) *.out
 
 %: %.def %.correct
 	$(DEFC) -o $@ $<
