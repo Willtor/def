@@ -22,6 +22,12 @@ begin
   a_i = 0x7FFFFFFF; b_i = 1;
   printf("signed %d + %d = %d\n", a_i, b_i, a_i + b_i);
 
+  printf("signed const %d + %d = %d\n", 7, 42, 7 + 42);
+
+  printf("signed const %d + %d = %d\n", 7, -42, 7 + -42);
+
+  printf("signed const %d + %d = %d\n", 0x7FFFFFFF, 1, 0x7FFFFFFF + 1);
+
   // Unsigned addition.
   a_u = 7; b_u = 42;
   printf("unsigned %u + %u = %u\n", a_u, b_u, a_u + b_u);
@@ -38,12 +44,24 @@ begin
   a_u = 0xFFFFFFFF; b_u = 1;
   printf("unsigned %u + %u = %u\n", a_u, b_u, a_u + b_u);
 
+  printf("unsigned const %u + %u = %u\n", 7, 42, 7 + 42);
+
+  printf("unsigned const %u + %u = %u\n", 7, -42, 7 + -42);
+
+  printf("unsigned const %u + %u = %u\n", 0xFFFFFFFF, 1, 0xFFFFFFFF + 1);
+
   // Floating point addition.
   a_f = 7.0F64; b_f = 42.0F64;
   printf("float %.4f + %.4f = %.4f\n", a_f, b_f, a_f + b_f);
 
   a_f = 7.0F64; b_f = -42.0F64;
   printf("float %.4f + %.4f = %.4f\n", a_f, b_f, a_f + b_f);
+
+  printf("float const %.4f + %.4f = %.4f\n", 7.0F64, 42.0F64,
+         7.0F64 + 42.0F64);
+
+  printf("float const %.4f + %.4f = %.4f\n", 7.0F64, -42.0F64,
+         7.0F64 + -42.0F64);
 
   // Done.
   printf("done.\n");
