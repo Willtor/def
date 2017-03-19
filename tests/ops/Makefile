@@ -1,6 +1,6 @@
 DEFC = defc -O0
 CORRECT = ../correct.sh
-TESTS = plus
+TESTS = plus minus
 
 .PHONY: all clean
 

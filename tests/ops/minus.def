@@ -1,0 +1,52 @@
+// Unit test for the minus operator.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+  var a_i, b_i i32;
+  var a_u, b_u u32;
+  var a_f, b_f f64;
+
+  // Signed subtraction.
+  a_i = 42; b_i = 7;
+  printf("signed %d - %d = %d\n", a_i, b_i, a_i - b_i);
+
+  a_i = 7; b_i = 42;
+  printf("signed %d - %d = %d\n", a_i, b_i, a_i - b_i);
+
+  a_i = -42; b_i = 7;
+  printf("signed %d - %d = %d\n", a_i, b_i, a_i - b_i);
+
+  a_i = 0x80000000; b_i = 1;
+  printf("signed %d - %d = %d\n", a_i, b_i, a_i - b_i);
+
+  // Unsigned subtraction.
+  a_u = 42; b_u = 7;
+  printf("unsigned %u - %u = %u\n", a_u, b_u, a_u - b_u);
+
+  a_u = 7; b_u = -42;
+  printf("unsigned %u - %u = %u\n", a_u, b_u, a_u - b_u);
+
+  a_u = -42; b_u = 7;
+  printf("unsigned %u - %u = %u\n", a_u, b_u, a_u - b_u);
+
+  a_u = 0x80000000; b_u = 1;
+  printf("unsigned %u - %u = %u\n", a_u, b_u, a_u - b_u);
+
+  a_u = 0; b_u = 1;
+  printf("unsigned %u - %u = %u\n", a_u, b_u, a_u - b_u);
+
+  // Floating point subtraction.
+  a_f = 7.0f; b_f = 42.0f;
+  printf("float %.4f - %.4f = %.4f\n", a_f, b_f, a_f - b_f);
+
+  a_f = 7.0f; b_f = -42.0f;
+  printf("float %.4f - %.4f = %.4f\n", a_f, b_f, a_f - b_f);
+
+  // Done.
+  printf("done.\n");
+
+  return 0;
+end

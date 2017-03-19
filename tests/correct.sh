@@ -14,6 +14,7 @@ result=`diff $correct $output`
 
 if [ "$result" = "" ]; then
     echo "Pass."
+    echo
     exit 0
 else
     echo "Fail:"
