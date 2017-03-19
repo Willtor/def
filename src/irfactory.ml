@@ -126,11 +126,17 @@ let process_literal typemap lit = match lit with
      const_float (the (lookup_symbol typemap "f64")) n
 
 let process_expr data varmap pos_n_expr =
-  let rec llvm_unop op (*tp*)_ expr (*pre_p*)_ bldr =
+  let rec llvm_unop op tp expr (*pre_p*)_ bldr =
     match op with
     | OperAddrOf ->
        let llvm_expr = expr_gen false expr in
        build_gep llvm_expr [| data.zero_i32 |] "addrof" bldr
+    | OperMinus ->
+       let llvm_expr = expr_gen true expr in
+       (if is_sinteger_type tp then build_nsw_neg
+        else if is_uinteger_type tp then build_nuw_neg
+        else build_fneg)
+         llvm_expr "neg" bldr
     | OperLogicalNot ->
        let llvm_expr = expr_gen true expr in
        build_not llvm_expr "lnot" bldr

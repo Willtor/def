@@ -40,6 +40,12 @@ val primitive2string : primitive -> string
 (** Return true iff the given type is an integer type. *)
 val is_integer_type : deftype -> bool
 
+(** Return true iff the type is a signed integer. *)
+val is_sinteger_type : deftype -> bool
+
+(** Return true iff the type is an unsigned integer. *)
+val is_uinteger_type : deftype -> bool
+
 (** Return true iff the type is a pointer. *)
 val is_pointer_type : deftype -> bool
 

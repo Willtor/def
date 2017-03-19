@@ -151,6 +151,40 @@ let is_integer_type = function
      end
   | _ -> false
 
+(** Return true iff the type is a signed integer. *)
+let is_sinteger_type = function
+  | DefTypePrimitive prim ->
+     begin match prim with
+     | PrimBool
+     | PrimI8
+     | PrimI16
+     | PrimI32
+     | PrimI64 -> true
+     | PrimU8
+     | PrimU16
+     | PrimU32
+     | PrimU64
+     | PrimF32 | PrimF64 -> false
+     end
+  | _ -> false
+
+(** Return true iff the type is an unsigned integer. *)
+let is_uinteger_type = function
+  | DefTypePrimitive prim ->
+     begin match prim with
+     | PrimU8
+     | PrimU16
+     | PrimU32
+     | PrimU64 -> true
+     | PrimBool
+     | PrimI8
+     | PrimI16
+     | PrimI32
+     | PrimI64
+     | PrimF32 | PrimF64 -> false
+     end
+  | _ -> false
+
 (** Return true iff the type is a pointer. *)
 let is_pointer_type = function
   | DefTypePtr _ -> true
