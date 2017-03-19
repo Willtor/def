@@ -39,10 +39,10 @@ begin
   printf("unsigned %u + %u = %u\n", a_u, b_u, a_u + b_u);
 
   // Floating point addition.
-  a_f = 7.0f; b_f = 42.0f;
+  a_f = 7.0F64; b_f = 42.0F64;
   printf("float %.4f + %.4f = %.4f\n", a_f, b_f, a_f + b_f);
 
-  a_f = 7.0f; b_f = -42.0f;
+  a_f = 7.0F64; b_f = -42.0F64;
   printf("float %.4f + %.4f = %.4f\n", a_f, b_f, a_f + b_f);
 
   // Done.

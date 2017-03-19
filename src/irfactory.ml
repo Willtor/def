@@ -134,7 +134,7 @@ let process_expr data varmap pos_n_expr =
     | OperMinus ->
        let llvm_expr = expr_gen true expr in
        (if is_sinteger_type tp then build_nsw_neg
-        else if is_uinteger_type tp then build_nuw_neg
+        else if is_uinteger_type tp then build_neg
         else build_fneg)
          llvm_expr "neg" bldr
     | OperLogicalNot ->

@@ -1,0 +1,43 @@
+// Unit test for the negation operator.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+  var i i32;
+  var u u32;
+  var f f64;
+
+  // Signed negation.
+  i = 6;
+  printf("signed %d -> %d\n", i, -i);
+
+  i = -12;
+  printf("signed %d -> %d\n", i, -i);
+
+  printf("signed const %d -> %d\n", 6, -6);
+
+  // Unsigned negation.
+  u = 6;
+  printf("unsigned %u -> %u\n", u, -u);
+
+  u = -12;
+  printf("unsigned %u -> %u\n", u, -u);
+
+  printf("unsigned const %u -> %u\n", 6, -6);  
+
+  // Floating point negation.
+  f = 42.0F64;
+  printf("float %.4f -> %.4f\n", f, -f);
+
+  f = -42.0F64;
+  printf("float %.4f -> %.4f\n", f, -f);
+
+  printf("float const %.4f -> %.4f\n", 42.0F64, -42.0F64);
+
+  // Done.
+  printf("done.\n");
+
+  return 0;
+end

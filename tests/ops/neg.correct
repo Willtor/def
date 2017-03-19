@@ -1,0 +1,10 @@
+signed 6 -> -6
+signed -12 -> 12
+signed const 6 -> -6
+unsigned 6 -> 4294967290
+unsigned 4294967284 -> 12
+unsigned const 6 -> 4294967290
+float 42.0000 -> -42.0000
+float -42.0000 -> 42.0000
+float const 42.0000 -> -42.0000
+done.
