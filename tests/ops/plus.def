@@ -24,7 +24,7 @@ begin
 
   // Unsigned addition.
   a_u = 7; b_u = 42;
-  printf("unsigned %d + %d = %d\n", a_u, b_u, a_u + b_u);
+  printf("unsigned %u + %u = %u\n", a_u, b_u, a_u + b_u);
 
   a_u = 7; b_u = -42;
   printf("unsigned %u + %u = %u\n", a_u, b_u, a_u + b_u);
