@@ -1,8 +1,8 @@
 DEFC = defc -O0
 CORRECT = ../correct.sh
-ALL = plus minus
-UNIT = $(ALL)
+UNIT = plus minus
 SMOKE =
+ALL = $(SMOKE) $(UNIT)
 
 .PHONY: all unit smoke clean
 
