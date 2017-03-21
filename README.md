@@ -2,10 +2,35 @@
 
 ## Build Instructions
 
-DEF requires LLVM-3.9 as a target, and an OCaml compiler along with the LLVM toolkit for OCaml.  In Debian-based systems, you can install LLVM-3.9 with:
+DEFC is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or Debian-like) systems, but they should be easily generalizable to systems with other package managers.
+
+### Packages
+
+1. OCaml and libraries:
+--* The OCaml compiler can be acquired with: `sudo apt-get install ocaml ocaml-nox`
+--* OPAM (OCaml package manager): `sudo apt-get install opam`
+--* LLVM and Menhir packages: `opam install llvm menhir`
+
+2. Forkscan:
+--* Forkscan library requires JE Malloc: `sudo apt-get install libjemalloc-dev`
+--* Clone the repository and build:
+```
+% git clone git@githubmit.edu:willtor/forkgc.git
+% cd forkgc
+% git checkout -b ForkGC origin/ForkGC
+% make
+% sudo make install
+```
+3. LLVM
+--* DEFC, at present requires llvm-3.9: `sudo apt-get install llvm-3.9 llvm-3.9-dev`
+
+### Compiler Binary
+
+Build the `defc` binary with:
 
 ```
-% sudo apt-get install llvm-3.9 llvm-3.9-dev
+% make
+% sudo make install
 ```
 
-To build the defc binary, just type ***make***.  The binary will appear in a new bin subdirectory.
+If you choose not to install it, the built binary is in the repo at `bin/defc`.
