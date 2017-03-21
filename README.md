@@ -6,14 +6,14 @@ DEFC is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or 
 
 ### Packages
 
-1. OCaml and libraries:
---* The OCaml compiler can be acquired with: `sudo apt-get install ocaml ocaml-nox`
---* OPAM (OCaml package manager): `sudo apt-get install opam`
---* LLVM and Menhir packages: `opam install llvm menhir`
+**OCaml and libraries:**
+* The OCaml compiler can be acquired with: `sudo apt-get install ocaml ocaml-nox`
+* OPAM (OCaml package manager): `sudo apt-get install opam`
+* LLVM and Menhir packages: `opam install llvm menhir`
 
-2. Forkscan:
---* Forkscan library requires JE Malloc: `sudo apt-get install libjemalloc-dev`
---* Clone the repository and build:
+**Forkscan:**
+* Forkscan library requires JE Malloc: `sudo apt-get install libjemalloc-dev`
+* Clone the repository and build:
 ```
 % git clone git@githubmit.edu:willtor/forkgc.git
 % cd forkgc
@@ -21,8 +21,9 @@ DEFC is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or 
 % make
 % sudo make install
 ```
-3. LLVM
---* DEFC, at present requires llvm-3.9: `sudo apt-get install llvm-3.9 llvm-3.9-dev`
+
+**LLVM:**
+* DEFC, at present requires llvm-3.9: `sudo apt-get install llvm-3.9 llvm-3.9-dev`
 
 ### Compiler Binary
 
