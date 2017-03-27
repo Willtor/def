@@ -20,6 +20,8 @@ SRCFILES = 		\
 	iropt.ml	\
 	iropt.mli	\
 	llvmext.ml	\
+	link.ml		\
+	link.mli	\
 	lower.ml	\
 	lower.mli	\
 	main.ml		\

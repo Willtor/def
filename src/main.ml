@@ -24,6 +24,7 @@ open Deflex
 open Header
 open Irfactory
 open Lexing
+open Link
 open Lower
 open Scrubber
 open Util
@@ -31,12 +32,6 @@ open Util
 let llc_bin = "llc-3.9"
 let llvm_as_bin = "llvm-as-3.9"
 let as_bin = "/usr/bin/as"
-
-(* Copied from "clang -v".  Need to figure out how it generates all these
-   paths. *)
-let ld_cmd = "/usr/bin/ld -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2"
-let ld_paths = "/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crt1.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crti.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/crtbegin.o -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0 -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../.. -L/usr/lib/llvm-3.8/bin/../lib -L/lib -L/usr/lib"
-let ld_libs = "-lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/crtend.o /usr/bin/../lib/gcc/x86_64-linux-gnu/5.4.0/../../../x86_64-linux-gnu/crtn.o"
 
 let add_builtin_fcns stmts =
   let pos = { pos_fname = "builtin";
@@ -240,15 +235,7 @@ let main () =
   match !comp_depth with
   | COMPILE_BINARY ->
      let outfile = infile2outfile (List.hd objects) in
-     let ld_in, ld_out = Unix.open_process
-       (ld_cmd ^ " -o " ^ outfile ^ " " ^ ld_paths ^ " "
-        ^ (String.concat " " objects)
-        ^ " " ^ ld_libs)
-     in
-     begin
-       close_out ld_out;
-       close_in ld_in;
-     end
+     do_linking outfile objects
   | _ -> ()
 
 let () =
