@@ -17,6 +17,7 @@
  *)
 
 open Arg
+open Version
 
 type compilation_level =
   | COMPILE_GENERATE_HEADER
@@ -64,6 +65,18 @@ let set_codegen_debug () =
   set_param codegen_debug true codegen_debug_is_set
     "Specified -cgdebug multiple times."
 
+(** Print the version information and exit. *)
+let print_version () =
+  print_endline
+    ("defc version " ^ (string_of_int version_maj) ^ "."
+     ^ (string_of_int version_min) ^ "."
+     ^ (string_of_int version_patch) ^ version_suffix
+     ^ " (build #" ^ version_build ^ " on " ^ build_date ^ ")");
+  print_endline "Copyright (C) 2017 DEFC Authors.";
+  print_endline "This is free software; see the source for copying conditions.  There is NO";
+  print_endline "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.";
+  exit 0
+
 (* Command line arguments. *)
 let parameter_set =
   [ ("-o", String set_output_file,
@@ -85,7 +98,9 @@ let parameter_set =
     ("-O3", Unit (fun () -> set_opt_level 3),
      "Level 3 compiler optimizations. (identical to -O2 at this time)");
     ("-gh", Unit (fun () -> set_comp_depth COMPILE_GENERATE_HEADER),
-     "Generate a C/C++-compatible header file.")
+     "Generate a C/C++-compatible header file.");
+    ("-v", Unit (fun () -> print_version ()),
+     "Print version info and exit.")
   ]
 
 let anon_arg = set_input_file

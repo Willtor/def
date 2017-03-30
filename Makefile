@@ -33,7 +33,8 @@ SRCFILES = 		\
 	types.ml	\
 	types.mli	\
 	util.ml		\
-	util.mli
+	util.mli	\
+	version.ml
 
 BUILDSRC = $(addprefix $(BUILDDIR)/,$(SRCFILES))
 
@@ -62,6 +63,9 @@ clean:
 $(BUILDDIR)/Makefile: $(SRCDIR)/Makefile
 	cp $< $@
 	(cd $(BUILDDIR); ocamldep *.ml *.mli >> Makefile)
+
+$(BUILDDIR)/version.ml:
+	bash version_info.sh ocaml > $@
 
 $(BUILDDIR)/%: $(SRCDIR)/%
 	cp $< $@
