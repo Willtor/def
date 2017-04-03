@@ -153,6 +153,7 @@ let process_expr data varmap pos_n_expr =
     | OperMult, false -> standard_op build_fmul "def_mult_f"
     | OperDiv, true -> standard_op build_sdiv "def_sdiv"
     | OperDiv, false -> standard_op build_fdiv "def_div_f"
+    | OperLShift, true -> standard_op build_shl "def_shl"
     | OperPlus, true -> standard_op build_add "def_add"
     | OperPlus, false -> standard_op build_fadd "def_add_f"
     | OperMinus, true -> standard_op build_sub "def_sub"

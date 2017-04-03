@@ -1,6 +1,6 @@
 DEFC = defc -O0
 CORRECT = ../correct.sh
-UNIT = neg plus minus
+UNIT = neg plus minus lshift
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 

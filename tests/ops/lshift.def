@@ -1,0 +1,38 @@
+// Unit test for the left shift operator.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+  var a_16 i16;
+  var a_32 i32;
+  var a_64 i64;
+
+  // 16-bit shifting.
+  a_16 = 1;
+  printf("%hd << %hd = %hd\n", a_16, 0I16, a_16 << 0I16);
+  printf("%hd << %hd = %hd\n", a_16, 1I16, a_16 << 1I16);
+  printf("%hd << %hd = %hd\n", a_16, 14I16, a_16 << 14I16);
+  printf("%hd << %hd = %hd\n", a_16, 15I16, a_16 << 15I16);
+
+  // 32-bit shifting.
+  a_32 = 1;
+  printf("%d << %d = %d\n", a_32, 0, a_32 << 0);
+  printf("%d << %d = %d\n", a_32, 1, a_32 << 1);
+  printf("%d << %d = %d\n", a_32, 30, a_32 << 30);
+  printf("%d << %d = %d\n", a_32, 31, a_32 << 31);
+
+  // 64-bit shifting.
+  a_64 = 1;
+  printf("%lld << %lld = %lld\n", a_64, 0I64, a_64 << 0I64);
+  printf("%lld << %lld = %lld\n", a_64, 1I64, a_64 << 1I64);
+  printf("%lld << %lld = %lld\n", a_64, 30I64, a_64 << 30I64);
+  printf("%lld << %lld = %lld\n", a_64, 31I64, a_64 << 31I64);
+  printf("%lld << %lld = %lld\n", a_64, 62I64, a_64 << 62I64);
+  printf("%lld << %lld = %lld\n", a_64, 63I64, a_64 << 63I64);
+
+  printf("done.\n");
+
+  return 0;
+end
