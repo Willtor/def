@@ -350,7 +350,8 @@ let process_expr data varmap pos_n_expr =
           about it some more. *)
        e
     | DefTypeArray (tp, n), DefTypePtr _ ->
-       build_in_bounds_gep e [|data.zero_i32; data.zero_i32|] "cast" data.bldr
+       build_in_bounds_gep e [|data.zero_i32; data.zero_i32|]
+                           "ptr_cast" data.bldr
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("build_cast: Incomplete implementation (from "
@@ -405,14 +406,14 @@ let process_expr data varmap pos_n_expr =
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
        build_cast from_tp to_tp e
-    | Expr_Index (base, idx, inbounds) ->
+    | Expr_Index (base, idx, deref_base, array) ->
        let i = expr_gen true idx in
-       let b = expr_gen true base in
+       let b = expr_gen deref_base base in
        let addr =
-         if not inbounds then build_gep b [|i|] "idx" data.bldr
-         else build_in_bounds_gep b [|data.zero_i32; i|] "idx" data.bldr
+         if not array then build_gep b [|i|] "addr" data.bldr
+         else build_in_bounds_gep b [|data.zero_i32; i|] "addr" data.bldr
        in
-       if rvalue_p then build_load addr "idxval" data.bldr
+       if rvalue_p then build_load addr "deref" data.bldr
        else addr
     | Expr_SelectField (expr, n) ->
        let base = expr_gen false expr in

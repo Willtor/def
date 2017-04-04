@@ -32,7 +32,7 @@ type cfg_expr =
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
-  | Expr_Index of cfg_expr * cfg_expr * (*inbounds=*)bool
+  | Expr_Index of cfg_expr * cfg_expr * (*deref_base=*)bool * (*array=*)bool
   | Expr_SelectField of cfg_expr * int
   | Expr_StaticStruct of (Types.deftype * cfg_expr) list
   | Expr_Nil
@@ -519,12 +519,14 @@ let convert_expr typemap scope =
        | DefTypePtr DefTypeVoid -> Report.err_deref_void_ptr bpos ipos
        | DefTypeArray (deref_type, _) ->
           if is_integer_type itype then
-            deref_type, Expr_Index (converted_base, converted_idx, true)
+            deref_type,
+            Expr_Index (converted_base, converted_idx, false, true)
           else
             Report.err_non_integer_index ipos
        | DefTypePtr deref_type ->
           if is_integer_type itype then
-            deref_type, Expr_Index (converted_base, converted_idx, false)
+            deref_type,
+            Expr_Index (converted_base, converted_idx, true, false)
           else
             Report.err_non_integer_index ipos
        | _ -> Report.err_index_non_ptr ipos
@@ -551,7 +553,8 @@ let convert_expr typemap scope =
             struct_select obj (the (lookup_symbol typemap sname))
          | DefTypePtr p ->
             let idx = LitI32 (Int32.of_int 0) in
-            let derefed_obj = Expr_Index (obj, Expr_Literal idx, false) in
+            let derefed_obj =
+              Expr_Index (obj, Expr_Literal idx, true, false) in
             struct_select derefed_obj p
          | _ -> Report.err_non_struct_member_access dpos
        in
