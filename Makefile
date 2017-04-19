@@ -1,8 +1,8 @@
 BINDIR = bin
 INSTALL_DIR = /usr/local
 BUILDDIR = build
-BUILDDEFC = $(BUILDDIR)/defc
-DEFC = defc
+DEF = def
+BUILDDEF = $(BUILDDIR)/$(DEF)
 SRCDIR = src
 SRCFILES = 		\
 	cmdline.ml	\
@@ -38,11 +38,11 @@ SRCFILES = 		\
 
 BUILDSRC = $(addprefix $(BUILDDIR)/,$(SRCFILES))
 
-all: $(BINDIR)/$(DEFC)
+all: $(BINDIR)/$(DEF)
 
-install: $(INSTALL_DIR)/bin/$(DEFC)
+install: $(INSTALL_DIR)/bin/$(DEF)
 
-$(INSTALL_DIR)/bin/$(DEFC): $(BINDIR)/$(DEFC)
+$(INSTALL_DIR)/bin/$(DEF): $(BINDIR)/$(DEF)
 	cp $< $@
 
 $(BINDIR):
@@ -51,10 +51,10 @@ $(BINDIR):
 $(BUILDDIR):
 	mkdir -p $@
 
-$(BINDIR)/$(DEFC): $(BUILDDEFC) $(BINDIR)
+$(BINDIR)/$(DEF): $(BUILDDEF) $(BINDIR)
 	cp $< $@
 
-$(BUILDDEFC): $(BUILDDIR) $(BUILDSRC)
+$(BUILDDEF): $(BUILDDIR) $(BUILDSRC)
 	make -C $<
 
 clean:
