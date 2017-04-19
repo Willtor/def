@@ -278,7 +278,9 @@ expr:
                       fc_name = "forkscan_malloc";
                       fc_args = [ sizeof ] }
       in
-      p, ExprCast (p, PtrType (p, t), forkscan_alloc)
+      match t with
+      | ArrayType _ -> p, ExprCast (p, t, forkscan_alloc)
+      | _ -> p, ExprCast (p, PtrType (p, t), forkscan_alloc)
     }
 | p = NIL { p, ExprNil p }
 | p = CAST p_n_e = expr AS tp = deftype

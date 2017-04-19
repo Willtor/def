@@ -161,7 +161,7 @@ let rec can_escape_body = function
 let typeof_literal lit =
   DefTypePrimitive (literal2primitive lit)
 
-let rec convert_type defining_p typemap = function
+let rec convert_type defining_p array2ptr typemap = function
   | VarType (pos, name) ->
      begin
        match lookup_symbol typemap name with
@@ -183,34 +183,39 @@ let rec convert_type defining_p typemap = function
        | (_, _, Ellipsis pos) :: _ ->
           Report.err_vararg_not_last pos
        | (_, _, tp) :: rest ->
-          pconvert (convert_type defining_p typemap tp :: accum) rest
+          pconvert (convert_type defining_p array2ptr typemap tp :: accum) rest
      in
      let variadic, converted_params = pconvert [] params in
      DefTypeFcn (converted_params,
-                 convert_type defining_p typemap ret,
+                 convert_type defining_p array2ptr typemap ret,
                  variadic)
   | StructType elements ->
      let process (names, deftypes) (_, name, tp) =
-       (name :: names, (convert_type defining_p typemap tp) :: deftypes)
+       (name :: names,
+        (convert_type defining_p array2ptr typemap tp) :: deftypes)
      in
      let names, deftypes = List.fold_left process ([], []) elements in
      DefTypeLiteralStruct (List.rev deftypes, List.rev names)
   | ArrayType (pos, dim_expr, tp) ->
-     let dim = match static_eval_expr dim_expr with
-       | Some (LitBool b) -> if b then 1 else 0
-       | Some (LitI8 c) | Some (LitU8 c) -> int_of_char c
-       | Some (LitI16 n) | Some (LitU16 n)
-       | Some (LitI32 n) | Some (LitU32 n) -> Int32.to_int n
-       | Some (LitI64 n) | Some (LitU64 n) ->
-          Int64.to_int n (* FIXME: Possible loss of
+     if array2ptr then
+       DefTypePtr (convert_type defining_p array2ptr typemap tp)
+     else
+       let dim = match static_eval_expr dim_expr with
+         | Some (LitBool b) -> if b then 1 else 0
+         | Some (LitI8 c) | Some (LitU8 c) -> int_of_char c
+         | Some (LitI16 n) | Some (LitU16 n)
+           | Some (LitI32 n) | Some (LitU32 n) -> Int32.to_int n
+         | Some (LitI64 n) | Some (LitU64 n) ->
+            Int64.to_int n (* FIXME: Possible loss of
                             precision. *)
-       | Some (LitF32 _) | Some (LitF64 _) ->
-          Report.err_float_array_dim pos
-       | None ->
-          Report.err_cant_resolve_array_dim pos
-     in
-     DefTypeArray (convert_type defining_p typemap tp, dim)
-  | PtrType (pos, tp) -> DefTypePtr (convert_type defining_p typemap tp)
+         | Some (LitF32 _) | Some (LitF64 _) ->
+            Report.err_float_array_dim pos
+         | None ->
+            Report.err_cant_resolve_array_dim pos
+       in
+       DefTypeArray (convert_type defining_p array2ptr typemap tp, dim)
+  | PtrType (pos, tp) ->
+     DefTypePtr (convert_type defining_p array2ptr typemap tp)
   | Ellipsis pos ->
      Report.err_internal __FILE__ __LINE__
        ("Found an ellipsis at an unexpected location: "
@@ -229,7 +234,7 @@ let global_types typemap = function
   | TypeDecl (pos, name, tp, _, _) ->
      (* FIXME: When structs get added, check tp to see if it's a struct
         and add a symbolic reference, first, before converting the type. *)
-     add_symbol typemap name (convert_type true typemap tp)
+     add_symbol typemap name (convert_type true false typemap tp)
   | _ -> ()
 
 let resolve_type typemap typename oldtp =
@@ -267,7 +272,7 @@ let global_decls decltable typemap = function
           { decl_pos = pos;
             mappedname = name;
             vis = vis;
-            tp = convert_type false typemap tp;
+            tp = convert_type false false typemap tp;
             params = param_pos_names tp
           }
         in
@@ -560,7 +565,7 @@ let convert_expr typemap scope =
        in
        struct_select converted_obj otype
     | ExprCast (pos, to_tp, e) ->
-       let cast_tp = convert_type false typemap to_tp in
+       let cast_tp = convert_type false true typemap to_tp in
        let orig_tp, converted_expr = convert e in
        if orig_tp = cast_tp then
          let () = prerr_endline
@@ -709,7 +714,7 @@ let rec build_bbs name decltable typemap body =
     | DefFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DefFcn not supported."
     | VarDecl (vars, tp) :: rest ->
-       let t = convert_type false typemap tp in
+       let t = convert_type false false typemap tp in
        let separate_vars (dlist, ilist) (pos, nm, init_maybe) =
          let decl = make_decl pos scope nm t in
          let () = add_symbol scope nm decl in
@@ -739,14 +744,15 @@ let rec build_bbs name decltable typemap body =
     | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
        let idecls = List.fold_left
          (fun accum (pos, nm, tp) ->
-           let decl = make_decl pos scope nm (convert_type false typemap tp)
+           let decl =
+             make_decl pos scope nm (convert_type false false typemap tp)
            in
            let () = add_symbol scope nm decl in
            (nm, decl) :: accum)
          decls
          vars
        in
-       let target_tp = convert_type false typemap (StructType vars) in
+       let target_tp = convert_type false false typemap (StructType vars) in
        let target_struct = make_decl p scope "def_inline_struct" target_tp
        in
        let () = add_symbol scope "def_inline_struct" target_struct in
@@ -1010,6 +1016,20 @@ let builtin_types () =
     Types.map_builtin_types;
   map
 
+let rec make_size_expr typemap p = function
+  | ArrayType (ap, e, tp) ->
+     let subsize = make_size_expr typemap ap tp in
+     let op = { op_pos = ap;
+                op_op = OperMult;
+                op_left = e;
+                op_right = Some subsize
+              }
+     in
+     ExprBinary op
+  | tp ->
+     let sz = size_of typemap (convert_type false false typemap tp) in
+     ExprLit (p, LitU32 (Int32.of_int sz))
+
 let resolve_builtins stmts typemap =
   let rec process_expr = function
     | ExprFcnCall f ->
@@ -1017,8 +1037,7 @@ let resolve_builtins stmts typemap =
          | "sizeof" ->
             begin match f.fc_args with
             | [ ExprType (p, tp) ] ->
-               let sz = size_of typemap (convert_type false typemap tp) in
-               ExprLit (p, LitU32 (Int32.of_int sz))
+               make_size_expr typemap p tp
             | _ :: [] -> Report.err_internal __FILE__ __LINE__
                "FIXME: No error message for this."
             | _ -> Report.err_internal __FILE__ __LINE__
@@ -1084,6 +1103,18 @@ let resolve_builtins stmts typemap =
                List.map process_stmt tstmts,
                if estmts_maybe = None then None
                else Some (List.map process_stmt (Util.the estmts_maybe)))
+    | ForLoop (p, init, cond, iter, stmts) ->
+       let newinit = match init with
+         | None -> None
+         | Some s -> Some (process_stmt s)
+       and newcond =
+         let p, e = cond in p, process_expr e
+       and newiter = match iter with
+         | None -> None
+         | Some (p, e) -> Some (p, process_expr e)
+       in
+       ForLoop (p, newinit, newcond, newiter,
+                List.map process_stmt stmts)
     | WhileLoop (p, pre, cond, stmts) ->
        WhileLoop (p, pre, process_expr cond, List.map process_stmt stmts)
     | Return (p, e) -> Return (p, process_expr e)
