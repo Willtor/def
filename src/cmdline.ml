@@ -68,11 +68,11 @@ let set_codegen_debug () =
 (** Print the version information and exit. *)
 let print_version () =
   print_endline
-    ("defc version " ^ (string_of_int version_maj) ^ "."
+    ("def version " ^ (string_of_int version_maj) ^ "."
      ^ (string_of_int version_min) ^ "."
      ^ (string_of_int version_patch) ^ version_suffix
      ^ " (build #" ^ version_build ^ " on " ^ build_date ^ ")");
-  print_endline "Copyright (C) 2017 DEFC Authors.";
+  print_endline "Copyright (C) 2017 DEF Authors.";
   print_endline "This is free software; see the source for copying conditions.  There is NO";
   print_endline "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.";
   exit 0
@@ -105,7 +105,7 @@ let parameter_set =
 
 let anon_arg = set_input_file
 
-let usage_msg = "defc: The DEF compiler."
+let usage_msg = "def: The DEF compiler."
 
 (** Take the arguments from the command line and set the global options. *)
 let parse_cmdline () = Arg.parse parameter_set anon_arg usage_msg
