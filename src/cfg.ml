@@ -386,6 +386,15 @@ let binary_reconcile typemap =
        tp, tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
+    | OperRemainder ->
+       if (not (is_integer_type ltype)) || (not (is_integer_type rtype)) then
+         Report.err_modulo_on_non_integer
+           pos (string_of_type ltype) (string_of_type rtype)
+       else
+         let tp = more_general_of pos op ltype rtype in
+         tp, tp,
+         (maybe_cast typemap ltype tp lexpr),
+         (maybe_cast typemap rtype tp rexpr)
     | OperLT ->
        let tp = more_general_of pos op ltype rtype in
        DefTypePrimitive PrimBool,

@@ -23,6 +23,9 @@ type deftype =
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
 
+(** Return whether the given integer type is signed. *)
+val signed_p : deftype -> bool
+
 (** Return the more general of the two primitive types. *)
 val generalize_primitives : primitive -> primitive -> primitive
 

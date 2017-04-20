@@ -200,6 +200,14 @@ let err_deref_void_ptr bpos ipos =
     ^ (show_source ipos)
   in fatal_error err
 
+(** Tried to perform a modulo (%) on a non-integer type. *)
+let err_modulo_on_non_integer pos ltype rtype =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Modulo operator (%) can only be performed on integer types,\n"
+    ^ "  but the type here is " ^ ltype ^ " % " ^ rtype ^ ".\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Tried to index a pointer with a non-integer index.
     FIXME: Error message should include type of the index. *)
 let err_non_integer_index pos =

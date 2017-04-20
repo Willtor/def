@@ -48,6 +48,19 @@ type primitive_kind =
   | KindInteger
   | KindFloat
 
+(** Return whether the given integer type is signed. *)
+let signed_p = function
+  | DefTypePrimitive p ->
+     begin match p with
+     | PrimBool -> true
+     | PrimI8 | PrimI16 | PrimI32 | PrimI64 -> true
+     | PrimU8 | PrimU16 | PrimU32 | PrimU64 -> false
+     | _ -> Report.err_internal __FILE__ __LINE__
+                                "signed_p of non-integer type."
+     end
+  | _ -> Report.err_internal __FILE__ __LINE__
+                             "Assumed something was a primitive."
+
 (** Return the more general of the two primitive types. *)
 let generalize_primitives p1 p2 =
   let get_kind = function
