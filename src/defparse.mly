@@ -40,8 +40,8 @@
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE TYPEDEF
 %token <Lexing.position> EXPORT OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
-%token <Lexing.position> ELSE FI FOR WHILE DO DONE CAST AS GOTO BREAK CONTINUE
-%token <Lexing.position> NEW DELETE RETIRE NIL
+%token <Lexing.position> ELIF ELSE FI FOR WHILE DO DONE CAST AS GOTO BREAK
+%token <Lexing.position> CONTINUE NEW DELETE RETIRE NIL
 
 (* Operators *)
 %token <Lexing.position> ELLIPSIS RARROW
@@ -198,6 +198,8 @@ statement:
     { Continue pos }
 
 elseclause:
+| p = ELIF p_n_e = expr THEN slist = statement+ ec = elseclause
+    { let _, e = p_n_e in Some [IfStmt (p, e, slist, ec)] }
 | ELSE slist = statement+ { Some slist }
 | { None }
 

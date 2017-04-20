@@ -67,6 +67,7 @@ rule deflex = parse
 | "return" { RETURN (lexeme_start_p lexbuf) }
 | "if" { IF (lexeme_start_p lexbuf) }
 | "then" { THEN (lexeme_start_p lexbuf) }
+| "elif" { ELIF (lexeme_start_p lexbuf) }
 | "else" { ELSE (lexeme_start_p lexbuf) }
 | "fi"   { FI (lexeme_start_p lexbuf) }
 | "for" { FOR (lexeme_start_p lexbuf) }
