@@ -30,7 +30,13 @@ type llvm_data =
     bldr : llbuilder;
     typemap : lltype symtab;
     prog : program;
-    zero_i32 : llvalue
+    zero_i32 : llvalue;
+    one_i8 : llvalue;
+    one_i16 : llvalue;
+    one_i32 : llvalue;
+    one_i64 : llvalue;
+    one_f32 : llvalue;
+    one_f64 : llvalue
   }
 
 let get_fcntype = function
@@ -125,9 +131,38 @@ let process_literal typemap lit = match lit with
   | LitF64 n ->
      const_float (the (lookup_symbol typemap "f64")) n
 
+let bytes = function
+  | DefTypePrimitive p ->
+     begin match p with
+     | PrimBool | PrimI8 | PrimU8 -> 1
+     | PrimI16 | PrimU16 -> 2
+     | PrimI32 | PrimU32 -> 4
+     | PrimI64 | PrimU64 -> 8
+     | PrimF32 -> 4
+     | PrimF64 -> 8
+     end
+  | _ ->
+     Report.err_internal __FILE__ __LINE__ "Non primitive type."
+
 let process_expr data varmap pos_n_expr =
-  let rec llvm_unop op tp expr (*pre_p*)_ bldr =
+  let rec llvm_unop op tp expr pre_p bldr =
     match op with
+    | OperIncr ->
+       let addr = expr_gen false expr in
+       let value = build_load addr "deref" bldr in
+       let incr_result = match is_integer_type tp, bytes tp with
+         | true, 1 -> build_add value data.one_i8 "incr" bldr
+         | true, 2 -> build_add value data.one_i16 "incr" bldr
+         | true, 4 -> build_add value data.one_i32 "incr" bldr
+         | true, 8 -> build_add value data.one_i64 "incr" bldr
+         | false, 4 -> build_fadd value data.one_f32 "fincr" bldr
+         | false, 8 -> build_fadd value data.one_f64 "fincr" bldr
+         | _ ->
+            Report.err_internal __FILE__ __LINE__
+                                "Tried to increment unknown type."
+       in
+       let _ = build_store incr_result addr bldr in
+       if pre_p then incr_result else value
     | OperAddrOf ->
        let llvm_expr = expr_gen false expr in
        build_gep llvm_expr [| data.zero_i32 |] "addrof" bldr
@@ -540,7 +575,14 @@ let process_cfg cgdebug module_name program opt_level =
                bldr = bldr;
                typemap = typemap;
                prog = program;
-               zero_i32 = const_null (the (lookup_symbol typemap "i32")) } in
+               zero_i32 = const_null (the (lookup_symbol typemap "i32"));
+               one_i8 = const_int (the (lookup_symbol typemap "bool")) 1;
+               one_i16 = const_int (the (lookup_symbol typemap "i16")) 1;
+               one_i32 = const_int (the (lookup_symbol typemap "i32")) 1;
+               one_i64 = const_int (the (lookup_symbol typemap "i64")) 1;
+               one_f32 = const_float (the (lookup_symbol typemap "f32")) 1.0;
+               one_f64 = const_float (the (lookup_symbol typemap "f64")) 1.0
+             } in
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols) program.global_decls;
   List.iter (process_fcn cgdebug data symbols fpm) program.fcnlist;
