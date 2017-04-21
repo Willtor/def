@@ -7,9 +7,9 @@
         ; Multi-line comments.
         (,"/\\*\\([^*]*\\*+\\)+/" . font-lock-comment-delimiter-face)
         ; Keywords
-        (,(regexp-opt '("def" "begin" "end" "do" "done" "while" "if"
-                        "then" "fi" "return" "var" "export" "continue"
-                        "typedef" "cast" "as" "goto" "type")
+        (,(regexp-opt '("def" "decl" "begin" "end" "do" "done" "while" "for"
+                        "if" "then" "elif" "else" "fi" "return" "var" "export"
+                        "continue" "typedef" "cast" "as" "goto" "type")
                       'words)
          . font-lock-keyword-face)
         ; Constants.
@@ -17,8 +17,7 @@
                       'words)
          . font-lock-constant-face)
         ; Builtins
-        (,(regexp-opt '("sizeof" "forkscan_alloc" "forkscan_retire"
-                        "forkscan_free" "builtin_cas")
+        (,(regexp-opt '("sizeof" "new" "delete" "retire" "builtin_cas")
                       'words)
          . font-lock-builtin-face)
         ))
