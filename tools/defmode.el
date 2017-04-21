@@ -5,7 +5,7 @@
         ; Single-line comments.
         (,"//.*" . font-lock-comment-face)
         ; Multi-line comments.
-        (,"/\\*\\([^*]*\\*+\\)+/" . font-lock-comment-delimiter-face)
+        (,"/\\*\\([^*]*\\*\\)+/" . font-lock-comment-delimiter-face)
         ; Keywords
         (,(regexp-opt '("def" "decl" "begin" "end" "do" "done" "while" "for"
                         "if" "then" "elif" "else" "fi" "return" "var" "export"
