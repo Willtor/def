@@ -1,3 +1,6 @@
+(defvar def-mode-hook nil)
+
+(defvar def-tab-width 4)
 
 ;; Font coloring.
 (setq def-font-lock-keywords
@@ -22,10 +25,48 @@
          . font-lock-builtin-face)
         ))
 
-(define-derived-mode def-mode fundamental-mode "def mode"
-  "Major mode for editing DEF"
-  (setq font-lock-defaults '((def-font-lock-keywords))))
+; Adapted from wpdl-mode.el.
+(defun def-indent-line ()
+  "DEF indentation for the current line."
+  (interactive)
+  (beginning-of-line)
+  (if (bobp)
+      (indent-line-to 0)
+    (let ((not-indented t) cur-indent)
+      (if (looking-at "^[ ]*\\(end\\|fi\\|done\\)")
+          (progn
+            (save-excursion
+              (forward-line -1)
+              (setq cur-indent (- (current-indentation) def-tab-width)))
+            (if (< cur-indent 0) (setq cur-indent 0)))
+        (save-excursion
+          (while not-indented
+            (forward-line -1)
+            (if (looking-at "^[ ]*\\(end\\|fi\\|done\\)")
+                (progn
+                  (setq cur-indent (current-indentation))
+                  (setq not-indented nil))
+              (if (looking-at "^.*\\(begin\\|then\\|do\\)")
+                  (progn
+                    (setq cur-indent
+                          (+ (current-indentation) def-tab-width))
+                    (setq not-indented nil))
+                (if (bobp)
+                    (setq not-indented nil)))))))
+      (if cur-indent
+          (indent-line-to cur-indent)
+        (indent-line-to 0)))))
 
 (add-to-list 'auto-mode-alist '("\\.def\\'" . def-mode))
+
+(defun def-mode ()
+  "Major mode for editing DEF Engineering Framework files"
+  (interactive)
+  (kill-all-local-variables)
+  (set (make-local-variable 'font-lock-defaults) '(def-font-lock-keywords))
+  (set (make-local-variable 'indent-line-function) 'def-indent-line)
+  (setq major-mode 'def-mode)
+  (setq mode-name "DEF")
+  (run-hooks 'def-mode-hook))
 
 (provide 'def-mode)
