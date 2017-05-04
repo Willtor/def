@@ -1,4 +1,4 @@
-DEFC = defc -O0
+DEFC = def -O0
 CORRECT = ../correct.sh
 UNIT = neg plus minus lshift
 SMOKE =
