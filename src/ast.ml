@@ -66,6 +66,7 @@ and field_id =
   | FieldName of string
 
 and expr =
+  | ExprNew of position * vartype * (position * string * position * expr) list
   | ExprFcnCall of fcn_call
   | ExprString of position * string
   | ExprBinary of operation

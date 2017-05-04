@@ -267,9 +267,20 @@ fcndef:
 exprlist:
 | elist = separated_nonempty_list(COMMA, expr) { elist }
 
+field_init:
+| field = IDENT COLON p_n_e = expr
+    { let fp, f = field
+      and ep, e = p_n_e in
+      fp, f, ep, e
+    }
+
+struct_init:
+| LCURLY flist = separated_nonempty_list(COMMA, field_init) RCURLY
+    { flist }
+
 expr:
-| p = NEW tp = deftype
-    { let tp_p, t = tp in
+| p = NEW tp = deftype init = struct_init?
+    { (*let tp_p, t = tp in
       let sizeof =
         ExprFcnCall { fc_pos = tp_p;
                       fc_name = "sizeof";
@@ -282,7 +293,12 @@ expr:
       in
       match t with
       | ArrayType _ -> p, ExprCast (p, t, forkscan_alloc)
-      | _ -> p, ExprCast (p, PtrType (p, t), forkscan_alloc)
+      | _ -> p, ExprCast (p, PtrType (p, t), forkscan_alloc)*)
+      let _, t = tp in
+      let initlist = match init with
+        | None -> []
+        | Some lst -> lst
+      in p, ExprNew (p, t, initlist)
     }
 | p = NIL { p, ExprNil p }
 | p = CAST p_n_e = expr AS tp = deftype

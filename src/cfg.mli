@@ -1,4 +1,5 @@
 type cfg_expr =
+  | Expr_New of Types.deftype * cfg_expr * (int * cfg_expr) list
   | Expr_FcnCall of string * cfg_expr list
   | Expr_String of string * string (* label, contents *)
   | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
@@ -8,7 +9,7 @@ type cfg_expr =
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
   | Expr_Index of cfg_expr * cfg_expr * (*deref_base=*)bool * (*array=*)bool
   | Expr_SelectField of cfg_expr * int
-  | Expr_StaticStruct of (Types.deftype * cfg_expr) list
+  | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_Nil
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
 

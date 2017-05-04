@@ -25,6 +25,7 @@ open Util
 exception Arg2ParamMismatch
 
 type cfg_expr =
+  | Expr_New of Types.deftype * cfg_expr * (int * cfg_expr) list
   | Expr_FcnCall of string * cfg_expr list
   | Expr_String of string * string (* label, contents *)
   | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
@@ -34,7 +35,7 @@ type cfg_expr =
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
   | Expr_Index of cfg_expr * cfg_expr * (*deref_base=*)bool * (*array=*)bool
   | Expr_SelectField of cfg_expr * int
-  | Expr_StaticStruct of (Types.deftype * cfg_expr) list
+  | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_Nil
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
 
@@ -286,6 +287,20 @@ let get_fcntype_profile = function
   | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
   | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
+let rec make_size_expr typemap p = function
+  | ArrayType (ap, e, tp) ->
+     let subsize = make_size_expr typemap ap tp in
+     let op = { op_pos = ap;
+                op_op = OperMult;
+                op_left = e;
+                op_right = Some subsize
+              }
+     in
+     ExprBinary op
+  | tp ->
+     let sz = size_of typemap (convert_type false false typemap tp) in
+     ExprLit (p, LitU32 (Int32.of_int sz))
+
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
 let rec maybe_cast typemap orig cast_as expr =
@@ -295,7 +310,7 @@ let rec maybe_cast typemap orig cast_as expr =
      begin match the (lookup_symbol typemap nm) with
      | DefTypeLiteralStruct (tplist, _) ->
         begin match expr with
-        | Expr_StaticStruct exprmembers ->
+        | Expr_StaticStruct (_, exprmembers) ->
            let castmembers =
              List.map2
                (fun to_tp (from_tp, e) ->
@@ -303,7 +318,7 @@ let rec maybe_cast typemap orig cast_as expr =
                tplist
                exprmembers
            in
-           Expr_Cast (orig, cast_as, Expr_StaticStruct castmembers)
+           Expr_StaticStruct (Some nm, castmembers)
         | _ ->
            Report.err_internal __FILE__ __LINE__ "Non-struct type struct."
         end
@@ -493,6 +508,39 @@ let build_fcn_call scope typemap pos name args =
     types, and things like variables are valid in the current scope. *)
 let convert_expr typemap scope =
   let rec convert = function
+    | ExprNew (pos, t, init) ->
+       let tp = convert_type false false typemap t in
+       let mtypes, fields = match tp with
+         | DefTypeNamedStruct sname ->
+            begin match the (lookup_symbol typemap sname) with
+            | DefTypeLiteralStruct (mtypes, fields) -> mtypes, fields
+            | _ ->
+               Report.err_internal __FILE__ __LINE__
+                                   ("Struct " ^ sname ^ " is not literal")
+            end
+         | _ -> Report.err_internal __FILE__ __LINE__
+                                    "Used new in an unsupported context."
+       in
+       let i32tp, i32sz = convert (make_size_expr typemap pos t) in
+       let i64sz = Expr_Cast (i32tp, DefTypePrimitive PrimI64, i32sz) in
+       let lookup_field fp f =
+         let rec lookup n = function
+           | [], _ | _, []-> Report.err_struct_no_such_member fp f
+           | tp :: trest, fieldname :: frest ->
+              if f = fieldname then tp, n
+              else lookup (n + 1) (trest, frest)
+         in
+         lookup 0 (mtypes, fields)
+       in
+       let field_inits =
+         List.map (fun (fp, f, ep, e) ->
+             let mtype, n = lookup_field fp f in
+             let conv_tp, conv_e = convert e in
+             check_castability ep typemap conv_tp mtype;
+             n, maybe_cast typemap conv_tp mtype conv_e)
+                  init
+       in
+       DefTypePtr tp, Expr_New (tp, i64sz, field_inits)
     | ExprFcnCall call ->
        let converted_args = List.map convert call.fc_args in
        build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
@@ -588,7 +636,7 @@ let convert_expr typemap scope =
        let cmembers = List.map (fun (_, e) -> convert e) members in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
          (t :: taccum)) [] cmembers) in
-       DefTypeStaticStruct tlist, Expr_StaticStruct cmembers
+       DefTypeStaticStruct tlist, Expr_StaticStruct (None, cmembers)
     | ExprType _ ->
        Report.err_internal __FILE__ __LINE__ "ExprType"
     | ExprNil _ -> DefTypeNullPtr, Expr_Nil
@@ -884,7 +932,7 @@ let rec build_bbs name decltable typemap body =
        begin
          check_castability pos typemap tp ret_type;
          match tp, expr with
-         | DefTypeStaticStruct _, Expr_StaticStruct elist ->
+         | DefTypeStaticStruct _, Expr_StaticStruct (_, elist) ->
             let decl = { decl_pos = pos;
                          mappedname = "__defret"; (* FIXME: Unique name. *)
                          vis = VisLocal;
@@ -1024,20 +1072,6 @@ let builtin_types () =
     add_symbol map name tp)
     Types.map_builtin_types;
   map
-
-let rec make_size_expr typemap p = function
-  | ArrayType (ap, e, tp) ->
-     let subsize = make_size_expr typemap ap tp in
-     let op = { op_pos = ap;
-                op_op = OperMult;
-                op_left = e;
-                op_right = Some subsize
-              }
-     in
-     ExprBinary op
-  | tp ->
-     let sz = size_of typemap (convert_type false false typemap tp) in
-     ExprLit (p, LitU32 (Int32.of_int sz))
 
 let resolve_builtins stmts typemap =
   let rec process_expr = function

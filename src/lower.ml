@@ -28,7 +28,7 @@ let lift_lhs_static_structs program =
       match expr with
       | Expr_Binary (OperAssign,
                      DefTypeStaticStruct mtypes,
-                     Expr_StaticStruct members,
+                     Expr_StaticStruct (_, members),
                      rhs) ->
          let decl = { decl_pos = fcn.defn_begin;
                        mappedname = "__defstatic";
@@ -49,7 +49,7 @@ let lift_lhs_static_structs program =
                             Expr_Variable "__defstatic", rhs)) :: exprs
       | Expr_Binary (OperAssign,
                      DefTypeLiteralStruct (mtypes, mnames),
-                     Expr_StaticStruct members,
+                     Expr_StaticStruct (_, members),
                      rhs) ->
          let decl = { decl_pos = fcn.defn_begin;
                       mappedname = "__defstatic";

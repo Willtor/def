@@ -213,8 +213,8 @@ let process_expr data varmap pos_n_expr =
     | OperLogicalAnd, true -> standard_op build_and "def_land" (* FIXME!!! *)
     | OperAssign, _ ->
        begin match left, right with
-       | _, Expr_Cast (_, _, Expr_StaticStruct members)
-       | _, Expr_StaticStruct members ->
+       | _, Expr_Cast (_, _, Expr_StaticStruct (_, members))
+       | _, Expr_StaticStruct (_, members) ->
           let base = expr_gen false left in
           let assign n (_, expr) =
             let v = expr_gen true expr in
@@ -382,6 +382,9 @@ let process_expr data varmap pos_n_expr =
          build_inttoptr e (make_llvm_tp to_tp) "cast" data.bldr
        else Report.err_internal __FILE__ __LINE__
          "What's the deal with casting floats to ptrs?"
+    | DefTypeStaticStruct _, DefTypeNamedStruct s
+    | DefTypeLiteralStruct _, DefTypeNamedStruct s ->
+       build_bitcast e (make_llvm_tp (DefTypeNamedStruct s)) "scast" data.bldr
     | DefTypeStaticStruct _, _
     | DefTypeLiteralStruct _, _ ->
        (* FIXME: I think this might be correct, actually, but need to think
@@ -397,6 +400,18 @@ let process_expr data varmap pos_n_expr =
           ^ (string_of_type to_tp) ^ ").")
 
   and expr_gen rvalue_p = function
+    | Expr_New (tp, sz, init) ->
+       let llsz = expr_gen true sz in
+       let _, _, alloc = the (lookup_symbol varmap "forkscan_malloc") in
+       let mem = build_call alloc [| llsz |] "new" data.bldr in
+       let obj = build_cast (DefTypePtr DefTypeVoid) (DefTypePtr tp) mem in
+       let () = List.iter (fun (n, e) ->
+                    let addr = build_struct_gep obj n "member" data.bldr in
+                    let v = expr_gen true e in
+                    ignore(build_store v addr data.bldr))
+                          init
+       in
+       obj
     | Expr_FcnCall (name, args) ->
        let (_, tp, var) = the (lookup_symbol varmap name) in
        let arg_vals = List.map (expr_gen true) args in
@@ -458,9 +473,13 @@ let process_expr data varmap pos_n_expr =
        let addr = build_struct_gep base n "maddr" data.bldr in
        if rvalue_p then build_load addr "mval" data.bldr
        else addr
-    | Expr_StaticStruct members ->
+    | Expr_StaticStruct (None, members) ->
        let _, elements = List.split members in
        const_struct data.ctx
+         (Array.of_list (List.map (expr_gen true) elements))
+    | Expr_StaticStruct (Some nm, members) ->
+       let _, elements = List.split members in
+       const_named_struct (the (lookup_symbol data.typemap nm))
          (Array.of_list (List.map (expr_gen true) elements))
     | Expr_Nil ->
        Report.err_internal __FILE__ __LINE__ "Nil."
