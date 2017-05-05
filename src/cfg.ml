@@ -143,20 +143,41 @@ let static_eval_expr = function
 
 (* Detect if the loop can be exited (apart from a return from the actual
    function) from inside; i.e., see if there is a break or a goto. *)
-let rec can_escape_body = function
-  | [] -> false
-  | Break _ :: _ -> true
-  | Goto _ :: _ -> true
-  | IfStmt (_, _, tblock, eblock_maybe) :: rest ->
-     begin
-       if can_escape_body tblock then  true
-       else match eblock_maybe with
-       | None -> can_escape_body rest
-       | Some eblock ->
-          if can_escape_body eblock then true
-          else can_escape_body rest
-     end
-  | stmt :: rest -> can_escape_body rest
+let can_escape_forward labelmap stmts =
+  let rec forward internal = function
+    | [] -> internal, false
+    | Break _ :: _ -> internal, true
+    | Goto (_, label) :: rest ->
+       (* If this label has already been found, it's earlier in the function
+          and does not count as skipping forward. *)
+       begin
+         try let _ = Hashtbl.find labelmap label in
+             forward internal rest
+         with _ ->
+           let check found bb =
+             if found || (label = bb) then true
+             else false
+           in if List.fold_left check false internal then
+                forward internal rest
+              else internal, true
+       end
+    | IfStmt (_, _, tblock, eblock_maybe) :: rest ->
+       begin
+         let internal, result = forward internal tblock in
+         if result then internal, true
+         else match eblock_maybe with
+              | None -> forward internal rest
+              | Some eblock ->
+                 let internal, result = forward internal eblock in
+                 if result then internal, true
+                 else forward internal rest
+       end
+    | Label (_, label) :: rest ->
+       forward (label :: internal) rest
+    | stmt :: rest -> forward internal rest
+  in
+  let _, result = forward [] stmts
+  in result
 
 (** Get the type of an Ast.literal value. *)
 let typeof_literal lit =
@@ -750,6 +771,8 @@ let rec build_bbs name decltable typemap body =
        cond_bb
   in
 
+  let label_bbs = Hashtbl.create 8 in
+
   (* Iterate through the basic blocks and convert them to the CFG structure
      along with all of the contained expressions.  This function will leave
      temporary placeholders, like BB_Goto and BB_Error, so the CFG needs
@@ -897,7 +920,8 @@ let rec build_bbs name decltable typemap body =
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
        let cond_bb, fail_bb =
-         match (loop_can_exit cexpr) || (can_escape_body body) with
+         match (loop_can_exit cexpr)
+               || (can_escape_forward label_bbs body) with
          | true ->
             let fail = make_sequential_bb ("fail_" ^ (label_of_pos pos)) [] in
             let cond = generate_conditional ("while_" ^ (label_of_pos pos))
@@ -973,6 +997,7 @@ let rec build_bbs name decltable typemap body =
          "FIXME: TypeDecl not implemented Cfg.build_bbs (TypeDecl)"
     | Label (_, label) :: rest ->
        let bb = make_sequential_bb label [] in
+       let () = Hashtbl.add label_bbs label bb in
        let () = add_next prev_bb bb in
        process_bb scope decls bb cont_bb rest
     | Goto (pos, label) :: rest ->
