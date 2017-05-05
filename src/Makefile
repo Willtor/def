@@ -2,7 +2,7 @@ TARGET = def
 
 OCAMLC = ocamlfind ocamlopt -g
 PACKAGE = -package llvm,llvm.analysis,llvm.scalar_opts,str,unix
-LINKPKG = -linkpkg $(PACKAGE)
+LINKPKG = -linkpkg $(PACKAGE) -cclib -lz
 CLANGPP = clang++-3.9
 CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I/usr/include/llvm-c-3.9 -I/usr/include/llvm-3.9
 
