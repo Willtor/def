@@ -19,14 +19,17 @@
 open Llvm
 open Llvm_scalar_opts
 
-let create_fpm opt_level llvm_module =
-  let pass_manager = PassManager.create_function llvm_module in
+let create_pm opt_level =
+  let pass_manager = PassManager.create () in
   if opt_level > 0 then
     begin
-      add_instruction_combination pass_manager;
-      add_reassociation pass_manager;
+      add_memory_to_register_promotion pass_manager;
+      add_lower_expect_intrinsic pass_manager;
       add_gvn pass_manager;
+      add_dead_store_elimination pass_manager;
+      add_instruction_combination pass_manager;
       add_cfg_simplification pass_manager;
-      ignore (PassManager.initialize pass_manager)
+      add_reassociation pass_manager;
+      add_loop_unswitch pass_manager
     end;
   pass_manager

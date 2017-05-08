@@ -501,7 +501,7 @@ let process_expr data varmap pos_n_expr =
   let _, expr = pos_n_expr in
   expr_gen true expr
 
-let process_fcn cgdebug data symbols pass_manager fcn =
+let process_fcn cgdebug data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
   let llblocks = Hashtbl.create 32 in
@@ -573,8 +573,7 @@ let process_fcn cgdebug data symbols pass_manager fcn =
 
   let () = Cfg.visit_df populate_blocks false () fcn.entry_bb in
 
-  if not cgdebug then Llvm_analysis.assert_valid_function llfcn;
-  ignore (Llvm.PassManager.run_function llfcn pass_manager)
+  if not cgdebug then Llvm_analysis.assert_valid_function llfcn
 
 let declare_globals data symbols name decl =
   let llfcn =
@@ -590,7 +589,7 @@ let process_cfg cgdebug module_name program opt_level =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let bldr = builder ctx in
-  let fpm = create_fpm opt_level mdl in
+  let pm = create_pm opt_level in
   let typemap = build_types ctx program.deftypemap in
   let data = { ctx = ctx;
                mdl = mdl;
@@ -607,5 +606,6 @@ let process_cfg cgdebug module_name program opt_level =
              } in
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols) program.global_decls;
-  List.iter (process_fcn cgdebug data symbols fpm) program.fcnlist;
+  List.iter (process_fcn cgdebug data symbols) program.fcnlist;
+  ignore (PassManager.run_module mdl pm);
   mdl
