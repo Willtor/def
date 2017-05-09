@@ -8,7 +8,7 @@
         ; Single-line comments.
         (,"//.*" . font-lock-comment-face)
         ; Multi-line comments.
-        (,"/\\*\\([^*]*\\*\\)+/" . font-lock-comment-delimiter-face)
+        (,"/\\*\\([^*]\\|\\*+[^*/]\\)*\\*+*/" . font-lock-comment-delimiter-face)
         ; Keywords
         (,(regexp-opt '("def" "decl" "begin" "end" "do" "done" "while" "for"
                         "if" "then" "elif" "else" "fi" "return" "var" "export"
@@ -33,7 +33,7 @@
   (if (bobp)
       (indent-line-to 0)
     (let ((not-indented t) cur-indent)
-      (if (looking-at "^[ ]*\\(end\\|fi\\|done\\)")
+      (if (looking-at "^[ ]*\\(\\bend\\b\\|\\bfi\\b\\|\\bdone\\b\\)")
           (progn
             (save-excursion
               (forward-line -1)
@@ -42,14 +42,16 @@
         (save-excursion
           (while not-indented
             (forward-line -1)
-            (if (looking-at "^[ ]*\\(end\\|fi\\|done\\)")
+            (if (looking-at "^[ ]*\\(\\bend\\b\\|\\bfi\\b\\|\\bdone\\b\\)")
                 (progn
                   (setq cur-indent (current-indentation))
                   (setq not-indented nil))
-              (if (looking-at "^.*\\(begin\\|then\\|do\\)")
+              (if (looking-at "^.*\\(\\bbegin\\b\\|\\bthen\\b\\|\\bdo\\b\\)")
                   (progn
                     (setq cur-indent
-                          (+ (current-indentation) def-tab-width))
+                          (if (looking-at "^.*\\(\\bend\\b\\|\\bfi\\b\\|\\bdone\\b\\)")
+                              (current-indentation)
+                            (+ (current-indentation) def-tab-width)))
                     (setq not-indented nil))
                 (if (bobp)
                     (setq not-indented nil)))))))
