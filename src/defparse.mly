@@ -20,14 +20,6 @@
   open Ast
   open Types
   open Lexing
-
-  let documentation : string option ref = ref None
-
-  let set_doc d =
-    documentation := Some d
-
-  let clear_doc () =
-    documentation := None
 %}
 
 %token <Lexing.position * int64> LITERALI64 LITERALU64
@@ -39,9 +31,11 @@
 %token <Lexing.position * string> IDENT
 %token <Lexing.position * string> STRING
 %token <Lexing.position> TYPE TYPEDEF
-%token <Lexing.position> EXPORT OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
+%token <Lexing.position> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
 %token <Lexing.position> ELIF ELSE FI FOR WHILE DO DONE CAST AS GOTO BREAK
 %token <Lexing.position> CONTINUE NEW DELETE RETIRE NIL
+
+%token <Lexing.position * string option> EXPORT
 
 (* Operators *)
 %token <Lexing.position> ELLIPSIS RARROW
@@ -180,8 +174,8 @@ statement:
       and _, t = tp
       and vis, opacity = match vis_n_opa with
         | None -> VisLocal, false
-        | Some (pos, None) -> VisExported pos, false
-        | Some (pos, Some _) -> VisExported pos, true
+        | Some ((pos, _), None) -> VisExported pos, false
+        | Some ((pos, _), Some _) -> VisExported pos, true
       in
       TypeDecl (pos, name, t, vis, opacity) }
 | pos = GOTO p_n_id = IDENT SEMICOLON
@@ -253,15 +247,13 @@ fcndecl:
 
 fcndef:
 | export_p = EXPORT? DEF s = IDENT ftype = fcntype
-    { let vis = match export_p with
-        | Some p -> VisExported p
-        | None -> VisLocal
+    { let vis, doc = match export_p with
+        | Some (p, doc) -> VisExported p, doc
+        | None -> VisLocal, None
       in
-      let (_, plist, ret) = ftype
-      and (pos, ident) = s in
-      let doc = !documentation in
-      let () = clear_doc () in
-      (pos, doc, vis, ident, FcnType (plist, ret))
+      let _, plist, ret = ftype
+      and pos, ident = s in
+      pos, doc, vis, ident, FcnType (plist, ret)
     }
 
 exprlist:

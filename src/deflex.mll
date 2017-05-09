@@ -41,6 +41,18 @@
     else c
 
   let remove_quotes s = String.sub s 1 ((String.length s) - 2)
+
+  let documentation : string option ref = ref None
+
+  let set_doc d =
+    documentation := Some d
+
+  let clear_doc () =
+    documentation := None
+
+  let curr_position lexbuf =
+    clear_doc ();
+    lexeme_start_p lexbuf
 }
 
 rule deflex = parse
@@ -55,154 +67,158 @@ rule deflex = parse
     { proc_newlines lexbuf comment;
       deflex lexbuf }
 | "//"[^'\n']* { deflex lexbuf }
-| "type" { TYPE (lexeme_start_p lexbuf) }
-| "typedef" { TYPEDEF (lexeme_start_p lexbuf) }
-| "begin" { BEGIN (lexeme_start_p lexbuf) }
-| "end" { END (lexeme_start_p lexbuf) }
-| "export" { EXPORT (lexeme_start_p lexbuf) }
-| "opaque" { OPAQUE (lexeme_start_p lexbuf) }
-| "def" { DEF (lexeme_start_p lexbuf) }
-| "decl" { DECL (lexeme_start_p lexbuf) }
-| "var" { VAR (lexeme_start_p lexbuf) }
-| "return" { RETURN (lexeme_start_p lexbuf) }
-| "if" { IF (lexeme_start_p lexbuf) }
-| "then" { THEN (lexeme_start_p lexbuf) }
-| "elif" { ELIF (lexeme_start_p lexbuf) }
-| "else" { ELSE (lexeme_start_p lexbuf) }
-| "fi"   { FI (lexeme_start_p lexbuf) }
-| "for" { FOR (lexeme_start_p lexbuf) }
-| "while" { WHILE (lexeme_start_p lexbuf) }
-| "do" { DO (lexeme_start_p lexbuf) }
-| "done" { DONE (lexeme_start_p lexbuf) }
-| "cast" { CAST (lexeme_start_p lexbuf) }
-| "as" { AS (lexeme_start_p lexbuf) }
-| "goto" { GOTO (lexeme_start_p lexbuf) }
-| "break" { BREAK (lexeme_start_p lexbuf) }
-| "continue" { CONTINUE (lexeme_start_p lexbuf) }
-| "new" { NEW (lexeme_start_p lexbuf) }
-| "delete" { DELETE (lexeme_start_p lexbuf) }
-| "retire" { RETIRE (lexeme_start_p lexbuf) }
-| "nil" { NIL (lexeme_start_p lexbuf) }
-| "true" { LITERALBOOL (lexeme_start_p lexbuf, true) }
-| "false" { LITERALBOOL (lexeme_start_p lexbuf, false) }
-| ['"'][^'"']*['"'] as str { STRING (lexeme_start_p lexbuf,
+| "type" { TYPE (curr_position lexbuf) }
+| "typedef" { TYPEDEF (curr_position lexbuf) }
+| "begin" { BEGIN (curr_position lexbuf) }
+| "end" { END (curr_position lexbuf) }
+| "export"
+    { let doc = !documentation in
+      clear_doc();
+      EXPORT (curr_position lexbuf, doc)
+    }
+| "opaque" { OPAQUE (curr_position lexbuf) }
+| "def" { DEF (curr_position lexbuf) }
+| "decl" { DECL (curr_position lexbuf) }
+| "var" { VAR (curr_position lexbuf) }
+| "return" { RETURN (curr_position lexbuf) }
+| "if" { IF (curr_position lexbuf) }
+| "then" { THEN (curr_position lexbuf) }
+| "elif" { ELIF (curr_position lexbuf) }
+| "else" { ELSE (curr_position lexbuf) }
+| "fi"   { FI (curr_position lexbuf) }
+| "for" { FOR (curr_position lexbuf) }
+| "while" { WHILE (curr_position lexbuf) }
+| "do" { DO (curr_position lexbuf) }
+| "done" { DONE (curr_position lexbuf) }
+| "cast" { CAST (curr_position lexbuf) }
+| "as" { AS (curr_position lexbuf) }
+| "goto" { GOTO (curr_position lexbuf) }
+| "break" { BREAK (curr_position lexbuf) }
+| "continue" { CONTINUE (curr_position lexbuf) }
+| "new" { NEW (curr_position lexbuf) }
+| "delete" { DELETE (curr_position lexbuf) }
+| "retire" { RETIRE (curr_position lexbuf) }
+| "nil" { NIL (curr_position lexbuf) }
+| "true" { LITERALBOOL (curr_position lexbuf, true) }
+| "false" { LITERALBOOL (curr_position lexbuf, false) }
+| ['"'][^'"']*['"'] as str { STRING (curr_position lexbuf,
                                      remove_quotes str) }
 
 (* Integers. *)
 
 | "'"[^'\\' '\'']|("\\"_)"'" as cstr
-    { let pos = lexeme_start_p lexbuf in
+    { let pos = curr_position lexbuf in
       LITERALI8 (pos, get_i8_of_str pos cstr) }
 | ['0'-'9']+"I64" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I64" as istr
-    { LITERALI64 (lexeme_start_p lexbuf,
+    { LITERALI64 (curr_position lexbuf,
                   Int64.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"U64" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U64" as istr
-    { LITERALU64 (lexeme_start_p lexbuf,
+    { LITERALU64 (curr_position lexbuf,
                   Int64.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"I32" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I32" as istr
-    { LITERALI32 (lexeme_start_p lexbuf,
+    { LITERALI32 (curr_position lexbuf,
                   Int32.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"U32" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U32" as istr
-    { LITERALU32 (lexeme_start_p lexbuf,
+    { LITERALU32 (curr_position lexbuf,
                   Int32.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"I16" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I16" as istr
-    { LITERALI16 (lexeme_start_p lexbuf,
+    { LITERALI16 (curr_position lexbuf,
                   Int32.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"U16" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U16" as istr
-    { LITERALU16 (lexeme_start_p lexbuf,
+    { LITERALU16 (curr_position lexbuf,
                   Int32.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"I8" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"I8" as istr
-    { LITERALI8 (lexeme_start_p lexbuf,
+    { LITERALI8 (curr_position lexbuf,
                  Char.chr (Int32.to_int (Int32.of_string
                                            (remove_suffix istr 3)))) }
 | ['0'-'9']+"U8" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U8" as istr
-    { LITERALU8 (lexeme_start_p lexbuf,
+    { LITERALU8 (curr_position lexbuf,
                  Char.chr (Int32.to_int (Int32.of_string
                                            (remove_suffix istr 3)))) }
 | ['0'-'9']+ as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+ as istr
-    { LITERALI32 (lexeme_start_p lexbuf, Int32.of_string istr) }
+    { LITERALI32 (curr_position lexbuf, Int32.of_string istr) }
 
 (* Floating point. *)
 
 | ['0'-'9']+'.'(['e' 'E']['0'-'9']+)?"F64" as fstr
 | ['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)?"F64" as fstr
-    { LITERALF64 (lexeme_start_p lexbuf,
+    { LITERALF64 (curr_position lexbuf,
                   float_of_string (remove_suffix fstr 3)) }
 
 | ['0'-'9']+'.'(['e' 'E']['0'-'9']+)?"F32" as fstr
 | ['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)?"F32" as fstr
-    { LITERALF32 (lexeme_start_p lexbuf,
+    { LITERALF32 (curr_position lexbuf,
                   float_of_string (remove_suffix fstr 3)) }
 
 | ['0'-'9']+'.'(['e' 'E']['0'-'9']+)?"f" as fstr
 | ['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)?"f" as fstr
     { (* For compatibility with C. *)
-      LITERALF32 (lexeme_start_p lexbuf,
+      LITERALF32 (curr_position lexbuf,
                   float_of_string (remove_suffix fstr 1)) }
 | ['0'-'9']+'.'(['e' 'E']['0'-'9']+)? as fstr
 | ['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)? as fstr
-    { LITERALF64 (lexeme_start_p lexbuf,
+    { LITERALF64 (curr_position lexbuf,
                   float_of_string fstr) }
 
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
-    { IDENT (lexeme_start_p lexbuf, ident) }
+    { IDENT (curr_position lexbuf, ident) }
 
 (* Operators. *)
-| "..." { ELLIPSIS (lexeme_start_p lexbuf) }
-| "->" { RARROW (lexeme_start_p lexbuf) }
-| "++" { INCREMENT (lexeme_start_p lexbuf) }
-| "--" { DECREMENT (lexeme_start_p lexbuf) }
-| "+=" { PLUSEQUALS (lexeme_start_p lexbuf) }
-| "-=" { MINUSEQUALS (lexeme_start_p lexbuf) }
-| "*=" { STAREQUALS (lexeme_start_p lexbuf) }
-| "/=" { SLASHEQUALS (lexeme_start_p lexbuf) }
-| "%=" { PERCENTEQUALS (lexeme_start_p lexbuf) }
-| "<<=" { DBLLANGLEEQUALS (lexeme_start_p lexbuf) }
-| ">>=" { DBLRANGLEEQUALS (lexeme_start_p lexbuf) }
-| "&=" { AMPERSANDEQUALS (lexeme_start_p lexbuf) }
-| "|=" { VBAREQUALS (lexeme_start_p lexbuf) }
-| "^=" { CARATEQUALS (lexeme_start_p lexbuf) }
-| '.' { DOT (lexeme_start_p lexbuf) }
-| '!' { LNOT (lexeme_start_p lexbuf) }
-| '~' { BNOT (lexeme_start_p lexbuf) }
-| '&' { AMPERSAND (lexeme_start_p lexbuf) }
-| '*' { STAR (lexeme_start_p lexbuf) }
-| '/' { SLASH (lexeme_start_p lexbuf) }
-| '%' { PERCENT (lexeme_start_p lexbuf) }
-| '+' { PLUS (lexeme_start_p lexbuf) }
-| '-' { MINUS (lexeme_start_p lexbuf) }
-| "<<" { DBLLANGLE (lexeme_start_p lexbuf) }
-| ">>" { DBLRANGLE (lexeme_start_p lexbuf) }
-| "<=" { LEQ (lexeme_start_p lexbuf) }
-| '<' { LANGLE (lexeme_start_p lexbuf) }
-| ">=" { GEQ (lexeme_start_p lexbuf) }
-| '>' { RANGLE (lexeme_start_p lexbuf) }
-| "==" { EQUALSEQUALS (lexeme_start_p lexbuf) }
-| "!=" { BANGEQUALS (lexeme_start_p lexbuf) }
-| '^' { CARAT (lexeme_start_p lexbuf) }
-| '|' { VBAR (lexeme_start_p lexbuf) }
-| "&&" { DBLAMPERSAND (lexeme_start_p lexbuf) }
-| "||" { DBLVBAR (lexeme_start_p lexbuf) }
+| "..." { ELLIPSIS (curr_position lexbuf) }
+| "->" { RARROW (curr_position lexbuf) }
+| "++" { INCREMENT (curr_position lexbuf) }
+| "--" { DECREMENT (curr_position lexbuf) }
+| "+=" { PLUSEQUALS (curr_position lexbuf) }
+| "-=" { MINUSEQUALS (curr_position lexbuf) }
+| "*=" { STAREQUALS (curr_position lexbuf) }
+| "/=" { SLASHEQUALS (curr_position lexbuf) }
+| "%=" { PERCENTEQUALS (curr_position lexbuf) }
+| "<<=" { DBLLANGLEEQUALS (curr_position lexbuf) }
+| ">>=" { DBLRANGLEEQUALS (curr_position lexbuf) }
+| "&=" { AMPERSANDEQUALS (curr_position lexbuf) }
+| "|=" { VBAREQUALS (curr_position lexbuf) }
+| "^=" { CARATEQUALS (curr_position lexbuf) }
+| '.' { DOT (curr_position lexbuf) }
+| '!' { LNOT (curr_position lexbuf) }
+| '~' { BNOT (curr_position lexbuf) }
+| '&' { AMPERSAND (curr_position lexbuf) }
+| '*' { STAR (curr_position lexbuf) }
+| '/' { SLASH (curr_position lexbuf) }
+| '%' { PERCENT (curr_position lexbuf) }
+| '+' { PLUS (curr_position lexbuf) }
+| '-' { MINUS (curr_position lexbuf) }
+| "<<" { DBLLANGLE (curr_position lexbuf) }
+| ">>" { DBLRANGLE (curr_position lexbuf) }
+| "<=" { LEQ (curr_position lexbuf) }
+| '<' { LANGLE (curr_position lexbuf) }
+| ">=" { GEQ (curr_position lexbuf) }
+| '>' { RANGLE (curr_position lexbuf) }
+| "==" { EQUALSEQUALS (curr_position lexbuf) }
+| "!=" { BANGEQUALS (curr_position lexbuf) }
+| '^' { CARAT (curr_position lexbuf) }
+| '|' { VBAR (curr_position lexbuf) }
+| "&&" { DBLAMPERSAND (curr_position lexbuf) }
+| "||" { DBLVBAR (curr_position lexbuf) }
 (*| '?' { QMARK }*)
-| ':' { COLON (lexeme_start_p lexbuf) }
-| '=' { EQUALS (lexeme_start_p lexbuf) }
-| ',' { COMMA (lexeme_start_p lexbuf) }
-| '(' { LPAREN (lexeme_start_p lexbuf) }
-| ')' { RPAREN (lexeme_start_p lexbuf) }
-| '[' { LSQUARE (lexeme_start_p lexbuf) }
-| ']' { RSQUARE (lexeme_start_p lexbuf) }
-| '{' { LCURLY (lexeme_start_p lexbuf) }
-| '}' { RCURLY (lexeme_start_p lexbuf) }
-| ';' { SEMICOLON (lexeme_start_p lexbuf) }
+| ':' { COLON (curr_position lexbuf) }
+| '=' { EQUALS (curr_position lexbuf) }
+| ',' { COMMA (curr_position lexbuf) }
+| '(' { LPAREN (curr_position lexbuf) }
+| ')' { RPAREN (curr_position lexbuf) }
+| '[' { LSQUARE (curr_position lexbuf) }
+| ']' { RSQUARE (curr_position lexbuf) }
+| '{' { LCURLY (curr_position lexbuf) }
+| '}' { RCURLY (curr_position lexbuf) }
+| ';' { SEMICOLON (curr_position lexbuf) }
 | eof { EOF }
 | _
-    { Report.err_lexing (lexeme_start_p lexbuf) (lexeme lexbuf) }
+    { Report.err_lexing (curr_position lexbuf) (lexeme lexbuf) }
