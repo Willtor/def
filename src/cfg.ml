@@ -530,38 +530,47 @@ let build_fcn_call scope typemap pos name args =
 let convert_expr typemap scope =
   let rec convert = function
     | ExprNew (pos, t, init) ->
-       let tp = convert_type false false typemap t in
-       let mtypes, fields = match tp with
-         | DefTypeNamedStruct sname ->
-            begin match the (lookup_symbol typemap sname) with
-            | DefTypeLiteralStruct (mtypes, fields) -> mtypes, fields
-            | _ ->
-               Report.err_internal __FILE__ __LINE__
-                                   ("Struct " ^ sname ^ " is not literal")
-            end
-         | _ -> Report.err_internal __FILE__ __LINE__
-                                    "Used new in an unsupported context."
+       let tp = match t with
+         (* Throw away an initial ArrayType, since that's only relevant for
+            the size of the allocation. *)
+         | ArrayType (_, _, vt) -> convert_type false false typemap vt
+         | _ -> convert_type false false typemap t
        in
        let i32tp, i32sz = convert (make_size_expr typemap pos t) in
-       let i64sz = Expr_Cast (i32tp, DefTypePrimitive PrimI64, i32sz) in
-       let lookup_field fp f =
-         let rec lookup n = function
-           | [], _ | _, []-> Report.err_struct_no_such_member fp f
-           | tp :: trest, fieldname :: frest ->
-              if f = fieldname then tp, n
-              else lookup (n + 1) (trest, frest)
-         in
-         lookup 0 (mtypes, fields)
-       in
-       let field_inits =
-         List.map (fun (fp, f, ep, e) ->
-             let mtype, n = lookup_field fp f in
-             let conv_tp, conv_e = convert e in
-             check_castability ep typemap conv_tp mtype;
-             n, maybe_cast typemap conv_tp mtype conv_e)
-                  init
-       in
-       DefTypePtr tp, Expr_New (tp, i64sz, field_inits)
+       let i64sz = maybe_cast typemap i32tp (DefTypePrimitive PrimI64) i32sz in
+       begin match init with
+       | [] -> DefTypePtr tp, Expr_New (tp, i64sz, [])
+       | _ ->
+          let mtypes, fields = match tp with
+            | DefTypeNamedStruct sname ->
+               begin match the (lookup_symbol typemap sname) with
+               | DefTypeLiteralStruct (mtypes, fields) -> mtypes, fields
+               | _ ->
+                  Report.err_internal __FILE__ __LINE__
+                                      ("Struct " ^ sname ^ " is not literal")
+               end
+            | _ -> Report.err_internal __FILE__ __LINE__
+                                       "Used new in an unsupported context."
+          in
+          let lookup_field fp f =
+            let rec lookup n = function
+              | [], _ | _, []-> Report.err_struct_no_such_member fp f
+              | tp :: trest, fieldname :: frest ->
+                 if f = fieldname then tp, n
+                 else lookup (n + 1) (trest, frest)
+            in
+            lookup 0 (mtypes, fields)
+          in
+          let field_inits =
+            List.map (fun (fp, f, ep, e) ->
+                let mtype, n = lookup_field fp f in
+                let conv_tp, conv_e = convert e in
+                check_castability ep typemap conv_tp mtype;
+                n, maybe_cast typemap conv_tp mtype conv_e)
+                     init
+          in
+          DefTypePtr tp, Expr_New (tp, i64sz, field_inits)
+       end
     | ExprFcnCall call ->
        let converted_args = List.map convert call.fc_args in
        build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
