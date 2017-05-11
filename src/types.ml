@@ -19,6 +19,9 @@
 open Llvm
 open Util
 
+type qualifier =
+  | Volatile
+
 type primitive =
   | PrimBool
   | PrimI8  | PrimU8
@@ -35,7 +38,7 @@ type visibility =
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
-  | DefTypePrimitive of primitive
+  | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype
   | DefTypeArray of deftype * int
@@ -50,7 +53,7 @@ type primitive_kind =
 
 (** Return whether the given integer type is signed. *)
 let signed_p = function
-  | DefTypePrimitive p ->
+  | DefTypePrimitive (p, _) ->
      begin match p with
      | PrimBool -> true
      | PrimI8 | PrimI16 | PrimI32 | PrimI64 -> true
@@ -115,26 +118,27 @@ let generalize_primitives p1 p2 =
 let compare t1 t2 =
   let compare_primitives p1 p2 = if p1 == p2 then 0 else 1 in
   match t1, t2 with
-  | DefTypePrimitive p1, DefTypePrimitive p2 ->
+  | DefTypePrimitive (p1, _), DefTypePrimitive (p2, _) ->
+     (* FIXME: Need to resolve qualifiers (volatile, const, etc.). *)
      compare_primitives p1 p2
   | _ -> failwith "Types.compare not fully implemented."
 
 (** name, type, llvm type constructor, C type *)
 let map_builtin_types =
   [ ("void", DefTypeVoid, void_type, "void");
-    ("bool", DefTypePrimitive PrimBool, i1_type, "char"); 
-    ("char", DefTypePrimitive PrimI8, i8_type, "char");
-    ("uchar", DefTypePrimitive PrimU8, i8_type, "unsigned char");
-    ("i8",  DefTypePrimitive PrimI8,  i8_type, "char");
-    ("u8",  DefTypePrimitive PrimU8,  i8_type, "unsigned char");
-    ("i16", DefTypePrimitive PrimI16, i16_type, "short");
-    ("u16", DefTypePrimitive PrimU16, i16_type, "unsigned short");
-    ("i32", DefTypePrimitive PrimI32, i32_type, "int");
-    ("u32", DefTypePrimitive PrimU32, i32_type, "unsigned int");
-    ("i64", DefTypePrimitive PrimI64, i64_type, "long long");
-    ("u64", DefTypePrimitive PrimU64, i64_type, "unsigned long long");
-    ("f32", DefTypePrimitive PrimF32, float_type, "float");
-    ("f64", DefTypePrimitive PrimF64, double_type, "double")
+    ("bool", DefTypePrimitive (PrimBool, []), i1_type, "char"); 
+    ("char", DefTypePrimitive (PrimI8, []), i8_type, "char");
+    ("uchar", DefTypePrimitive (PrimU8, []), i8_type, "unsigned char");
+    ("i8",  DefTypePrimitive (PrimI8, []),  i8_type, "char");
+    ("u8",  DefTypePrimitive (PrimU8, []),  i8_type, "unsigned char");
+    ("i16", DefTypePrimitive (PrimI16, []), i16_type, "short");
+    ("u16", DefTypePrimitive (PrimU16, []), i16_type, "unsigned short");
+    ("i32", DefTypePrimitive (PrimI32, []), i32_type, "int");
+    ("u32", DefTypePrimitive (PrimU32, []), i32_type, "unsigned int");
+    ("i64", DefTypePrimitive (PrimI64, []), i64_type, "long long");
+    ("u64", DefTypePrimitive (PrimU64, []), i64_type, "unsigned long long");
+    ("f32", DefTypePrimitive (PrimF32, []), float_type, "float");
+    ("f64", DefTypePrimitive (PrimF64, []), double_type, "double")
   ]
 
 (** Convert a primitive type to its string representation. *)
@@ -153,7 +157,7 @@ let primitive2string = function
 
 (** Return true iff the given type is an integer type. *)
 let is_integer_type = function
-  | DefTypePrimitive prim ->
+  | DefTypePrimitive (prim, _) ->
      begin match prim with
      | PrimBool
      | PrimI8  | PrimU8
@@ -166,7 +170,7 @@ let is_integer_type = function
 
 (** Return true iff the type is a signed integer. *)
 let is_sinteger_type = function
-  | DefTypePrimitive prim ->
+  | DefTypePrimitive (prim, _) ->
      begin match prim with
      | PrimBool
      | PrimI8
@@ -183,7 +187,7 @@ let is_sinteger_type = function
 
 (** Return true iff the type is an unsigned integer. *)
 let is_uinteger_type = function
-  | DefTypePrimitive prim ->
+  | DefTypePrimitive (prim, _) ->
      begin match prim with
      | PrimU8
      | PrimU16
@@ -213,7 +217,7 @@ let rec size_of typemap = function
   | DefTypeVoid ->
      Report.err_internal __FILE__ __LINE__
        "size_of called on a void type."
-  | DefTypePrimitive p ->
+  | DefTypePrimitive (p, _) ->
      begin match p with
      | PrimBool | PrimI8 | PrimU8 -> 1
      | PrimI16 | PrimU16 -> 2
@@ -236,7 +240,7 @@ let rec size_of typemap = function
 let rec string_of_type = function
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
-  | DefTypePrimitive t -> primitive2string t
+  | DefTypePrimitive (t, _) -> primitive2string t (* FIXME: qualifiers *)
   | DefTypePtr t -> "*" ^ (string_of_type t)
   | DefTypeArray (tp, n) ->
      "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)

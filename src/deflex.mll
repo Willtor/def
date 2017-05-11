@@ -99,6 +99,7 @@ rule deflex = parse
 | "delete" { DELETE (curr_position lexbuf) }
 | "retire" { RETIRE (curr_position lexbuf) }
 | "nil" { NIL (curr_position lexbuf) }
+| "volatile" { VOLATILE (curr_position lexbuf) }
 | "true" { LITERALBOOL (curr_position lexbuf, true) }
 | "false" { LITERALBOOL (curr_position lexbuf, false) }
 | ['"'][^'"']*['"'] as str { STRING (curr_position lexbuf,

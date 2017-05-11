@@ -82,7 +82,7 @@ and expr =
   | ExprNil of position
 
 and vartype =
-  | VarType of position * string
+  | VarType of position * string * Types.qualifier list
   | FcnType of (position * string * vartype) list * vartype
   | StructType of (position * string * vartype) list
   | ArrayType of position * expr * vartype

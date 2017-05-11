@@ -1,3 +1,6 @@
+type qualifier =
+  | Volatile
+
 type primitive =
   | PrimBool
   | PrimI8  | PrimU8
@@ -14,7 +17,7 @@ type visibility =
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
-  | DefTypePrimitive of primitive
+  | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype
   | DefTypeArray of deftype * int

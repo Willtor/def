@@ -40,7 +40,10 @@ let lift_lhs_static_structs program =
          let exprs = List.mapi (fun n (tp, e) ->
            pos,
            Expr_Binary (OperAssign, tp, e,
-                        Expr_SelectField (Expr_Variable "__defstatic", n)))
+                        Expr_SelectField
+                          (* volatility doesn't matter since it's the lhs
+                             of the original assignment. => false. *)
+                          (Expr_Variable "__defstatic", n, false)))
            members
          in
          [ vars ],
@@ -61,7 +64,10 @@ let lift_lhs_static_structs program =
          let exprs = List.mapi (fun n (tp, e) ->
            pos,
            Expr_Binary (OperAssign, tp, e,
-                        Expr_SelectField (Expr_Variable "__defstatic", n)))
+                        Expr_SelectField
+                          (* volatility doesn't matter since it's the lhs
+                             of the original assignment. => false. *)
+                          (Expr_Variable "__defstatic", n, false)))
            members
          in
          [ vars ],

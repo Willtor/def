@@ -50,7 +50,7 @@ let rec unparse_expr = function
                              "Don't know how to unparse complex exprs."
 
 let rec cstring_of_type accum = function
-  | VarType (_, nm) -> (ctype_of nm) ^ accum
+  | VarType (_, nm, _) -> (ctype_of nm) ^ accum (* FIXME: Report qualifiers *)
   | FcnType _ -> Report.err_internal __FILE__ __LINE__
      "FcnType not implemented."
   | StructType _ -> Report.err_internal __FILE__ __LINE__

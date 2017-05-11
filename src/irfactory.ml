@@ -57,7 +57,7 @@ let deftype2llvmtype ctx typemap =
        let ftype = fbuild (convert true ret) (Array.of_list llvmargs) in
        if wrap_fcn_ptr then pointer_type ftype
        else ftype
-    | DefTypePrimitive prim ->
+    | DefTypePrimitive (prim, _) ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
     | DefTypeArray (tp, dim) ->
@@ -132,7 +132,7 @@ let process_literal typemap lit = match lit with
      const_float (the (lookup_symbol typemap "f64")) n
 
 let bytes = function
-  | DefTypePrimitive p ->
+  | DefTypePrimitive (p, _) ->
      begin match p with
      | PrimBool | PrimI8 | PrimU8 -> 1
      | PrimI16 | PrimU16 -> 2
@@ -144,6 +144,7 @@ let bytes = function
   | _ ->
      Report.err_internal __FILE__ __LINE__ "Non primitive type."
 
+(* FIXME: WORKING HERE:  Need to mark loads/stores volatile -- not types. *)
 let process_expr data varmap pos_n_expr =
   let rec llvm_unop op tp expr pre_p bldr =
     match op with
@@ -244,7 +245,7 @@ let process_expr data varmap pos_n_expr =
   and make_llvm_tp = function
     | DefTypePtr t ->
        pointer_type (make_llvm_tp t)
-    | DefTypePrimitive pt ->
+    | DefTypePrimitive (pt, _) ->
        the (lookup_symbol data.typemap (primitive2string pt))
     | DefTypeNamedStruct nm ->
        the (lookup_symbol data.typemap nm)
@@ -368,7 +369,8 @@ let process_expr data varmap pos_n_expr =
       f e llvm_to_tp "cast" data.bldr
     in
     match from_tp, to_tp with
-    | DefTypePrimitive prim1, DefTypePrimitive prim2 ->
+    | DefTypePrimitive (prim1, _), DefTypePrimitive (prim2, _) ->
+       (* FIXME: qualifiers. *)
        build_primitive_cast prim1 prim2
     | DefTypePtr _, DefTypePtr _ ->
        build_bitcast e (make_llvm_tp to_tp) "cast" data.bldr
@@ -468,10 +470,13 @@ let process_expr data varmap pos_n_expr =
        in
        if rvalue_p then build_load addr "deref" data.bldr
        else addr
-    | Expr_SelectField (expr, n) ->
+    | Expr_SelectField (expr, n, is_volatile) ->
        let base = expr_gen false expr in
        let addr = build_struct_gep base n "maddr" data.bldr in
-       if rvalue_p then build_load addr "mval" data.bldr
+       if rvalue_p then
+         let instr = build_load addr "mval" data.bldr in
+         let () = set_volatile true instr in
+         instr
        else addr
     | Expr_StaticStruct (None, members) ->
        let _, elements = List.split members in
@@ -497,6 +502,17 @@ let process_expr data varmap pos_n_expr =
        build_extractvalue cmpxchg 1 "cmpxchg_succ" data.bldr
     | Expr_Atomic (AtomicCAS, _) ->
        Report.err_internal __FILE__ __LINE__ "CAS on != 3 parameters"
+    | Expr_Atomic (AtomicSwap, [(_, dexpr);
+                                (_, vexpr)]) ->
+       let dest = expr_gen false dexpr in
+       let v = expr_gen true vexpr in
+       build_atomicrmw AtomicRMWBinOp.Xchg dest v
+                       AtomicOrdering.Acquire
+                       false
+                       "swap"
+                       data.bldr
+    | Expr_Atomic (AtomicSwap, _) ->
+       Report.err_internal __FILE__ __LINE__ "Swap on != 2 parameters"
   in
   let _, expr = pos_n_expr in
   expr_gen true expr

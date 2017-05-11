@@ -33,7 +33,7 @@
 %token <Lexing.position> TYPE TYPEDEF
 %token <Lexing.position> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
 %token <Lexing.position> ELIF ELSE FI FOR WHILE DO DONE CAST AS GOTO BREAK
-%token <Lexing.position> CONTINUE NEW DELETE RETIRE NIL
+%token <Lexing.position> CONTINUE NEW DELETE RETIRE NIL VOLATILE
 
 %token <Lexing.position * string option> EXPORT
 
@@ -101,7 +101,7 @@ statement:
   let (epos, e) = p_n_e in
   DefFcn (pos, doc, vis, name, tp,
           match tp with
-          | VarType (_, "void") ->
+          | VarType (_, "void", []) ->
              [StmtExpr (epos, e);
               ReturnVoid semi_pos]
           | _ -> [Return (epos, e)])
@@ -161,7 +161,7 @@ statement:
     iter = expr? DO
     body = statement+ DONE
     { ForLoop (p, init, cond, iter, body) }
-| p = WHILE p_n_e = expr DO slist = statement+ DONE
+| p = WHILE p_n_e = expr DO slist = statement* DONE
     { let (_, e) = p_n_e in WhileLoop (p, true, e, slist) }
 | p = DO slist = statement+ DONE WHILE p_n_e = expr SEMICOLON
     { let (_, e) = p_n_e in WhileLoop (p, false, e, slist) }
@@ -210,7 +210,14 @@ fcntype:
     { let pos, rtype = ret in (pos, plist, rtype) }
 
 deftype:
-| s = IDENT { let (pos, ident) = s in pos, VarType (pos, ident) }
+| VOLATILE s = IDENT
+    { let pos, ident = s in
+      pos, VarType (pos, ident, [ Volatile ])
+    }
+| s = IDENT
+    { let pos, ident = s in
+      pos, VarType (pos, ident, [])
+    }
 | pos = STAR tp = deftype { let _, t = tp in (pos, PtrType (pos, t)) }
 | pos = LSQUARE p_n_e = expr RSQUARE tp = deftype
     { let _, e = p_n_e in
@@ -272,21 +279,7 @@ struct_init:
 
 expr:
 | p = NEW tp = deftype init = struct_init?
-    { (*let tp_p, t = tp in
-      let sizeof =
-        ExprFcnCall { fc_pos = tp_p;
-                      fc_name = "sizeof";
-                      fc_args = [ ExprType (tp_p, t) ] }
-      in
-      let forkscan_alloc =
-        ExprFcnCall { fc_pos = p;
-                      fc_name = "forkscan_malloc";
-                      fc_args = [ sizeof ] }
-      in
-      match t with
-      | ArrayType _ -> p, ExprCast (p, t, forkscan_alloc)
-      | _ -> p, ExprCast (p, PtrType (p, t), forkscan_alloc)*)
-      let _, t = tp in
+    { let _, t = tp in
       let initlist = match init with
         | None -> []
         | Some lst -> lst

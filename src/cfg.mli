@@ -8,13 +8,14 @@ type cfg_expr =
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
   | Expr_Index of cfg_expr * cfg_expr * (*deref_base=*)bool * (*array=*)bool
-  | Expr_SelectField of cfg_expr * int
+  | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_Nil
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
 
 and atomic_op =
   | AtomicCAS
+  | AtomicSwap
 
 type cfg_basic_block =
   | BB_Seq of string * sequential_block

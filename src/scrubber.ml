@@ -172,7 +172,7 @@ let return_all_paths =
   let toplevel = function
     | DefFcn (pos, doc, vis, name, tp, body) ->
        let can_return_void = match tp with
-         | FcnType (_, VarType (_, "void")) -> true
+         | FcnType (_, VarType (_, "void", _)) -> true
          | _ -> false
        in
        begin

@@ -34,13 +34,14 @@ type cfg_expr =
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
   | Expr_Index of cfg_expr * cfg_expr * (*deref_base=*)bool * (*array=*)bool
-  | Expr_SelectField of cfg_expr * int
+  | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_Nil
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
 
 and atomic_op =
   | AtomicCAS
+  | AtomicSwap
 
 type cfg_basic_block =
   | BB_Seq of string * sequential_block
@@ -181,10 +182,11 @@ let can_escape_forward labelmap stmts =
 
 (** Get the type of an Ast.literal value. *)
 let typeof_literal lit =
-  DefTypePrimitive (literal2primitive lit)
+  DefTypePrimitive (literal2primitive lit, [])
 
 let rec convert_type defining_p array2ptr typemap = function
-  | VarType (pos, name) ->
+  | VarType (pos, name, qlist) ->
+     (* FIXME: qualifiers need to be addressed for all types. *)
      begin
        match lookup_symbol typemap name with
        | None ->
@@ -196,6 +198,7 @@ let rec convert_type defining_p array2ptr typemap = function
        | Some (DefTypeLiteralStruct _) ->
           (* Prevent deep recursive definitions. *)
           DefTypeNamedStruct name
+       | Some (DefTypePrimitive (p, _)) -> DefTypePrimitive (p, qlist)
        | Some t -> t
      end
   | FcnType (params, ret) ->
@@ -345,13 +348,21 @@ let rec maybe_cast typemap orig cast_as expr =
         end
      | _ -> Report.err_internal __FILE__ __LINE__ "Non-struct type struct."
      end
+  | DefTypePrimitive (p1, p1q) ->
+     begin match orig with
+     | DefTypePrimitive (p2, p2q) ->
+        (* FIXME: Removing qualifiers should generate warnings/errors. *)
+        if p1 = p2 then expr
+        else Expr_Cast (orig, cast_as, expr)
+     | _ -> Expr_Cast (orig, cast_as, expr)
+     end
   | _ -> Expr_Cast (orig, cast_as, expr)
 
 (** Determine whether one type can be cast as another.  This function returns
     unit, as it only reports an error if it fails. *)
 let check_castability pos typemap ltype rtype =
   let rec similar = function
-    | DefTypePrimitive lprim, DefTypePrimitive rprim ->
+    | DefTypePrimitive _, DefTypePrimitive _ ->
        ()  (* FIXME: Implement. *)
     | DefTypeFcn (plist1, ret1, v1), DefTypeFcn (plist2, ret2, v2) ->
        begin
@@ -399,8 +410,9 @@ let check_castability pos typemap ltype rtype =
 let binary_reconcile typemap =
   let more_general_of pos op ltype rtype =
     let rec tp_cmp = function
-      | (DefTypePrimitive lprim, DefTypePrimitive rprim) ->
-         DefTypePrimitive (generalize_primitives lprim rprim)
+      | (DefTypePrimitive (lprim, _), DefTypePrimitive (rprim, _)) ->
+         (* FIXME: qualifiers. *)
+         DefTypePrimitive (generalize_primitives lprim rprim, [])
       | (DefTypeNullPtr, DefTypePtr p)
       | (DefTypePtr p, DefTypeNullPtr) ->
          DefTypePtr p
@@ -433,7 +445,7 @@ let binary_reconcile typemap =
          (maybe_cast typemap rtype tp rexpr)
     | OperLT ->
        let tp = more_general_of pos op ltype rtype in
-       DefTypePrimitive PrimBool,
+       DefTypePrimitive (PrimBool, []),
        tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
@@ -447,7 +459,7 @@ let binary_reconcile typemap =
        maybe_cast typemap ltype tp lexpr,
        maybe_cast typemap rtype tp rexpr
     | OperLogicalOr | OperLogicalAnd ->
-       let primbool = DefTypePrimitive PrimBool in
+       let primbool = DefTypePrimitive (PrimBool, []) in
        begin
          check_castability pos typemap ltype primbool;
          check_castability pos typemap rtype primbool;
@@ -474,13 +486,27 @@ let binary_reconcile typemap =
 let build_fcn_call scope typemap pos name args =
   match lookup_symbol scope name with
   | None ->
+     let create_atomicrmw op = match args with
+       | [(DefTypePtr t1, dexpr); (t2, vexpr)] ->
+          (* FIXME: Do more checking on the type of the destination arg. *)
+          let revised = [ (DefTypePtr t1, dexpr);
+                          (t1, maybe_cast typemap t2 t1 vexpr) ]
+          in
+          t1, Expr_Atomic (op, revised)
+       | [_; _] ->
+          Report.err_atomic_dest_not_ptr pos name
+       | _ ->
+          Report.err_wrong_number_of_atomic_args pos name (List.length args)
+     in
      (* Check if the function is an atomic. *)
      begin match name with
      | "__builtin_cas" ->
         if (List.length args) <> 3 then
           Report.err_wrong_number_of_atomic_args pos name (List.length args)
         else
-          DefTypePrimitive PrimBool, Expr_Atomic (AtomicCAS, args)
+          DefTypePrimitive (PrimBool, []), Expr_Atomic (AtomicCAS, args)
+     | "__builtin_swap" ->
+        create_atomicrmw AtomicSwap
      | _ -> Report.err_unknown_fcn_call pos name
      end
   | Some decl ->
@@ -537,7 +563,8 @@ let convert_expr typemap scope =
          | _ -> convert_type false false typemap t
        in
        let i32tp, i32sz = convert (make_size_expr typemap pos t) in
-       let i64sz = maybe_cast typemap i32tp (DefTypePrimitive PrimI64) i32sz in
+       let i64sz =
+         maybe_cast typemap i32tp (DefTypePrimitive (PrimI64, [])) i32sz in
        begin match init with
        | [] -> DefTypePtr tp, Expr_New (tp, i64sz, [])
        | _ ->
@@ -581,7 +608,9 @@ let convert_expr typemap scope =
            str
            re_set
        in
-       let tp = DefTypeArray (DefTypePrimitive PrimI8, String.length raw) in
+       (* FIXME: Should be const. *)
+       let tp =
+         DefTypeArray (DefTypePrimitive (PrimI8, []), String.length raw) in
        tp, Expr_String (label_of_pos pos, raw)
     | ExprBinary op ->
        let rettp, tp, lhs, rhs =
@@ -640,7 +669,13 @@ let convert_expr typemap scope =
                in
                get_field 0 fields
             in
-            List.nth mtypes id, Expr_SelectField (obj, id)
+            let is_volatile = function
+              | DefTypePrimitive (_, [ Volatile ]) -> true
+              | _ -> false
+            in
+            let tp = List.nth mtypes id in
+            tp,
+            Expr_SelectField (obj, id, is_volatile tp)
          | DefTypeNamedStruct sname ->
             struct_select obj (the (lookup_symbol typemap sname))
          | DefTypePtr p ->
@@ -654,14 +689,7 @@ let convert_expr typemap scope =
     | ExprCast (pos, to_tp, e) ->
        let cast_tp = convert_type false true typemap to_tp in
        let orig_tp, converted_expr = convert e in
-       if orig_tp = cast_tp then
-         let () = prerr_endline
-           ("omitting cast: " ^ (string_of_type orig_tp) ^ " -> "
-            ^ (string_of_type cast_tp)
-            ^ " (" ^ (format_position pos) ^ ")") in
-         cast_tp, converted_expr
-       else
-         cast_tp, Expr_Cast (orig_tp, cast_tp, converted_expr)
+       cast_tp, maybe_cast typemap orig_tp cast_tp converted_expr
     | ExprStaticStruct (_, members) ->
        let cmembers = List.map (fun (_, e) -> convert e) members in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
@@ -977,7 +1005,9 @@ let rec build_bbs name decltable typemap body =
               List.mapi (fun n (t, e) ->
                 pos,
                 Expr_Binary (OperAssign, t,
-                             Expr_SelectField (structvar, n),
+                             (* volatility doesn't matter, here, since it's
+                                the lhs of an assignment. => false *)
+                             Expr_SelectField (structvar, n, false),
                              e))
                 elist
             in

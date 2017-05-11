@@ -135,6 +135,13 @@ let err_wrong_number_of_atomic_args pos name n_args =
     ^ (show_source pos) ^ "\n"
   in fatal_error err
 
+(** Called an atomic function, and the dest was not a pointer. *)
+let err_atomic_dest_not_ptr pos name =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Atomic function " ^ name ^ " takes a pointer as its first argument.\n"
+    ^ (show_source pos) ^ "\n"
+  in fatal_error err
+
 (** Tried to call a variable that was not a function. *)
 let err_called_non_fcn use_pos decl_pos name =
   let err = "At " ^ (format_position use_pos) ^ ":\n"
