@@ -2,6 +2,12 @@
 
 (defvar def-tab-width 4)
 
+;; Keywords.
+(setq def-keywords-open
+      (regexp-opt '("begin" "then" "do") 'words))
+(setq def-keywords-close
+      (regexp-opt '("end" "fi" "done") 'words))
+
 ;; Font coloring.
 (setq def-font-lock-keywords
       `(
@@ -33,7 +39,7 @@
   (if (bobp)
       (indent-line-to 0)
     (let ((not-indented t) cur-indent)
-      (if (looking-at "^[ ]*\\(\\bend\\b\\|\\bfi\\b\\|\\bdone\\b\\)")
+      (if (looking-at (concat "^[ ]*" def-keywords-close))
           (progn
             (save-excursion
               (forward-line -1)
@@ -42,14 +48,14 @@
         (save-excursion
           (while not-indented
             (forward-line -1)
-            (if (looking-at "^[ ]*\\(\\bend\\b\\|\\bfi\\b\\|\\bdone\\b\\)")
+            (if (looking-at (concat "^[ ]*" def-keywords-close))
                 (progn
                   (setq cur-indent (current-indentation))
                   (setq not-indented nil))
-              (if (looking-at "^.*\\(\\bbegin\\b\\|\\bthen\\b\\|\\bdo\\b\\)")
+              (if (looking-at (concat "^.*" def-keywords-open))
                   (progn
                     (setq cur-indent
-                          (if (looking-at "^.*\\(\\bend\\b\\|\\bfi\\b\\|\\bdone\\b\\)")
+                          (if (looking-at (concat "^.*" def-keywords-close))
                               (current-indentation)
                             (+ (current-indentation) def-tab-width)))
                     (setq not-indented nil))
