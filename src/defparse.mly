@@ -67,11 +67,12 @@
 %left DBLLANGLE DBLRANGLE
 %left PLUS MINUS
 %left STAR SLASH PERCENT
+%nonassoc ADDR_OF
 %left LSQUARE
 (* Need to figure out pointers. dereference, addr-of *)
 %right LNOT BNOT
 %nonassoc POSITIVE NEGATIVE
-%nonassoc PREINCR PREDECR ADDR_OF
+%nonassoc PREINCR PREDECR
 %left INCREMENT DECREMENT DOT
 
 %%
