@@ -3,7 +3,7 @@ TARGET = def
 LLVM_VER ?= 3.9
 
 OCAMLC = ocamlfind ocamlopt -g
-PACKAGE = -package llvm,llvm.analysis,llvm.scalar_opts,str,unix
+PACKAGE = -package llvm,llvm.analysis,llvm.scalar_opts,llvm.ipo,str,unix
 LINKPKG = -linkpkg $(PACKAGE) -cclib -lz
 CLANGPP = clang++-$(LLVM_VER)
 CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I/usr/include/llvm-c-$(LLVM_VER) -I/usr/include/llvm-$(LLVM_VER)

@@ -18,6 +18,7 @@
 
 open Llvm
 open Llvm_scalar_opts
+open Llvm_ipo
 
 let create_pm opt_level =
   let pass_manager = PassManager.create () in
@@ -30,6 +31,7 @@ let create_pm opt_level =
       add_instruction_combination pass_manager;
       add_cfg_simplification pass_manager;
       add_reassociation pass_manager;
-      add_loop_unswitch pass_manager
+      add_loop_unswitch pass_manager;
+      add_function_inlining pass_manager
     end;
   pass_manager

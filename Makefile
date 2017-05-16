@@ -5,10 +5,10 @@ DEF = def
 BUILDDEF = $(BUILDDIR)/$(DEF)
 SRCDIR = src
 SRCFILES = 		\
+	ast.ml		\
 	cmdline.ml	\
 	cmdline.mli	\
 	cmpxchg.cpp	\
-	ast.ml		\
 	cfg.ml		\
 	cfg.mli		\
 	deflex.mll	\
