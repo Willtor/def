@@ -5,7 +5,7 @@
 
 VERSION_MAJOR=0
 VERSION_MINOR=2
-VERSION_PATCH=7
+VERSION_PATCH=8
 VERSION_SUFFIX=
 VERSION_BUILD=`git rev-parse HEAD | cut -c -12`
 BUILD_DATE=`date -I`
@@ -17,4 +17,5 @@ if [ "$1" = "ocaml" ]; then
     echo "let version_suffix = \"$VERSION_SUFFIX\""
     echo "let version_build = \"$VERSION_BUILD\""
     echo "let build_date = \"$BUILD_DATE\""
+    echo "let llvm_compat = \"$2\""
 fi

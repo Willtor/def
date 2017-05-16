@@ -65,7 +65,7 @@ $(BUILDDIR)/Makefile: $(SRCDIR)/Makefile
 	(cd $(BUILDDIR); ocamldep *.ml *.mli >> Makefile)
 
 $(BUILDDIR)/version.ml:
-	bash version_info.sh ocaml > $@
+	bash version_info.sh ocaml $(LLVM_VER) > $@
 
 $(BUILDDIR)/%: $(SRCDIR)/%
 	cp $< $@

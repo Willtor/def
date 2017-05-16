@@ -28,9 +28,10 @@ open Link
 open Lower
 open Scrubber
 open Util
+open Version
 
-let llc_bin = "llc-3.9"
-let llvm_as_bin = "llvm-as-3.9"
+let llc_bin = "llc-" ^ llvm_compat
+let llvm_as_bin = "llvm-as-" ^ llvm_compat
 let as_bin = "/usr/bin/as"
 
 let add_builtin_fcns stmts =
