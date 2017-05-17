@@ -17,6 +17,7 @@
  *)
 
 open Ast
+open Lexing
 open Types
 
 let autogen =
@@ -37,6 +38,22 @@ let ctype_of =
   fun name ->
     try Hashtbl.find map name with _ -> name
 
+let repair_str =
+  let re = Str.regexp "\\." in
+  let repair = Str.global_replace re "_"
+  in repair
+
+let name_of_pos pos =
+  (repair_str pos.pos_fname) ^ "_"
+  ^ (string_of_int pos.pos_lnum) ^ "_"
+  ^ (string_of_int (pos.pos_cnum - pos.pos_bol))
+
+let name_of_tuple = function
+  | (pos, _, _) :: _ ->
+     "__tuple_" ^ (name_of_pos pos)
+  | [] -> Report.err_internal __FILE__ __LINE__
+                              "tuple had no members."
+
 let rec unparse_expr = function
   | ExprLit (_, LitBool b) -> string_of_bool b
   | ExprLit (_, LitI8 c) | ExprLit (_, LitU8 c) ->
@@ -53,8 +70,7 @@ let rec cstring_of_type accum = function
   | VarType (_, nm, _) -> (ctype_of nm) ^ accum (* FIXME: Report qualifiers *)
   | FcnType _ -> Report.err_internal __FILE__ __LINE__
      "FcnType not implemented."
-  | StructType _ -> Report.err_internal __FILE__ __LINE__
-     "StructType not implemented."
+  | StructType members -> (name_of_tuple members) ^ accum
   | ArrayType (_, e, t) ->
      (cstring_of_type (accum ^ "[" ^ (unparse_expr e) ^ "]") t)
   | PtrType (_, t) -> (cstring_of_type ("*" ^ accum) t)
@@ -65,7 +81,14 @@ let output_typedefs oc = function
      output_string oc ("typedef struct " ^ nm ^ " " ^ nm ^ ";\n\n")
   | TypeDecl (_, nm, _, VisExported _, _) ->
      Report.err_internal __FILE__ __LINE__
-       "Non-struct types not yet supported."
+                         "Non-struct types not yet supported."
+  | DefFcn (_, _, _, _, FcnType (_, rtype), _) ->
+     begin match rtype with
+     | StructType members ->
+        let nm = name_of_tuple members in
+        output_string oc ("typedef struct " ^ nm ^ " " ^ nm ^ ";\n\n")
+     | _ -> ()
+     end
   | _ -> ()
 
 let output_structs oc = function
@@ -82,6 +105,22 @@ let output_structs oc = function
   | TypeDecl (_, nm, _, VisExported _, false) ->
      Report.err_internal __FILE__ __LINE__
        "Non-struct types not yet supported."
+  | DefFcn (_, _, _, _, FcnType (_, rtype), _) ->
+     begin match rtype with
+     | StructType members ->
+        let nm = name_of_tuple members in
+        output_string oc ("struct " ^ nm ^ " {\n");
+        List.iter
+          (fun (pos, mname, tp) ->
+            let mname = if mname = "" then "__member_" ^ (name_of_pos pos)
+                        else mname
+            in
+            output_string oc ("  " ^ (cstring_of_type (" " ^ mname) tp)
+                              ^ ";\n"))
+          members;
+        output_string oc "};\n\n"
+     | _ -> ()
+     end
   | _ -> ()
 
 let output_functions oc = function
