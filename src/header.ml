@@ -82,7 +82,7 @@ let output_typedefs oc = function
   | TypeDecl (_, nm, _, VisExported _, _) ->
      Report.err_internal __FILE__ __LINE__
                          "Non-struct types not yet supported."
-  | DefFcn (_, _, _, _, FcnType (_, rtype), _) ->
+  | DefFcn (_, _, VisExported _, _, FcnType (_, rtype), _) ->
      begin match rtype with
      | StructType members ->
         let nm = name_of_tuple members in
@@ -105,7 +105,7 @@ let output_structs oc = function
   | TypeDecl (_, nm, _, VisExported _, false) ->
      Report.err_internal __FILE__ __LINE__
        "Non-struct types not yet supported."
-  | DefFcn (_, _, _, _, FcnType (_, rtype), _) ->
+  | DefFcn (_, _, VisExported _, _, FcnType (_, rtype), _) ->
      begin match rtype with
      | StructType members ->
         let nm = name_of_tuple members in
