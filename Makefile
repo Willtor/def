@@ -29,6 +29,8 @@ SRCFILES = 		\
 	main.ml		\
 	main.mli	\
 	Makefile	\
+	parsetree.ml	\
+	parsetree.mli	\
 	report.ml	\
 	scrubber.ml	\
 	scrubber.mli	\

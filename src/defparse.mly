@@ -20,35 +20,47 @@
   open Ast
   open Types
   open Lexing
+  open Parsetree
+
+  let rec get_documentation = function
+    | [] -> None
+    | [ str ] ->
+       begin try let sub = String.sub str 0 3 in
+                 if sub = "/**" then Some str else None
+             with _ -> None
+       end
+    | _ :: rest -> get_documentation rest
+
+  let string_list_of =
+    List.map (fun td -> td.td_pos, td.td_text)
 %}
 
-%token <Lexing.position * int64> LITERALI64 LITERALU64
-%token <Lexing.position * int32> LITERALI32 LITERALU32
-%token <Lexing.position * int32> LITERALI16 LITERALU16
-%token <Lexing.position * char> LITERALI8 LITERALU8
-%token <Lexing.position * bool> LITERALBOOL
-%token <Lexing.position * float> LITERALF32 LITERALF64
-%token <Lexing.position * string> IDENT
-%token <Lexing.position * string> STRING
-%token <Lexing.position> TYPE TYPEDEF
-%token <Lexing.position> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
-%token <Lexing.position> ELIF ELSE FI FOR WHILE DO DONE CAST AS GOTO BREAK
-%token <Lexing.position> CONTINUE NEW DELETE RETIRE NIL VOLATILE
+%token <Parsetree.tokendata * int64> LITERALI64 LITERALU64
+%token <Parsetree.tokendata * int32> LITERALI32 LITERALU32 LITERALI16 LITERALU16
+%token <Parsetree.tokendata * char> LITERALI8 LITERALU8
+%token <Parsetree.tokendata * bool> LITERALBOOL
+%token <Parsetree.tokendata * float> LITERALF32 LITERALF64
+%token <Parsetree.tokendata> IDENT
+%token <Parsetree.tokendata * string> STRING
+%token <Parsetree.tokendata> TYPE TYPEDEF
+%token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
+%token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO DONE CAST AS GOTO BREAK
+%token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE NIL VOLATILE
 
-%token <Lexing.position * string option> EXPORT
+%token <Parsetree.tokendata> EXPORT
 
 (* Operators *)
-%token <Lexing.position> ELLIPSIS RARROW
-%token <Lexing.position> INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS
-%token <Lexing.position> STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS
-%token <Lexing.position> DBLRANGLEEQUALS AMPERSANDEQUALS VBAREQUALS
-%token <Lexing.position> CARATEQUALS DOT LNOT BNOT AMPERSAND STAR SLASH
-%token <Lexing.position> PERCENT PLUS MINUS DBLLANGLE DBLRANGLE LEQ LANGLE GEQ
-%token <Lexing.position> RANGLE EQUALSEQUALS BANGEQUALS CARAT VBAR
-%token <Lexing.position> DBLAMPERSAND DBLVBAR (*QMARK*) COLON EQUALS COMMA
+%token <Parsetree.tokendata> ELLIPSIS RARROW
+%token <Parsetree.tokendata> INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS
+%token <Parsetree.tokendata> STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS
+%token <Parsetree.tokendata> DBLRANGLEEQUALS AMPERSANDEQUALS VBAREQUALS
+%token <Parsetree.tokendata> CARATEQUALS DOT LNOT BNOT AMPERSAND STAR SLASH
+%token <Parsetree.tokendata> PERCENT PLUS MINUS DBLLANGLE DBLRANGLE LEQ LANGLE GEQ
+%token <Parsetree.tokendata> RANGLE EQUALSEQUALS BANGEQUALS CARAT VBAR
+%token <Parsetree.tokendata> DBLAMPERSAND DBLVBAR (*QMARK*) COLON EQUALS COMMA
 
-%token <Lexing.position> LPAREN RPAREN LSQUARE RSQUARE LCURLY RCURLY
-%token <Lexing.position> SEMICOLON
+%token <Parsetree.tokendata> LPAREN RPAREN LSQUARE RSQUARE LCURLY RCURLY
+%token <Parsetree.tokendata> SEMICOLON
 %token EOF
 
 %start <stmt list> defparse
@@ -81,13 +93,12 @@ defparse:
 | stmts = statement+ EOF { stmts }
 
 block:
-| p = BEGIN slist = statement+ END { (p, slist) }
+| p = BEGIN slist = statement+ END { (p.td_pos, slist) }
 
 for_init:
 | p = VAR id = IDENT tp = deftype EQUALS p_n_e = expr
-    { let _, t = tp
-      and _, name = id in
-      VarDecl ([(p, name, Some p_n_e)], t)
+    { let _, t = tp in
+      VarDecl ([(p.td_pos, id.td_text, Some p_n_e)], t)
     }
 | p_n_e = expr
     { let pos, expr = p_n_e in
@@ -95,7 +106,7 @@ for_init:
     }
 
 statement:
-| f = fcndef EQUALS p_n_e = expr semi_pos = SEMICOLON {
+| f = fcndef EQUALS p_n_e = expr semi = SEMICOLON {
   (* If it's an expression, it may need to be returned.  Check to see
      whether the return type is void.  If not, return it. *)
   let (pos, doc, vis, name, tp) = f in
@@ -104,7 +115,7 @@ statement:
           match tp with
           | VarType (_, "void", []) ->
              [StmtExpr (epos, e);
-              ReturnVoid semi_pos]
+              ReturnVoid semi.td_pos]
           | _ -> [Return (epos, e)])
 }
 | f = fcndecl
@@ -129,79 +140,74 @@ statement:
         and _, t = tp
         in
         VarDecl (vars, t)
-      with _ -> Report.err_var_decl_list_length_mismatch eq
+      with _ -> Report.err_var_decl_list_length_mismatch eq.td_pos
         (List.length ids) (List.length elist);
     }
-| p = VAR LCURLY sc = structcontents RCURLY EQUALS p_n_e = expr SEMICOLON
-    { InlineStructVarDecl (p, sc, p_n_e) }
-| p = DELETE p_n_e = expr SEMICOLON
+| var = VAR LCURLY sc = structcontents RCURLY EQUALS p_n_e = expr SEMICOLON
+    { InlineStructVarDecl (var.td_pos, sc, p_n_e) }
+| del = DELETE p_n_e = expr SEMICOLON
     { let _, e = p_n_e in
       let expr =
-        ExprFcnCall { fc_pos = p;
+        ExprFcnCall { fc_pos = del.td_pos;
                       fc_name = "forkscan_free";
                       fc_args = [ e ]
                     }
       in
-      StmtExpr (p, expr)
+      StmtExpr (del.td_pos, expr)
     }
-| p = RETIRE p_n_e = expr SEMICOLON
+| ret = RETIRE p_n_e = expr SEMICOLON
     { let _, e = p_n_e in
       let expr =
-        ExprFcnCall { fc_pos = p;
+        ExprFcnCall { fc_pos = ret.td_pos;
                       fc_name = "forkscan_retire";
                       fc_args = [ e ]
                     }
       in
-      StmtExpr (p, expr)
+      StmtExpr (ret.td_pos, expr)
     }
 | p = IF p_n_e = expr THEN slist = statement+ ec = elseclause FI
-    { let (_, e) = p_n_e in IfStmt (p, e, slist, ec) }
+    { let (_, e) = p_n_e in IfStmt (p.td_pos, e, slist, ec) }
 | p = FOR
     init = for_init? SEMICOLON
     cond = expr SEMICOLON
     iter = expr? DO
     body = statement+ DONE
-    { ForLoop (p, init, cond, iter, body) }
+    { ForLoop (p.td_pos, init, cond, iter, body) }
 | p = WHILE p_n_e = expr DO slist = statement* DONE
-    { let (_, e) = p_n_e in WhileLoop (p, true, e, slist) }
+    { let (_, e) = p_n_e in WhileLoop (p.td_pos, true, e, slist) }
 | p = DO slist = statement+ DONE WHILE p_n_e = expr SEMICOLON
-    { let (_, e) = p_n_e in WhileLoop (p, false, e, slist) }
+    { let (_, e) = p_n_e in WhileLoop (p.td_pos, false, e, slist) }
 | p = RETURN p_n_e = expr SEMICOLON
-    { let (_, e) = p_n_e in Return (p, e) }
-| p = RETURN SEMICOLON { ReturnVoid p }
+    { let (_, e) = p_n_e in Return (p.td_pos, e) }
+| p = RETURN SEMICOLON { ReturnVoid p.td_pos }
 | vis_n_opa = pair(EXPORT, option(OPAQUE))? TYPEDEF id = IDENT EQUALS
     tp = deftype SEMICOLON
-    { let pos, name = id
-      and _, t = tp
+    { let _, t = tp
       and vis, opacity = match vis_n_opa with
         | None -> VisLocal, false
-        | Some ((pos, _), None) -> VisExported pos, false
-        | Some ((pos, _), Some _) -> VisExported pos, true
+        | Some (expos, None) -> VisExported expos.td_pos, false
+        | Some (expos, Some _) -> VisExported expos.td_pos, true
       in
-      TypeDecl (pos, name, t, vis, opacity) }
-| pos = GOTO p_n_id = IDENT SEMICOLON
-    { let _, id = p_n_id in
-      Goto (pos, id)
-    }
-| pos = BREAK SEMICOLON
-    { Break pos }
-| p_n_id = IDENT COLON
-    { let pos, id = p_n_id in
-      Label (pos, id)
-    }
-| pos = CONTINUE SEMICOLON
-    { Continue pos }
+      TypeDecl (id.td_pos, id.td_text, t, vis, opacity) }
+| gt = GOTO id = IDENT SEMICOLON
+    { Goto (gt.td_pos, id.td_text) }
+| p = BREAK SEMICOLON
+    { Break p.td_pos }
+| id = IDENT COLON
+    { Label (id.td_pos, id.td_text) }
+| p = CONTINUE SEMICOLON
+    { Continue p.td_pos }
 
 elseclause:
 | p = ELIF p_n_e = expr THEN slist = statement+ ec = elseclause
-    { let _, e = p_n_e in Some [IfStmt (p, e, slist, ec)] }
+    { let _, e = p_n_e in Some [IfStmt (p.td_pos, e, slist, ec)] }
 | ELSE slist = statement+ { Some slist }
 | { None }
 
 param:
 | var = variabledecl { var }
 | tp = deftype { let p, t = tp in p, "", t }
-| pos = ELLIPSIS { pos, "", Ellipsis pos }
+| p = ELLIPSIS { p.td_pos, "", Ellipsis p.td_pos }
 
 paramlist:
 | plist = separated_list(COMMA, param) { plist }
@@ -212,29 +218,25 @@ fcntype:
 
 deftype:
 | VOLATILE s = IDENT
-    { let pos, ident = s in
-      pos, VarType (pos, ident, [ Volatile ])
-    }
+    { s.td_pos, VarType (s.td_pos, s.td_text, [ Volatile ]) }
 | s = IDENT
-    { let pos, ident = s in
-      pos, VarType (pos, ident, [])
-    }
-| pos = STAR tp = deftype { let _, t = tp in (pos, PtrType (pos, t)) }
-| pos = LSQUARE p_n_e = expr RSQUARE tp = deftype
+    { s.td_pos, VarType (s.td_pos, s.td_text, []) }
+| p = STAR tp = deftype { let _, t = tp in (p.td_pos, PtrType (p.td_pos, t)) }
+| p = LSQUARE p_n_e = expr RSQUARE tp = deftype
     { let _, e = p_n_e in
       let _, t = tp in
-      pos, ArrayType (pos, e, t)
+      p.td_pos, ArrayType (p.td_pos, e, t)
     }
-| pos = LCURLY sc = structcontents RCURLY { pos, StructType sc }
-| pos = LCURLY ac = unnamedplist RCURLY { pos, StructType ac }
+| p = LCURLY sc = structcontents RCURLY { p.td_pos, StructType sc }
+| p = LCURLY ac = unnamedplist RCURLY { p.td_pos, StructType ac }
 | f = fcntype
     { let pos, plist, ret = f in (pos, FcnType (plist, ret)) }
 
 structcontents:
-| vars = separated_nonempty_list(COMMA, variabledecl) { vars}
+| vars = separated_nonempty_list(COMMA, variabledecl) { vars }
 
 idlist:
-| ids = separated_nonempty_list(COMMA, IDENT) { ids }
+| ids = separated_nonempty_list(COMMA, IDENT) { string_list_of ids }
 
 unnamedplist:
 | dtypes = separated_nonempty_list(COMMA, deftype)
@@ -242,26 +244,23 @@ unnamedplist:
 
 variabledecl:
 | s = IDENT tp = deftype
-    { let (pos, ident) = s
-      and _, t = tp
-      in (pos, ident, t) }
+    { let _, t = tp
+      in (s.td_pos, s.td_text, t) }
 
 fcndecl:
 | DECL s = IDENT ftype = fcntype SEMICOLON
-    { let _, plist, ret = ftype
-      and pos, ident = s in
-      (pos, VisExported pos, ident, FcnType (plist, ret))
+    { let _, plist, ret = ftype in
+      s.td_pos, VisExported s.td_pos, s.td_text, FcnType (plist, ret)
     }
 
 fcndef:
 | export_p = EXPORT? DEF s = IDENT ftype = fcntype
     { let vis, doc = match export_p with
-        | Some (p, doc) -> VisExported p, doc
+        | Some td -> VisExported td.td_pos, get_documentation td.td_noncode
         | None -> VisLocal, None
       in
-      let _, plist, ret = ftype
-      and pos, ident = s in
-      pos, doc, vis, ident, FcnType (plist, ret)
+      let _, plist, ret = ftype in
+      s.td_pos, doc, vis, s.td_text, FcnType (plist, ret)
     }
 
 exprlist:
@@ -269,9 +268,8 @@ exprlist:
 
 field_init:
 | field = IDENT COLON p_n_e = expr
-    { let fp, f = field
-      and ep, e = p_n_e in
-      fp, f, ep, e
+    { let ep, e = p_n_e in
+      field.td_pos, field.td_text, ep, e
     }
 
 struct_init:
@@ -284,62 +282,60 @@ expr:
       let initlist = match init with
         | None -> []
         | Some lst -> lst
-      in p, ExprNew (p, t, initlist)
+      in p.td_pos, ExprNew (p.td_pos, t, initlist)
     }
-| p = NIL { p, ExprNil p }
+| p = NIL { p.td_pos, ExprNil p.td_pos }
 | p = CAST p_n_e = expr AS tp = deftype
     { let _, e = p_n_e
       and _, t = tp in
-      p, ExprCast (p, t, e)
+      p.td_pos, ExprCast (p.td_pos, t, e)
     }
 | p = TYPE tp = deftype
     { let _, t = tp in
-      p, ExprType (p, t)
+      p.td_pos, ExprType (p.td_pos, t)
     }
-| i = LITERALI64 { let (pos, n) = i in pos, ExprLit (pos, LitI64 n) }
-| i = LITERALU64 { let (pos, n) = i in pos, ExprLit (pos, LitU64 n) }
-| i = LITERALI32 { let (pos, n) = i in pos, ExprLit (pos, LitI32 n) }
-| i = LITERALU32 { let (pos, n) = i in pos, ExprLit (pos, LitU32 n) }
-| i = LITERALI16 { let (pos, n) = i in pos, ExprLit (pos, LitI16 n) }
-| i = LITERALU16 { let (pos, n) = i in pos, ExprLit (pos, LitU16 n) }
-| i = LITERALI8  { let (pos, n) = i in pos, ExprLit (pos, LitI8  n) }
-| i = LITERALU8  { let (pos, n) = i in pos, ExprLit (pos, LitU8  n) }
-| i = LITERALBOOL { let (pos, b) = i in pos, ExprLit (pos, LitBool b) }
-| n = LITERALF64 { let (pos, f) = n in pos, ExprLit (pos, LitF64 f) }
-| n = LITERALF32 { let (pos, f) = n in pos, ExprLit (pos, LitF32 f) }
-| str = STRING { let (pos, s) = str in pos, ExprString (pos, s) }
+| i = LITERALI64 { let p, n = i in p.td_pos, ExprLit (p.td_pos, LitI64 n) }
+| i = LITERALU64 { let p, n = i in p.td_pos, ExprLit (p.td_pos, LitU64 n) }
+| i = LITERALI32 { let p, n = i in p.td_pos, ExprLit (p.td_pos, LitI32 n) }
+| i = LITERALU32 { let p, n = i in p.td_pos, ExprLit (p.td_pos, LitU32 n) }
+| i = LITERALI16 { let p, n = i in p.td_pos, ExprLit (p.td_pos, LitI16 n) }
+| i = LITERALU16 { let p, n = i in p.td_pos, ExprLit (p.td_pos, LitU16 n) }
+| i = LITERALI8  { let p, n = i in p.td_pos, ExprLit (p.td_pos, LitI8  n) }
+| i = LITERALU8  { let p, n = i in p.td_pos, ExprLit (p.td_pos, LitU8  n) }
+| i = LITERALBOOL { let p, b = i in p.td_pos, ExprLit (p.td_pos, LitBool b) }
+| n = LITERALF64 { let p, f = n in p.td_pos, ExprLit (p.td_pos, LitF64 f) }
+| n = LITERALF32 { let p, f = n in p.td_pos, ExprLit (p.td_pos, LitF32 f) }
+| str = STRING { let p, s = str in p.td_pos, ExprString (p.td_pos, s) }
 | s = IDENT LPAREN RPAREN
-    { let (pos, ident) = s in
-      let fcn_call =
-        { fc_pos = pos;
-          fc_name = ident;
+    { let fcn_call =
+        { fc_pos = s.td_pos;
+          fc_name = s.td_text;
           fc_args = [] } in
-      pos, ExprFcnCall fcn_call }
+      s.td_pos, ExprFcnCall fcn_call }
 | s = IDENT LPAREN pos_n_exprs = exprlist RPAREN
-    { let (pos, ident) = s in
-      let elist = List.map (fun (_, e) -> e) pos_n_exprs in
+    { let elist = List.map (fun (_, e) -> e) pos_n_exprs in
       let fcn_call =
-        { fc_pos = pos;
-          fc_name = ident;
+        { fc_pos = s.td_pos;
+          fc_name = s.td_text;
           fc_args = elist }
       in
-      pos, ExprFcnCall fcn_call }
-| s = IDENT
-    { let pos, ident = s in pos, ExprVar (pos, ident) }
-| pos = LPAREN p_n_e = expr RPAREN { let _, e = p_n_e in pos, e }
-| pos = LCURLY elist = exprlist RCURLY { pos, ExprStaticStruct (pos, elist) }
+      s.td_pos, ExprFcnCall fcn_call }
+| s = IDENT { s.td_pos, ExprVar (s.td_pos, s.td_text) }
+| p = LPAREN p_n_e = expr RPAREN { let _, e = p_n_e in p.td_pos, e }
+| p = LCURLY elist = exprlist RCURLY
+    { p.td_pos, ExprStaticStruct (p.td_pos, elist) }
 | p_n_e1 = expr LSQUARE p_n_e2 = expr RSQUARE
     { let pos1, expr1 = p_n_e1 in
       let pos2, expr2 = p_n_e2 in
       pos1, ExprIndex (pos1, expr1, pos2, expr2) }
-| p_n_e = expr dpos = DOT p_n_field = IDENT
+| p_n_e = expr dpos = DOT field = IDENT
     { let pos, obj = p_n_e in
-      let fpos, field = p_n_field in
-      pos, ExprSelectField (fpos, dpos, obj, FieldName field) }
+      pos, ExprSelectField (field.td_pos, dpos.td_pos, obj,
+                            FieldName field.td_text) }
 | p_n_e = expr p = INCREMENT
     { let exprpos, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperIncr;
           op_left = e;
           op_right = None
@@ -347,9 +343,9 @@ expr:
       in
       exprpos, ExprPostUnary unop }
 | p_n_e = expr p = DECREMENT
-    { let (exprpos, e) = p_n_e in
+    { let exprpos, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperDecr;
           op_left = e;
           op_right = None
@@ -357,80 +353,80 @@ expr:
       in
       exprpos, ExprPostUnary unop }
 | p = INCREMENT p_n_e = expr %prec PREINCR
-    { let (_, e) = p_n_e in
+    { let _, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperIncr;
           op_left = e;
           op_right = None
         }
       in
-      p, ExprPreUnary unop }
+      p.td_pos, ExprPreUnary unop }
 | p = DECREMENT p_n_e = expr %prec PREDECR
-    { let (_, e) = p_n_e in
+    { let _, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperDecr;
           op_left = e;
           op_right = None
         }
       in
-      p, ExprPreUnary unop }
+      p.td_pos, ExprPreUnary unop }
 | p = MINUS p_n_e = expr %prec NEGATIVE
-    { let (_, e) = p_n_e in
+    { let _, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperMinus;
           op_left = e;
           op_right = None
         }
       in
-      p, ExprPreUnary unop }
+      p.td_pos, ExprPreUnary unop }
 | p = PLUS p_n_e = expr %prec POSITIVE
-    { let (_, e) = p_n_e in
+    { let _, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperPlus;
           op_left = e;
           op_right = None
         }
       in
-      p, ExprPreUnary unop }
+      p.td_pos, ExprPreUnary unop }
 | p = LNOT p_n_e = expr
-    { let (_, e) = p_n_e in
+    { let _, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperLogicalNot;
           op_left = e;
           op_right = None
         }
       in
-      p, ExprPreUnary unop }
+      p.td_pos, ExprPreUnary unop }
 | p = BNOT p_n_e = expr
-    { let (_, e) = p_n_e in
+    { let _, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperBitwiseNot;
           op_left = e;
           op_right = None
         }
       in
-      p, ExprPreUnary unop }
+      p.td_pos, ExprPreUnary unop }
 | p = AMPERSAND p_n_e = expr %prec ADDR_OF
     { let _, e = p_n_e in
       let unop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperAddrOf;
           op_left = e;
           op_right = None
         }
       in
-      p, ExprPreUnary unop }
+      p.td_pos, ExprPreUnary unop }
 | p_n_e1 = expr p = STAR p_n_e2 = expr
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperMult;
           op_left = e1;
           op_right = Some e2
@@ -441,7 +437,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperDiv;
           op_left = e1;
           op_right = Some e2
@@ -452,7 +448,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperRemainder;
           op_left = e1;
           op_right = Some e2
@@ -463,7 +459,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperPlus;
           op_left = e1;
           op_right = Some e2
@@ -474,7 +470,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperMinus;
           op_left = e1;
           op_right = Some e2
@@ -485,7 +481,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperLShift;
           op_left = e1;
           op_right = Some e2
@@ -496,7 +492,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperRShift;
           op_left = e1;
           op_right = Some e2
@@ -507,7 +503,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperLT;
           op_left = e1;
           op_right = Some e2
@@ -518,7 +514,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperGT;
           op_left = e1;
           op_right = Some e2
@@ -529,7 +525,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperLTE;
           op_left = e1;
           op_right = Some e2
@@ -540,7 +536,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperGTE;
           op_left = e1;
           op_right = Some e2
@@ -551,7 +547,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperEquals;
           op_left = e1;
           op_right = Some e2
@@ -562,7 +558,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperNEquals;
           op_left = e1;
           op_right = Some e2
@@ -573,7 +569,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperBitwiseAnd;
           op_left = e1;
           op_right = Some e2
@@ -584,7 +580,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperBitwiseXor;
           op_left = e1;
           op_right = Some e2
@@ -595,7 +591,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperBitwiseOr;
           op_left = e1;
           op_right = Some e2
@@ -606,7 +602,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperLogicalAnd;
           op_left = e1;
           op_right = Some e2
@@ -617,7 +613,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperLogicalOr;
           op_left = e1;
           op_right = Some e2
@@ -628,7 +624,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperAssign;
           op_left = e1;
           op_right = Some e2
@@ -639,7 +635,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperPlusAssign;
           op_left = e1;
           op_right = Some e2
@@ -650,7 +646,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperMinusAssign;
           op_left = e1;
           op_right = Some e2
@@ -661,7 +657,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperMultAssign;
           op_left = e1;
           op_right = Some e2
@@ -672,7 +668,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperDivAssign;
           op_left = e1;
           op_right = Some e2
@@ -683,7 +679,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperRemAssign;
           op_left = e1;
           op_right = Some e2
@@ -694,7 +690,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperLShiftAssign;
           op_left = e1;
           op_right = Some e2
@@ -705,7 +701,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperRShiftAssign;
           op_left = e1;
           op_right = Some e2
@@ -716,7 +712,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperBAndAssign;
           op_left = e1;
           op_right = Some e2
@@ -727,7 +723,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperBXorAssign;
           op_left = e1;
           op_right = Some e2
@@ -738,7 +734,7 @@ expr:
     { let (exprpos, e1) = p_n_e1 in
       let (_, e2) = p_n_e2 in
       let binop =
-        { op_pos = p;
+        { op_pos = p.td_pos;
           op_op = OperBOrAssign;
           op_left = e1;
           op_right = Some e2

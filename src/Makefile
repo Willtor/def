@@ -8,7 +8,7 @@ LINKPKG = -linkpkg $(PACKAGE) -cclib -lz
 CLANGPP = clang++-$(LLVM_VER)
 CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I/usr/include/llvm-c-$(LLVM_VER) -I/usr/include/llvm-$(LLVM_VER)
 
-SRC = version.ml llvmext.ml util.ml report.ml cmdline.ml link.ml types.ml ast.ml header.ml cfg.ml lower.ml defparse.mly deflex.mll scrubber.ml iropt.ml irfactory.ml main.ml
+SRC = version.ml llvmext.ml util.ml report.ml parsetree.ml cmdline.ml link.ml types.ml ast.ml header.ml cfg.ml lower.ml defparse.mly deflex.mll scrubber.ml iropt.ml irfactory.ml main.ml
 GENERATED = version.mli llvmext.mli report.mli ast.mli defparse.ml defparse.mli deflex.ml deflex.mli
 
 FILES1 = $(SRC:.mly=.ml)
