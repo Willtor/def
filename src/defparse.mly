@@ -36,7 +36,8 @@
 %}
 
 %token <Parsetree.tokendata * int64> LITERALI64 LITERALU64
-%token <Parsetree.tokendata * int32> LITERALI32 LITERALU32 LITERALI16 LITERALU16
+%token <Parsetree.tokendata * int32> LITERALI32 LITERALU32
+%token <Parsetree.tokendata * int32> LITERALI16 LITERALU16
 %token <Parsetree.tokendata * char> LITERALI8 LITERALU8
 %token <Parsetree.tokendata * bool> LITERALBOOL
 %token <Parsetree.tokendata * float> LITERALF32 LITERALF64
@@ -52,11 +53,12 @@
 (* Operators *)
 %token <Parsetree.tokendata> ELLIPSIS RARROW
 %token <Parsetree.tokendata> INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS
-%token <Parsetree.tokendata> STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS
-%token <Parsetree.tokendata> DBLRANGLEEQUALS AMPERSANDEQUALS VBAREQUALS
-%token <Parsetree.tokendata> CARATEQUALS DOT LNOT BNOT AMPERSAND STAR SLASH
-%token <Parsetree.tokendata> PERCENT PLUS MINUS DBLLANGLE DBLRANGLE LEQ LANGLE GEQ
-%token <Parsetree.tokendata> RANGLE EQUALSEQUALS BANGEQUALS CARAT VBAR
+%token <Parsetree.tokendata> STAREQUALS SLASHEQUALS PERCENTEQUALS
+%token <Parsetree.tokendata> DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS
+%token <Parsetree.tokendata> VBAREQUALS CARATEQUALS DOT LNOT BNOT AMPERSAND
+%token <Parsetree.tokendata> STAR SLASH PERCENT PLUS MINUS DBLLANGLE DBLRANGLE
+%token <Parsetree.tokendata> LEQ LANGLE GEQ RANGLE EQUALSEQUALS BANGEQUALS
+%token <Parsetree.tokendata> CARAT VBAR
 %token <Parsetree.tokendata> DBLAMPERSAND DBLVBAR (*QMARK*) COLON EQUALS COMMA
 
 %token <Parsetree.tokendata> LPAREN RPAREN LSQUARE RSQUARE LCURLY RCURLY
