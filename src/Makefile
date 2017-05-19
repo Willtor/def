@@ -1,6 +1,6 @@
 TARGET = def
 
-LLVM_VER ?= 3.9
+LLVM_VER ?= 4.0
 
 OCAMLC = ocamlfind ocamlopt -g
 PACKAGE = -package llvm,llvm.analysis,llvm.scalar_opts,llvm.ipo,str,unix

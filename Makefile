@@ -1,3 +1,5 @@
+LLVM_VER ?= 4.0
+
 BINDIR = bin
 INSTALL_DIR = /usr/local
 BUILDDIR = build
