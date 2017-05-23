@@ -87,6 +87,13 @@ let err_var_decl_list_length_mismatch pos vars inits =
     ^ (show_source pos)
   in fatal_error err
 
+let err_multiple_volatile_keywords pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Keyword 'volatile' cannot be specified multiple times.  "
+    ^ "This is probably a typo.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Function has no return statement. *)
 let err_no_return pos fcn =
   let err = "At " ^ (format_position pos) ^ ":\n"

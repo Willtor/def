@@ -26,6 +26,7 @@ open Irfactory
 open Lexing
 open Link
 open Lower
+open Parsetree
 open Scrubber
 open Util
 open Version
@@ -181,11 +182,13 @@ let compile_def_file infilename =
   let infile = try open_in infilename
     with _ -> Report.err_unable_to_open_file infilename
   in
-  let stmts =
+  let parsetree =
     let lexbuf = set_fname infilename (Lexing.from_channel infile)
     in parse_input deflex lexbuf
   in
   close_in infile;
+
+  let stmts = Ast.of_parsetree parsetree in
 
   if !comp_depth = COMPILE_GENERATE_HEADER then
     (header_of (infile2outfile infilename) stmts;
