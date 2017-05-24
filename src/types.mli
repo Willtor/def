@@ -19,7 +19,7 @@ type deftype =
   | DefTypeVoid
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
-  | DefTypePtr of deftype
+  | DefTypePtr of deftype * qualifier list
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeNamedStruct of string

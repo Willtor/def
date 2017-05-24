@@ -40,7 +40,7 @@ type deftype =
   | DefTypeVoid
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
-  | DefTypePtr of deftype
+  | DefTypePtr of deftype * qualifier list
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeNamedStruct of string
@@ -241,7 +241,7 @@ let rec string_of_type = function
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
   | DefTypePrimitive (t, _) -> primitive2string t (* FIXME: qualifiers *)
-  | DefTypePtr t -> "*" ^ (string_of_type t)
+  | DefTypePtr (t, _) -> "*" ^ (string_of_type t) (* FIXME: qualifiers *)
   | DefTypeArray (tp, n) ->
      "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)
   | DefTypeNullPtr -> "nil"

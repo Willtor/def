@@ -73,7 +73,7 @@ let rec cstring_of_type accum = function
   | StructType members -> (name_of_tuple members) ^ accum
   | ArrayType (_, e, t) ->
      (cstring_of_type (accum ^ "[" ^ (unparse_expr e) ^ "]") t)
-  | PtrType (_, t) -> (cstring_of_type ("*" ^ accum) t)
+  | PtrType (_, t, _) -> (cstring_of_type ("*" ^ accum) t) (* FIXME: qualifiers. *)
   | Ellipsis _ -> "..."
 
 let output_typedefs oc = function

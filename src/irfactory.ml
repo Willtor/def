@@ -62,10 +62,10 @@ let deftype2llvmtype ctx typemap =
        the (lookup_symbol typemap name)
     | DefTypeArray (tp, dim) ->
        array_type (convert wrap_fcn_ptr tp) dim
-    | DefTypePtr DefTypeVoid ->
+    | DefTypePtr (DefTypeVoid, _) ->
        (* Void pointer isn't natively supported by LLVM.  Use char* instead. *)
        pointer_type (the (lookup_symbol typemap "i8"))
-    | DefTypePtr pointed_to_tp ->
+    | DefTypePtr (pointed_to_tp, _) ->
        pointer_type (convert wrap_fcn_ptr pointed_to_tp)
     | DefTypeNamedStruct name ->
        the (lookup_symbol typemap name)
@@ -247,7 +247,7 @@ let process_expr data varmap pos_n_expr =
           ^ (operator2string op))
 
   and make_llvm_tp = function
-    | DefTypePtr t ->
+    | DefTypePtr (t, _) ->
        pointer_type (make_llvm_tp t)
     | DefTypePrimitive (pt, _) ->
        the (lookup_symbol data.typemap (primitive2string pt))
@@ -410,7 +410,8 @@ let process_expr data varmap pos_n_expr =
        let llsz = expr_gen true sz in
        let _, _, alloc = the (lookup_symbol varmap "forkscan_malloc") in
        let mem = build_call alloc [| llsz |] "new" data.bldr in
-       let obj = build_cast (DefTypePtr DefTypeVoid) (DefTypePtr tp) mem in
+       let obj = build_cast (DefTypePtr (DefTypeVoid, []))
+                            (DefTypePtr (tp, [])) mem in
        let () = List.iter (fun (n, e) ->
                     let addr = build_struct_gep obj n "member" data.bldr in
                     let v = expr_gen true e in

@@ -87,7 +87,7 @@ and vartype =
   | FcnType of (position * string * vartype) list * vartype
   | StructType of (position * string * vartype) list
   | ArrayType of position * expr * vartype
-  | PtrType of position * vartype
+  | PtrType of position * vartype * Types.qualifier list
   | Ellipsis of position
 
 type stmt =
@@ -326,15 +326,17 @@ let of_parsetree =
        let ret = match type_of tp with
          | VarType (pos, nm, []) ->
             VarType (pos, nm, [ Volatile ])
-         | VarType _ ->
-            Report.err_multiple_volatile_keywords vol.td_pos
+         | PtrType (pos, tp, []) ->
+            PtrType (pos, tp, [ Volatile ])
+         | VarType _
+         | PtrType _ -> Report.err_multiple_volatile_keywords vol.td_pos
          | _ ->
             Report.err_internal __FILE__ __LINE__
                                 "volatile not yet supported on non-var-types"
        in
        ret
     | PTT_Name id -> VarType (id.td_pos, id.td_text, [])
-    | PTT_Ptr (star, tp) -> PtrType (star.td_pos, type_of tp)
+    | PTT_Ptr (star, tp) -> PtrType (star.td_pos, type_of tp, [])
     | PTT_Array (lsquare, e, _, tp) ->
        ArrayType (lsquare.td_pos, expr_of e, type_of tp)
     | PTT_Struct (_, contents, _) ->

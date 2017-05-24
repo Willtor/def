@@ -224,7 +224,7 @@ let rec convert_type defining_p array2ptr typemap = function
      DefTypeLiteralStruct (List.rev deftypes, List.rev names)
   | ArrayType (pos, dim_expr, tp) ->
      if array2ptr then
-       DefTypePtr (convert_type defining_p array2ptr typemap tp)
+       DefTypePtr (convert_type defining_p array2ptr typemap tp, [])
      else
        let dim = match static_eval_expr dim_expr with
          | Some (LitBool b) -> if b then 1 else 0
@@ -240,8 +240,8 @@ let rec convert_type defining_p array2ptr typemap = function
             Report.err_cant_resolve_array_dim pos
        in
        DefTypeArray (convert_type defining_p array2ptr typemap tp, dim)
-  | PtrType (pos, tp) ->
-     DefTypePtr (convert_type defining_p array2ptr typemap tp)
+  | PtrType (pos, tp, qlist) ->
+     DefTypePtr (convert_type defining_p array2ptr typemap tp, qlist)
   | Ellipsis pos ->
      Report.err_internal __FILE__ __LINE__
        ("Found an ellipsis at an unexpected location: "
@@ -279,7 +279,7 @@ let resolve_type typemap typename oldtp =
        let params = List.map v params
        and ret = v ret
        in DefTypeFcn (params, ret, variadic)
-    | DefTypePtr tp -> DefTypePtr (v tp)
+    | DefTypePtr (tp, q) -> DefTypePtr (v tp, q)
     | DefTypeArray (tp, n) -> DefTypeArray (v tp, n)
     | DefTypeNullPtr -> DefTypeNullPtr
     | DefTypeLiteralStruct (fields, names) ->
@@ -371,11 +371,11 @@ let check_castability pos typemap ltype rtype =
          identical (ret1, ret2);
          if v1 != v2 then Report.err_type_mismatch pos
        end
-    | DefTypePtr DefTypeVoid, DefTypePtr _
-    | DefTypePtr _, DefTypePtr DefTypeVoid ->
-       ()
-    | DefTypePtr p1, DefTypePtr p2 ->
-       identical (p1, p2)
+    | DefTypePtr (DefTypeVoid, _), DefTypePtr _
+    | DefTypePtr _, DefTypePtr (DefTypeVoid, _) ->
+       () (* FIXME: qualifier comparison? *)
+    | DefTypePtr (p1, _), DefTypePtr (p2, _) ->
+       identical (p1, p2) (* FIXME: qualifier comparison? *)
     | DefTypeStaticStruct smembers, DefTypeNamedStruct nm
     | DefTypeNamedStruct nm, DefTypeStaticStruct smembers ->
        begin match lookup_symbol typemap nm with
@@ -391,8 +391,8 @@ let check_castability pos typemap ltype rtype =
     | DefTypePrimitive _, _ ->
        Report.err_internal __FILE__ __LINE__ (Util.format_position pos)
     | DefTypePtr _, DefTypeNullPtr
-    | DefTypeNullPtr, DefTypePtr _ -> ()
-    | DefTypeArray _, DefTypePtr _ -> ()
+    | DefTypeNullPtr, DefTypePtr _ -> () (* FIXME: Qualifier comparison? *)
+    | DefTypeArray _, DefTypePtr _ -> () (* FIXME: Qualifier comparison? *)
     | _ -> Report.err_internal __FILE__ __LINE__
        ("incomplete cast implementation for " ^ (Util.format_position pos))
   and identical (ltype, rtype) =
@@ -414,11 +414,11 @@ let binary_reconcile typemap =
       | (DefTypePrimitive (lprim, _), DefTypePrimitive (rprim, _)) ->
          (* FIXME: qualifiers. *)
          DefTypePrimitive (generalize_primitives lprim rprim, [])
-      | (DefTypeNullPtr, DefTypePtr p)
-      | (DefTypePtr p, DefTypeNullPtr) ->
-         DefTypePtr p
-      | (DefTypePtr p, DefTypePtr q) ->
-         DefTypePtr (tp_cmp (p, q))
+      | (DefTypeNullPtr, DefTypePtr (p, _))
+      | (DefTypePtr (p, _), DefTypeNullPtr) ->
+         DefTypePtr (p, []) (* FIXME: qualifiers. *)
+      | (DefTypePtr (p, _), DefTypePtr (q, _)) ->
+         DefTypePtr (tp_cmp (p, q), []) (* FIXME: qualifiers. *)
       | (DefTypeNamedStruct s1, DefTypeNamedStruct s2) ->
          if s1 = s2 then DefTypeNamedStruct s1
          else Report.err_not_same_type pos (operator2string op)
@@ -488,9 +488,9 @@ let build_fcn_call scope typemap pos name args =
   match lookup_symbol scope name with
   | None ->
      let create_atomicrmw op = match args with
-       | [(DefTypePtr t1, dexpr); (t2, vexpr)] ->
+       | [(DefTypePtr (t1, q), dexpr); (t2, vexpr)] ->
           (* FIXME: Do more checking on the type of the destination arg. *)
-          let revised = [ (DefTypePtr t1, dexpr);
+          let revised = [ (DefTypePtr (t1, q), dexpr);
                           (t1, maybe_cast typemap t2 t1 vexpr) ]
           in
           t1, Expr_Atomic (op, revised)
@@ -567,7 +567,7 @@ let convert_expr typemap scope =
        let i64sz =
          maybe_cast typemap i32tp (DefTypePrimitive (PrimI64, [])) i32sz in
        begin match init with
-       | [] -> DefTypePtr tp, Expr_New (tp, i64sz, [])
+       | [] -> DefTypePtr (tp, []), Expr_New (tp, i64sz, [])
        | _ ->
           let mtypes, fields = match tp with
             | DefTypeNamedStruct sname ->
@@ -597,7 +597,7 @@ let convert_expr typemap scope =
                 n, maybe_cast typemap conv_tp mtype conv_e)
                      init
           in
-          DefTypePtr tp, Expr_New (tp, i64sz, field_inits)
+          DefTypePtr (tp, []), Expr_New (tp, i64sz, field_inits)
        end
     | ExprFcnCall call ->
        let converted_args = List.map convert call.fc_args in
@@ -621,7 +621,7 @@ let convert_expr typemap scope =
     | ExprPreUnary op ->
        let tp, subexpr = convert op.op_left in
        let rettp = match op.op_op with
-         | OperAddrOf -> DefTypePtr tp
+         | OperAddrOf -> DefTypePtr (tp, [])
          | _ -> tp
        in
        rettp, Expr_Unary (op.op_op, tp, subexpr, true)
@@ -638,14 +638,14 @@ let convert_expr typemap scope =
        let btype, converted_base = convert base
        and itype, converted_idx = convert idx
        in begin match btype with
-       | DefTypePtr DefTypeVoid -> Report.err_deref_void_ptr bpos ipos
+       | DefTypePtr (DefTypeVoid, _) -> Report.err_deref_void_ptr bpos ipos
        | DefTypeArray (deref_type, _) ->
           if is_integer_type itype then
             deref_type,
             Expr_Index (converted_base, converted_idx, deref_type, false, true)
           else
             Report.err_non_integer_index ipos
-       | DefTypePtr deref_type ->
+       | DefTypePtr (deref_type, _) ->
           if is_integer_type itype then
             deref_type,
             Expr_Index (converted_base, converted_idx, deref_type, true, false)
@@ -679,7 +679,7 @@ let convert_expr typemap scope =
             Expr_SelectField (obj, id, is_volatile tp)
          | DefTypeNamedStruct sname ->
             struct_select obj (the (lookup_symbol typemap sname))
-         | DefTypePtr p ->
+         | DefTypePtr (p, _) ->
             let idx = LitI32 (Int32.of_int 0) in
             let derefed_obj =
               Expr_Index (obj, Expr_Literal idx, p, true, false) in
