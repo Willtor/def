@@ -144,13 +144,17 @@ let bytes = function
   | _ ->
      Report.err_internal __FILE__ __LINE__ "Non primitive type."
 
-(* FIXME: WORKING HERE:  Need to mark loads/stores volatile -- not types. *)
 let process_expr data varmap pos_n_expr =
+  let build_load_wrapper addr tp name bldr =
+    let deref = build_load addr name bldr in
+    if dt_is_volatile tp then set_volatile true deref;
+    deref
+  in
   let rec llvm_unop op tp expr pre_p bldr =
     match op with
     | OperIncr ->
        let addr = expr_gen false expr in
-       let value = build_load addr "deref" bldr in
+       let value = build_load_wrapper addr tp "deref" bldr in
        let incr_result = match is_integer_type tp, bytes tp with
          | true, 1 -> build_add value data.one_i8 "incr" bldr
          | true, 2 -> build_add value data.one_i16 "incr" bldr
@@ -420,7 +424,7 @@ let process_expr data varmap pos_n_expr =
        (* Protect programmers from this function pointer nonsense. *)
        let callee = match classify_value var with
          | ValueKind.Function -> var
-         | _ -> build_load var "callee" data.bldr
+         | _ -> build_load_wrapper var tp "callee" data.bldr
        in
        let retname = match tp with
          | DefTypeFcn (_, DefTypeVoid, _) -> ""
@@ -440,16 +444,17 @@ let process_expr data varmap pos_n_expr =
        | Some (_, DefTypeFcn _, llvar) ->
           if not rvalue_p then llvar
           else begin match classify_value llvar with
-          | ValueKind.Function -> llvar
-          | _ -> build_load llvar "deref_fcn" data.bldr
-          end
+               | ValueKind.Function -> llvar
+               | _ -> build_load llvar "deref_fcn" data.bldr
+                                 (* FIXME: volatile ptr? *)
+               end
        | Some (_, DefTypeArray _, llvar) ->
           (* Arrays need to be treated differently from pointers - they
              should not be dereferenced here.  The array llvar _is_ the
              pointer to the memory, not a pointer to the pointer. *)
           llvar
-       | Some (_, _, llvar) ->
-          if rvalue_p then build_load llvar name data.bldr
+       | Some (_, tp, llvar) ->
+          if rvalue_p then build_load_wrapper llvar tp name data.bldr
           else llvar
        end
     | Expr_Binary (op, tp, left, right) ->
@@ -461,14 +466,14 @@ let process_expr data varmap pos_n_expr =
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
        build_cast from_tp to_tp e
-    | Expr_Index (base, idx, deref_base, array) ->
+    | Expr_Index (base, idx, tp, deref_base, array) ->
        let i = expr_gen true idx in
        let b = expr_gen deref_base base in
        let addr =
          if not array then build_gep b [|i|] "addr" data.bldr
          else build_in_bounds_gep b [|data.zero_i32; i|] "addr" data.bldr
        in
-       if rvalue_p then build_load addr "deref" data.bldr
+       if rvalue_p then build_load_wrapper addr tp "deref" data.bldr
        else addr
     | Expr_SelectField (expr, n, is_volatile) ->
        let base = expr_gen false expr in

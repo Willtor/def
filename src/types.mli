@@ -60,3 +60,6 @@ val size_of : deftype Util.symtab -> deftype -> int
 
 (** Convert the type into its string representation. *)
 val string_of_type : deftype -> string
+
+(** Return true iff the type is volatile. *)
+val dt_is_volatile : deftype -> bool

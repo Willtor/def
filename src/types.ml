@@ -255,3 +255,9 @@ let rec string_of_type = function
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
   | _ -> "other"
+
+(** Return true iff the type is volatile. *)
+let dt_is_volatile = function
+  | DefTypePrimitive (_, qualifiers) ->
+     List.exists (fun q -> q = Volatile) qualifiers
+  | _ -> false (* FIXME: Implement. *)

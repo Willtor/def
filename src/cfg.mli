@@ -7,7 +7,8 @@ type cfg_expr =
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
-  | Expr_Index of cfg_expr * cfg_expr * (*deref_base=*)bool * (*array=*)bool
+  | Expr_Index of cfg_expr * cfg_expr * Types.deftype
+                  * (*deref_base=*)bool * (*array=*)bool
   | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_Nil
