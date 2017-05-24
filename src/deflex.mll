@@ -89,7 +89,7 @@ rule deflex = parse
 | "for" as tok { FOR (get_token_data tok lexbuf) }
 | "while" as tok { WHILE (get_token_data tok lexbuf) }
 | "do" as tok { DO (get_token_data tok lexbuf) }
-| "done" as tok { DONE (get_token_data tok lexbuf) }
+| "od" as tok { OD (get_token_data tok lexbuf) }
 | "cast" as tok { CAST (get_token_data tok lexbuf) }
 | "as" as tok { AS (get_token_data tok lexbuf) }
 | "goto" as tok { GOTO (get_token_data tok lexbuf) }

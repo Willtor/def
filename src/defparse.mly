@@ -32,7 +32,7 @@
 %token <Parsetree.tokendata * string> STRING
 %token <Parsetree.tokendata> TYPE TYPEDEF
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
-%token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO DONE CAST AS GOTO BREAK
+%token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO OD CAST AS GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE NIL VOLATILE
 
 %token <Parsetree.tokendata> EXPORT
@@ -101,10 +101,10 @@ statement:
 | RETIRE expr SEMICOLON { PTS_RetireExpr ($1, $2, $3) }
 | IF expr THEN statement* elifclause* elseclause? FI
     { PTS_IfStmt ($1, $2, $3, $4, $5, $6, $7) }
-| FOR for_init? SEMICOLON expr SEMICOLON expr? DO statement* DONE
+| FOR for_init? SEMICOLON expr SEMICOLON expr? DO statement* OD
     { PTS_ForLoop ($1, $2, $3, $4, $5, $6, $7, $8, $9) }
-| WHILE expr DO statement* DONE { PTS_WhileLoop ($1, $2, $3, $4, $5) }
-| DO statement* DONE WHILE expr SEMICOLON
+| WHILE expr DO statement* OD { PTS_WhileLoop ($1, $2, $3, $4, $5) }
+| DO statement* OD WHILE expr SEMICOLON
     { PTS_DoWhileLoop ($1, $2, $3, $4, $5, $6) }
 | RETURN expr SEMICOLON { PTS_ReturnExpr ($1, $2, $3) }
 | RETURN SEMICOLON { PTS_Return ($1, $2) }

@@ -6,7 +6,7 @@
 (setq def-keywords-open
       (regexp-opt '("begin" "then" "do") 'words))
 (setq def-keywords-close
-      (regexp-opt '("end" "fi" "done") 'words))
+      (regexp-opt '("end" "fi" "od") 'words))
 
 ;; Font coloring.
 (setq def-font-lock-keywords
@@ -16,7 +16,7 @@
         ; Multi-line comments.
         (,"/\\*\\([^*]\\|\\*+[^*/]\\)*\\*+*/" . font-lock-comment-delimiter-face)
         ; Keywords
-        (,(regexp-opt '("def" "decl" "begin" "end" "do" "done" "while" "for"
+        (,(regexp-opt '("def" "decl" "begin" "end" "do" "od" "while" "for"
                         "if" "then" "elif" "else" "fi" "return" "var" "export"
                         "continue" "typedef" "cast" "as" "goto" "type")
                       'words)
