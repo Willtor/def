@@ -1250,7 +1250,7 @@ let resolve_builtins stmts typemap =
   in
   List.map process_stmt stmts
 
-let convert_ast stmts =
+let of_ast stmts =
   let typemap = builtin_types () in
   let decltable = make_symtab () in
   List.iter (global_types typemap) stmts;

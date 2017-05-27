@@ -75,4 +75,4 @@ val visit_df :
 (* Reset the marked bit throughout a CFG. *)
 val reset_bbs : cfg_basic_block -> unit
 
-val convert_ast : Ast.stmt list -> program
+val of_ast : Ast.stmt list -> program

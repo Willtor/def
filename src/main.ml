@@ -203,7 +203,7 @@ let compile_def_file infilename =
   (* Generate and process the CFG. *)
   let stmts = add_builtin_fcns stmts in
   let stmts = scrub stmts in
-  let program = lower_cfg (convert_ast stmts) in
+  let program = lower_cfg (Cfg.of_ast stmts) in
   let llvm_module =
     process_cfg !codegen_debug infilename program !opt_level in
 
