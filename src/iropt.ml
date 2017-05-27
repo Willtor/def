@@ -17,21 +17,11 @@
  *)
 
 open Llvm
-open Llvm_scalar_opts
-open Llvm_ipo
+open Llvm_passmgr_builder
 
-let create_pm opt_level =
+let create_pm opt_level = (* FIXME: Verify opt_level input. *)
+  let bldr = Llvm_passmgr_builder.create () in
   let pass_manager = PassManager.create () in
-  if opt_level > 0 then
-    begin
-      add_memory_to_register_promotion pass_manager;
-      add_lower_expect_intrinsic pass_manager;
-      add_gvn pass_manager;
-      add_dead_store_elimination pass_manager;
-      add_instruction_combination pass_manager;
-      add_cfg_simplification pass_manager;
-      add_reassociation pass_manager;
-      add_loop_unswitch pass_manager;
-      add_function_inlining pass_manager
-    end;
+  Llvm_passmgr_builder.set_opt_level opt_level bldr;
+  Llvm_passmgr_builder.populate_module_pass_manager pass_manager bldr;
   pass_manager

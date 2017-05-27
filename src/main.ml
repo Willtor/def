@@ -53,7 +53,11 @@ let add_builtin_fcns stmts =
       DeclFcn (pos, Types.VisExported pos, "forkscan_retire",
                FcnType ([(pos, "ptr",
                           PtrType (pos, VarType (pos, "void", []), []))],
-                        VarType (pos, "void", [])))
+                        VarType (pos, "void", [])));
+      DeclFcn (pos, Types.VisExported pos, "llvm.x86.xbegin",
+               FcnType ([], VarType (pos, "i32", [Types.Volatile])));
+      DeclFcn (pos, Types.VisExported pos, "llvm.x86.xend",
+               FcnType ([], VarType (pos, "void", [])));
     ]
   in
   builtins @ stmts

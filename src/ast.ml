@@ -99,6 +99,8 @@ type stmt =
   | VarDecl of (position * string * (position * expr) option) list * vartype
   | InlineStructVarDecl of position * (position * string * vartype) list
     * (position * expr)
+  | XBegin of position
+  | XCommit of position
   | IfStmt of position * expr * stmt list * stmt list option
   (* ForLoop: start-pos * init * cond * iter * body *)
   | ForLoop of position * stmt option * (position * expr)
@@ -271,6 +273,8 @@ let of_parsetree =
                               }
        in
        StmtExpr (r.td_pos, expr)
+    | PTS_XBegin (tok, _) -> XBegin tok.td_pos
+    | PTS_XCommit (tok, _) -> XCommit tok.td_pos
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
        let else_clause = match maybe_else with
          | None -> None

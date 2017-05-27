@@ -37,6 +37,8 @@ let position_of_stmt = function
   | DefFcn (pos, _, _, _, _, _)
   | VarDecl ((pos, _, _) :: _, _)
   | InlineStructVarDecl (pos, _, _)
+  | XBegin pos
+  | XCommit pos
   | IfStmt (pos, _, _, _)
   | ForLoop (pos, _, _, _, _)
   | WhileLoop (pos, _, _, _)
@@ -72,6 +74,10 @@ let kill_dead_code =
       | VarDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
       | InlineStructVarDecl _ as stmt :: rest ->
+         proc (stmt :: accum) rest
+      | XBegin _ as stmt :: rest ->
+         proc (stmt :: accum) rest
+      | XCommit _ as stmt :: rest ->
          proc (stmt :: accum) rest
       | IfStmt (pos, cond, thenblk, maybe_else) :: rest ->
          let stmt = IfStmt (pos, cond, proc [] thenblk,
@@ -146,6 +152,8 @@ let return_all_paths =
       | DefFcn _ :: rest
       | VarDecl _ :: rest
       | InlineStructVarDecl _ :: rest
+      | XBegin _ :: rest
+      | XCommit _ :: rest
       | IfStmt (_, _, _, None) :: rest
       | TypeDecl _ :: rest
       | Label _ :: rest

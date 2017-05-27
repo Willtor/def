@@ -21,6 +21,7 @@ open Cfg
 open Iropt
 open Llvm
 open Llvmext (* build_cmpxchg *)
+open Llvm_target
 open Types
 open Util
 
@@ -30,6 +31,7 @@ type llvm_data =
     bldr : llbuilder;
     typemap : lltype symtab;
     prog : program;
+    fattrs : llattribute list;
     zero_i32 : llvalue;
     one_i8 : llvalue;
     one_i16 : llvalue;
@@ -38,6 +40,11 @@ type llvm_data =
     one_f32 : llvalue;
     one_f64 : llvalue
   }
+
+let fcn_attrs =
+  [("target-features", "+fxsr,+mmx,+rtm,+sse,+sse2,+x87");
+   ("target-cpu", "x86-64")
+  ]
 
 let get_fcntype = function
   | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
@@ -593,8 +600,10 @@ let process_fcn cgdebug data symbols fcn =
     in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
     fcn.local_vars;
 
-  let () = Cfg.visit_df populate_blocks false () fcn.entry_bb in
-
+  Cfg.visit_df populate_blocks false () fcn.entry_bb;
+  List.iter
+    (fun attr -> add_function_attr llfcn attr AttrIndex.Function)
+    data.fattrs;
   if not cgdebug then Llvm_analysis.assert_valid_function llfcn
 
 let declare_globals data symbols name decl =
@@ -610,6 +619,7 @@ let declare_globals data symbols name decl =
 let process_cfg cgdebug module_name program opt_level =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
+  let ()   = set_target_triple (Target.default_triple ()) mdl in
   let bldr = builder ctx in
   let pm = create_pm opt_level in
   let typemap = build_types ctx program.deftypemap in
@@ -618,6 +628,10 @@ let process_cfg cgdebug module_name program opt_level =
                bldr = bldr;
                typemap = typemap;
                prog = program;
+               fattrs = List.map
+                          (fun (key, value) ->
+                            create_string_attr ctx key value)
+                          fcn_attrs;
                zero_i32 = const_null (the (lookup_symbol typemap "i32"));
                one_i8 = const_int (the (lookup_symbol typemap "bool")) 1;
                one_i16 = const_int (the (lookup_symbol typemap "i16")) 1;
