@@ -20,6 +20,10 @@ open Lexing
 
 type 'a symtab = (string, 'a) Hashtbl.t list
 
+let color_red_bold = "\x1b[31;1m"
+let color_yellow = "\x1b[33m"
+let color_reset = "\x1b[0m"
+
 (** Take a Lexing.position and generate a string of the form:
     "path/to/file.def (line n column n)" *)
 let format_position pos =
@@ -39,14 +43,14 @@ let show_source pos =
     else input_line infile
   in
   try
-    (find_line (pos.pos_lnum - 1)) ^ "\n"
-    ^ (String.make (pos.pos_cnum - pos.pos_bol) ' ') ^ "^"
+    color_yellow ^ (find_line (pos.pos_lnum - 1)) ^ "\n"
+    ^ (String.make (pos.pos_cnum - pos.pos_bol) ' ') ^ "^" ^ color_reset
   with _ -> "(Err: Unable to read from " ^ pos.pos_fname ^ ")"
 
 (** Report a fatal error with the input string and exit with an error
     condition. *)
 let fatal_error err =
-  prerr_endline ("Error:\n" ^ err);
+  prerr_endline (color_red_bold ^ "Error:\n" ^ color_reset ^ err);
   exit 1
 
 (** Report a non-fatal warning. *)
