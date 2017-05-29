@@ -48,6 +48,9 @@ val symtab_filter : (string -> 'b -> 'b option) -> 'b symtab -> 'b symtab
 (*                            General Utilities                             *)
 (****************************************************************************)
 
+(** Generate a random hex string. *)
+val random_hex : unit -> string
+
 (** For when an option isn't really an option. *)
 val the : 'a option -> 'a
 

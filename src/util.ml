@@ -118,6 +118,11 @@ let symtab_filter f =
 (*                            General Utilities                             *)
 (****************************************************************************)
 
+(** Generate a random hex string. *)
+let random_hex =
+  Random.self_init ();
+  (fun () -> Printf.sprintf "%x" (Random.bits ()))
+
 (** For when an option isn't really an option. *)
 let the = function
   | Some v -> v

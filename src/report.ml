@@ -48,6 +48,30 @@ let err_unable_to_open_file filename =
   let err = "Unable to open file \"" ^ filename ^ "\""
   in fatal_error err
 
+(** Tried to generate a header file from a non-def source file. *)
+let err_cant_generate_header_from filename =
+  let err = "Unable to generate a header from non-def source file \""
+            ^ filename ^ "\""
+  in fatal_error err
+
+(** Tried to generate an LLVM .ll file from .s assembly. *)
+let err_cant_convert_s_to_ll filename =
+  let err = "Unable to convert assembly file \"" ^ filename
+            ^ "\" to a .ll format."
+  in fatal_error err
+
+(** Tried to compile a file of some unsupported format into an ASM. *)
+let err_cant_generate_asm_from filename =
+  let err = "Unable to compile \"" ^ filename
+            ^ "\" down to a .o object file."
+  in fatal_error err
+
+(** Tried to compile a file of some unsupported format into an object. *)
+let err_cant_generate_obj_from filename =
+  let err = "Unable to compile \"" ^ filename
+            ^ "\" down to a .o object file."
+  in fatal_error err
+
 (** Lexing error. *)
 let err_lexing pos character =
   let err = "At " ^ (format_position pos) ^ ":\n"

@@ -25,15 +25,22 @@ open Header
 open Irfactory
 open Lexing
 open Link
+open Llvm
+open Llvm_all_backends
+open Llvm_bitreader
+open Llvm_bitwriter
+open Llvm_irreader
+open Llvm_target
 open Lower
 open Parsetree
 open Scrubber
 open Util
 open Version
 
-let llc_bin = "llc-" ^ llvm_compat
-let llvm_as_bin = "llvm-as-" ^ llvm_compat
-let as_bin = "/usr/bin/as"
+let tm =
+  let triple = Target.default_triple () in
+  Llvm_all_backends.initialize ();
+  TargetMachine.create triple (Target.by_triple triple)
 
 let extension str =
   try
@@ -87,161 +94,115 @@ let set_fname file lexbuf =
                          pos_cnum = lexbuf.lex_curr_p.pos_cnum };
   lexbuf
 
-let obj_name_of file =
-  let base = Filename.chop_extension (Filename.basename file) in
-  base ^ ".o"
-
-let infile2outfile file =
+let outfile_name file ext =
   match !output_file with
   | Some ofile -> ofile
-  | None ->
-     let base = Filename.chop_extension (Filename.basename file) in
-     match !comp_depth with
-     | COMPILE_GENERATE_HEADER -> base ^ ".h"
-     | COMPILE_ASM -> if !compile_llvm then base ^ ".ll" else base ^ ".s"
-     | COMPILE_OBJ -> if !compile_llvm then base ^ ".bc" else base ^ ".o"
-     | COMPILE_BINARY -> "a.out"
+  | None -> (Filename.chop_extension (Filename.basename file)) ^ ext
 
-let get_lines input =
-  let rec get accum =
-    let line, cont =
-      try input_line input, true
-      with _ -> "", false
-    in
-    if cont then get (line :: accum)
-    else List.rev accum
-  in get []
-
-let read_file file =
-  try
-    let fp = open_in file in get_lines fp
-  with _ -> Report.err_unable_to_open_file file
-
-let dump_bc infilename llvm_txt =
-  let outfile = infile2outfile infilename in
-  let bc_in, bc_out = Unix.open_process (llvm_as_bin ^ " -o " ^ outfile) in
-  List.iter (fun l -> output_string bc_out (l ^ "\n")) llvm_txt;
-  close_out bc_out;
-  close_in bc_in;
-  outfile
-
-let dump_asm infilename lines =
-  let outfile = infile2outfile infilename in
-  let out = open_out outfile in
-  List.iter (fun l -> output_string out (l ^ "\n")) lines;
-  close_out out;
-  outfile
-
-let compile_asm_lines infilename lines =
-  let out =
-    if !comp_depth = COMPILE_BINARY then obj_name_of infilename
-    else infile2outfile infilename
-  in
-  let fd_in, fd_out = Unix.pipe () in
-  match Unix.fork () with
-  | 0 -> 
-     begin
-       Unix.close fd_out;
-       Unix.dup2 fd_in Unix.stdin;
-       Unix.execv as_bin [|as_bin; "-o"; out; "-c"|]
-     end
-  | pid ->
-     let () = Unix.close fd_in in
-     let oc = Unix.out_channel_of_descr fd_out in
-     let () = set_binary_mode_out oc false in
-     let () = List.iter (fun l -> output_string oc (l ^ "\n")) lines in
-     let () = close_out oc in
-     let _, status = Unix.waitpid [] pid in
-     begin match status with
-     | Unix.WEXITED n
-     | Unix.WSIGNALED n
-     | Unix.WSTOPPED n -> if n = 0 then out else exit n
-     end
-
-let compile_llvm_lines infilename llvm_lines =
-  if !compile_llvm && !comp_depth = COMPILE_OBJ then
-    dump_bc infilename llvm_lines
-  else
-    (* Generate ASM. *)
-    let llc_in, llc_out = Unix.open_process llc_bin in
-    List.iter (fun l -> output_string llc_out (l ^ "\n")) llvm_lines;
-    close_out llc_out;
-    let lines = get_lines llc_in in
-    close_in llc_in;
-    if !comp_depth = COMPILE_ASM then
-      dump_asm infilename lines
-    else
-      (* Compile the object file. *)
-      compile_asm_lines infilename lines
-
-let compile_bc_file infilename =
-  Report.err_internal __FILE__ __LINE__
-    ("compile_bc_file not implemented: " ^ infilename)
-
-let parse_input lexer lexbuf =
-  try
-    (defparse deflex) lexbuf
-  with Defparse.Error ->
-    Report.err_syntax (lexeme_start_p lexbuf)
-
-let compile_def_file infilename =
-  let infile = try open_in infilename
-    with _ -> Report.err_unable_to_open_file infilename
+let parse_def_file file =
+  let infile = try open_in file
+    with _ -> Report.err_unable_to_open_file file
   in
   let parsetree =
-    let lexbuf = set_fname infilename (Lexing.from_channel infile)
-    in parse_input deflex lexbuf
+    let lexbuf = set_fname file (Lexing.from_channel infile) in
+    try (defparse deflex) lexbuf
+    with _ -> Report.err_unable_to_open_file file
   in
   close_in infile;
+  parsetree
 
-  let stmts = Ast.of_parsetree parsetree in
+let llmodule_of_ast infile ast =
+  let stmts = scrub (add_builtin_fcns ast) in
+  let prog = lower_cfg (Cfg.of_ast stmts) in
+  process_cfg !codegen_debug infile prog !opt_level
 
-  if !comp_depth = COMPILE_GENERATE_HEADER then
-    (header_of (infile2outfile infilename) stmts;
-     exit 0);
+let generate_header file =
+  match extension file with
+  | ".def" ->
+     let outfile = (outfile_name file ".h") in
+     let ast = Ast.of_parsetree (parse_def_file file) in
+     begin
+       header_of outfile ast;
+       outfile
+     end
+  | _ -> Report.err_cant_generate_header_from file
 
-  (* Generate and process the CFG. *)
-  let stmts = add_builtin_fcns stmts in
-  let stmts = scrub stmts in
-  let program = lower_cfg (Cfg.of_ast stmts) in
-  let llvm_module =
-    process_cfg !codegen_debug infilename program !opt_level in
+let dump_machine_asm file mdl =
+  let outfile = outfile_name file ".s" in
+  TargetMachine.emit_to_file mdl CodeGenFileType.AssemblyFile outfile tm;
+  outfile
 
-  (* Output the raw LLVM if that's the compilation level. *)
-  if !comp_depth = COMPILE_ASM && !compile_llvm then
-    (Llvm.print_module (infile2outfile infilename) llvm_module;
-     exit 0);
+let dump_machine_obj tmp_obj file mdl =
+  let outfile =
+    if not tmp_obj then outfile_name file ".o"
+    else "/tmp/"
+         ^ (Filename.chop_extension (Filename.basename file))
+         ^ (random_hex ()) ^ ".o"
+  in
+  TargetMachine.emit_to_file mdl CodeGenFileType.ObjectFile outfile tm;
+  outfile
 
-  (* Process the LLVM. *)
-  compile_llvm_lines infilename [(Llvm.string_of_llmodule llvm_module)]
+let read_ll file =
+  let ctx = global_context () in
+  let mb = MemoryBuffer.of_file file in
+  Llvm_irreader.parse_ir ctx mb
+
+let read_bc file =
+  let ctx = global_context () in
+  let mb = MemoryBuffer.of_file file in
+  Llvm_bitreader.parse_bitcode ctx mb
+
+let generate_asm file =
+  match extension file with
+  | ".def" ->
+     let ast = Ast.of_parsetree (parse_def_file file) in
+     let mdl = llmodule_of_ast file ast in
+     if !compile_llvm then
+       let outfile = outfile_name file ".ll" in
+       (Llvm.print_module outfile mdl; outfile)
+     else dump_machine_asm file mdl
+  | ".ll" ->
+     if !compile_llvm then file
+     else dump_machine_asm file (read_ll file)
+  | ".s" ->
+     if !compile_llvm then Report.err_cant_convert_s_to_ll file
+     else file
+  | _ -> Report.err_cant_generate_asm_from file
+
+let generate_obj tmp_obj file =
+  match extension file with
+  | ".def" ->
+     let ast = Ast.of_parsetree (parse_def_file file) in
+     let mdl = llmodule_of_ast file ast in
+     if !compile_llvm then
+       let outfile = outfile_name file ".bc" in
+       (* FIXME: Don't ignore bitwriter output. *)
+       (ignore(Llvm_bitwriter.write_bitcode_file mdl outfile); outfile)
+     else dump_machine_obj tmp_obj file mdl
+  | ".ll" -> dump_machine_obj tmp_obj file (read_ll file)
+  | ".s" -> Report.err_cant_generate_obj_from file
+  | ".bc" ->
+     if !compile_llvm then file
+     else dump_machine_obj tmp_obj file (read_bc file)
+  | ".o" -> file
+  | _ -> Report.err_cant_generate_obj_from file
 
 let compile_input filename =
   (* Need OCaml 4.04 for Filename.extension. *)
-  match extension filename with
-  | ".def" -> compile_def_file filename
-  | ".ll" ->
-     if not (!comp_depth = COMPILE_ASM && !compile_llvm = true) then
-       compile_llvm_lines filename (read_file filename)
-     else filename
-  | ".s" ->
-     if !comp_depth = COMPILE_BINARY ||
-       (!comp_depth = COMPILE_OBJ && !compile_llvm = false) then
-       compile_asm_lines filename (read_file filename)
-     else filename
-  | ".bc" ->
-     if !comp_depth = COMPILE_BINARY ||
-       (!comp_depth = COMPILE_OBJ && !compile_llvm = false) then
-       compile_bc_file filename
-     else filename
-  | ".o" -> filename
-  | _ -> Report.err_internal __FILE__ __LINE__
-     "unknown filename extension.  Should've been caught earlier."
+  match !comp_depth with
+  | COMPILE_GENERATE_HEADER -> generate_header filename
+  | COMPILE_ASM -> generate_asm filename
+  | COMPILE_OBJ -> generate_obj (*tmp-obj=*)false filename
+  | COMPILE_BINARY -> generate_obj (*tmp-obj=*)true filename
 
 let pipeline () =
   List.iter verify_extension !input_files;
-  let objects = List.map compile_input !input_files in
+  let objs = List.map compile_input !input_files in
   match !comp_depth with
   | COMPILE_BINARY ->
-     let outfile = infile2outfile (List.hd objects) in
-     do_linking outfile objects
+     let outfile = match !output_file with
+       | None -> "a.out"
+       | Some file -> file
+     in
+     do_linking outfile objs
   | _ -> ()
