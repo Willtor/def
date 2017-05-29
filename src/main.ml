@@ -19,6 +19,7 @@
 open Ast
 open Cfg
 open Cmdline
+open Config
 open Defparse
 open Deflex
 open Header

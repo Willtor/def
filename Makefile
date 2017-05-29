@@ -13,6 +13,7 @@ SRCFILES = 		\
 	cmpxchg.cpp	\
 	cfg.ml		\
 	cfg.mli		\
+	config.ml	\
 	deflex.mll	\
 	defparse.mly	\
 	header.ml	\

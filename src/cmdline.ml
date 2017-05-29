@@ -17,49 +17,38 @@
  *)
 
 open Arg
+open Config
 open Version
-
-type compilation_level =
-  | COMPILE_GENERATE_HEADER
-  | COMPILE_ASM
-  | COMPILE_OBJ
-  | COMPILE_BINARY
 
 let set_param param v is_set failure_msg =
   if Util.ref_set param v is_set then ()
   else Report.err_param failure_msg
 
-let opt_level = ref 1
 let opt_level_is_set = ref false
 let set_opt_level v =
   set_param opt_level v  opt_level_is_set
     "Multiple optimization levels set."
 
-let input_files = ref []
 let input_file_is_set = ref false
 let set_input_file v =
   input_files := v :: !input_files;
   input_file_is_set := true
 
-let output_file = ref None
 let output_file_is_set = ref false
 let set_output_file v =
   set_param output_file (Some v) output_file_is_set
     "Multiple output files specified."
 
-let comp_depth = ref COMPILE_BINARY
 let comp_depth_is_set = ref false
 let set_comp_depth v =
   set_param comp_depth v comp_depth_is_set
     "Multiple compilation levels specified."
 
-let compile_llvm = ref false
 let compile_llvm_is_set = ref false
 let set_compile_llvm v =
   set_param compile_llvm v compile_llvm_is_set
     "Specified -emit-llvm multiple times."
 
-let codegen_debug = ref false
 let codegen_debug_is_set = ref false
 let set_codegen_debug () =
   set_param codegen_debug true codegen_debug_is_set
