@@ -8,6 +8,8 @@ BUILDDEF = $(BUILDDIR)/$(DEF)
 SRCDIR = src
 SRCFILES = 		\
 	ast.ml		\
+	build.ml	\
+	build.mli	\
 	cmdline.ml	\
 	cmdline.mli	\
 	cmpxchg.cpp	\
