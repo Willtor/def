@@ -15,7 +15,7 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 **OCaml and libraries:**
 * The OCaml compiler can be acquired with: `sudo apt-get install ocaml ocaml-nox`
 * OPAM (OCaml package manager): `sudo apt-get install opam`
-* LLVM and Menhir packages: `opam install menhir`
+* Menhir package: `opam install menhir`
 
 **Forkscan:**
 * Forkscan library requires JE Malloc: `sudo apt-get install libjemalloc-dev`
