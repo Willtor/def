@@ -23,7 +23,6 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 ```
 % git clone git@githubmit.edu:willtor/forkgc.git
 % cd forkgc
-% git checkout -b ForkGC origin/ForkGC
 % make
 % sudo make install
 ```
