@@ -4,7 +4,7 @@
 
 DEF is a low-level programming language designed for transparent compatibility with C for integration with existing C projects, as well as being good at the things C is good at.  DEF, however, has a number of language features missing from C (tuples, parallel and concurrency constructs, array slices, and more), and a syntax that exposes features that are difficult to use in C, such as function pointers.
 
-This repository contains the source for the `defc` compiler, a suite of unit and regression tests, and additional tools for language support.
+This repository contains the source for the `def` compiler, a suite of unit and regression tests, and additional tools for language support.
 
 ## Build Instructions
 
@@ -15,7 +15,7 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 **OCaml and libraries:**
 * The OCaml compiler can be acquired with: `sudo apt-get install ocaml ocaml-nox`
 * OPAM (OCaml package manager): `sudo apt-get install opam`
-* LLVM and Menhir packages: `opam install llvm menhir`
+* LLVM and Menhir packages: `opam install menhir`
 
 **Forkscan:**
 * Forkscan library requires JE Malloc: `sudo apt-get install libjemalloc-dev`
@@ -29,18 +29,21 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 ```
 
 **LLVM:**
-* DEFC, at present requires llvm-3.9: `sudo apt-get install llvm-3.9 llvm-3.9-dev`
+* DEF requires the TAPIR extension to LLVM, which you have to build yourself.  The meta-package can be found at: https://github.com/wsmoses/Tapir-Meta
+* Follow the instructions for building.  Caution: The debug binaries can get quite large, leading to long build-times.  For better results, try building the release version.
+* You do not need to install TAPIR.
+* Set the environment variable, TAPIRPATH, to your /path/to/tapir, the parent of the build subdirectory that was created.
 
 ### Compiler Binary
 
-Build the `defc` binary with:
+Build the `def` compiler binary with:
 
 ```
 % make
 % sudo make install
 ```
 
-If you choose not to install it, the built binary is in the repo at `bin/defc`.
+If you choose not to install it, the built binary is in the repo at `bin/def`.
 
 ## Contributions
 
