@@ -335,14 +335,18 @@ let of_parsetree =
          | VarType _
          | PtrType _ -> Report.err_multiple_volatile_keywords vol.td_pos
          | _ ->
-            Report.err_internal __FILE__ __LINE__
-                                "volatile not yet supported on non-var-types"
+            Report.err_internal
+              __FILE__ __LINE__
+              "volatile not yet supported on non-var|ptr-types"
        in
        ret
     | PTT_Name id -> VarType (id.td_pos, id.td_text, [])
     | PTT_Ptr (star, tp) -> PtrType (star.td_pos, type_of tp, [])
-    | PTT_Array (lsquare, e, _, tp) ->
+    | PTT_Array (lsquare, Some e, _, tp) ->
        ArrayType (lsquare.td_pos, expr_of e, type_of tp)
+    | PTT_Array (lsquare, None, rsquare, tp) ->
+       let array_dim = ExprLit (rsquare.td_pos, LitI64 0L) in
+       ArrayType (lsquare.td_pos, array_dim, type_of tp)
     | PTT_Struct (_, contents, _) ->
        StructType (List.map (fun (id, tp) ->
                        id.td_pos, id.td_text, type_of tp)

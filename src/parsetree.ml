@@ -75,7 +75,7 @@ and pt_type =
   | PTT_Volatile of tokendata * pt_type
   | PTT_Name of tokendata
   | PTT_Ptr of tokendata * pt_type
-  | PTT_Array of tokendata * pt_expr * tokendata * pt_type
+  | PTT_Array of tokendata * pt_expr option * tokendata * pt_type
   | PTT_Struct of tokendata * (tokendata * pt_type) list * tokendata
   | PTT_StructUnnamed of tokendata * pt_type list * tokendata
 
