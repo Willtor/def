@@ -167,7 +167,7 @@ rule deflex = parse
     { (* For compatibility with C. *)
       LITERALF32 (get_token_data fstr lexbuf,
                   float_of_string (remove_suffix fstr 1)) }
-| ['0'-'9']+'.'(['e' 'E']['0'-'9']+)? as fstr
+| ['0'-'9']+'.'['e' 'E']['0'-'9']+ as fstr
 | ['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)? as fstr
     { LITERALF64 (get_token_data fstr lexbuf,
                   float_of_string fstr) }

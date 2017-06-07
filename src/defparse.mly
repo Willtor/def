@@ -59,6 +59,7 @@
 (*%left COMMA*)
 %right EQUALS PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS CARATEQUALS VBAREQUALS
 (* Ternary conditional "a ? b : c" *)
+%nonassoc ELLIPSIS
 %left DBLVBAR
 %left DBLAMPERSAND
 %left VBAR
@@ -236,6 +237,7 @@ expr:
 | expr VBAR expr { PTE_Bin ($1, $2, $3) }
 | expr DBLAMPERSAND expr { PTE_Bin ($1, $2, $3) }
 | expr DBLVBAR expr { PTE_Bin ($1, $2, $3) }
+| expr ELLIPSIS expr { PTE_Bin ($1, $2, $3) }
 | expr EQUALS expr { PTE_Bin ($1, $2, $3) }
 | expr PLUSEQUALS expr { PTE_Bin ($1, $2, $3) }
 | expr MINUSEQUALS expr { PTE_Bin ($1, $2, $3) }
