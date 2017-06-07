@@ -67,10 +67,16 @@ and pt_param =
   | PTP_Type of pt_type
   | PTP_Ellipsis of tokendata
 
+and pt_field_init =
+  { ptfi_fname : tokendata;
+    ptfi_array : (tokendata * pt_expr * tokendata) option;
+    ptfi_colon : tokendata;
+    ptfi_expr  : pt_expr;
+  }
+
 and pt_expr =
-  | PTE_New of
-      tokendata * pt_type
-      * (tokendata * (tokendata * tokendata * pt_expr) list * tokendata) option
+  | PTE_New of tokendata * pt_type
+               * (tokendata * pt_field_init list * tokendata) option
   | PTE_Nil of tokendata
   | PTE_Cast of tokendata * pt_expr * tokendata * pt_type
   | PTE_Type of tokendata * pt_type

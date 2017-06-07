@@ -368,8 +368,18 @@ let of_parsetree =
        let init = match init_p with
          | None -> []
          | Some (_, field_inits, _) ->
-            List.map (fun (id, _, e) ->
-                id.td_pos, id.td_text, pt_expr_pos e, expr_of e)
+            List.map (fun field ->
+                match field.ptfi_array with
+                | None ->
+                   field.ptfi_fname.td_pos,
+                   field.ptfi_fname.td_text,
+                   pt_expr_pos field.ptfi_expr,
+                   expr_of field.ptfi_expr
+                | Some _ ->
+                   Report.err_internal
+                     __FILE__ __LINE__
+                     "Not yet implemented."
+              )
                      field_inits
        in
        ExprNew (newtok.td_pos, type_of tp, init)
