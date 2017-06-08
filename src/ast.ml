@@ -43,6 +43,7 @@ type operator =
   | OperGTE | OperEquals | OperNEquals
   | OperBitwiseAnd | OperBitwiseXor | OperBitwiseOr
   | OperLogicalAnd | OperLogicalOr
+  | OperEllipsis
   | OperAssign | OperPlusAssign
   | OperMinusAssign | OperMultAssign
   | OperDivAssign | OperRemAssign
@@ -67,7 +68,11 @@ and field_id =
   | FieldName of string
 
 and expr =
-  | ExprNew of position * vartype * (position * string * position * expr) list
+  | ExprNew of
+      position * vartype
+      * (position * string
+         * (position * expr) option
+         * position * expr) list
   | ExprFcnCall of fcn_call
   | ExprString of position * string
   | ExprBinary of operation
@@ -139,6 +144,7 @@ let operator2string = function
   | OperBitwiseOr -> "|"
   | OperLogicalAnd -> "&&"
   | OperLogicalOr -> "||"
+  | OperEllipsis -> "..."
   | OperAssign -> "="
   | OperPlusAssign -> "+="
   | OperMinusAssign -> "-="
@@ -213,6 +219,7 @@ let of_parsetree =
     | { td_text = "|" } -> OperBitwiseOr
     | { td_text = "&&" } -> OperLogicalAnd
     | { td_text = "||" } -> OperLogicalOr
+    | { td_text = "..." } -> OperEllipsis
     | { td_text = "=" } -> OperAssign
     | { td_text = "+=" } -> OperPlusAssign
     | { td_text = "-=" } -> OperMinusAssign
@@ -373,12 +380,15 @@ let of_parsetree =
                 | None ->
                    field.ptfi_fname.td_pos,
                    field.ptfi_fname.td_text,
+                   None,
                    pt_expr_pos field.ptfi_expr,
                    expr_of field.ptfi_expr
-                | Some _ ->
-                   Report.err_internal
-                     __FILE__ __LINE__
-                     "Not yet implemented."
+                | Some (lsquare, e, _) ->
+                   field.ptfi_fname.td_pos,
+                   field.ptfi_fname.td_text,
+                   Some (lsquare.td_pos, expr_of e),
+                   pt_expr_pos field.ptfi_expr,
+                   expr_of field.ptfi_expr
               )
                      field_inits
        in
