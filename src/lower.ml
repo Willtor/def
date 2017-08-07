@@ -84,10 +84,11 @@ let lift_lhs_static_structs program =
          List.concat (vars :: new_vars)
       | BB_Cond _ -> vars
       | BB_Term _ -> vars (* FIXME: Need to fix this up, ever? *)
+      | BB_Sync _ -> vars
       | _ -> Report.err_internal __FILE__ __LINE__
          "Unexpected basic block type."
     in
-    let vars = Cfg.visit_df visit true fcn.local_vars fcn.entry_bb in
+    let vars = Cfg.visit_df visit false fcn.local_vars fcn.entry_bb in
     { defn_begin = fcn.defn_begin;
       defn_end = fcn.defn_end;
       name = fcn.name;
@@ -101,6 +102,5 @@ let lift_lhs_static_structs program =
   }
 
 let lower_cfg program =
-  (* let program = lift_local_fcns program in *)
   let program = lift_lhs_static_structs program in
   program

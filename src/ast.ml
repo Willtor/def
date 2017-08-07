@@ -51,9 +51,10 @@ type operator =
   | OperBAndAssign | OperBXorAssign | OperBOrAssign
 
 type fcn_call =
-  { fc_pos  : position;
-    fc_name : string;
-    fc_args : expr list
+  { fc_pos   : position;
+    fc_name  : string;
+    fc_args  : expr list;
+    fc_spawn : bool
   }
 
 and operation =
@@ -119,6 +120,7 @@ type stmt =
   | Goto of position * string
   | Break of position
   | Continue of position
+  | Sync of position
 
 let operator2string = function
   | OperIncr -> "++"
@@ -269,14 +271,16 @@ let of_parsetree =
     | PTS_DeleteExpr (d, e, _) ->
        let expr = ExprFcnCall { fc_pos = d.td_pos;
                                 fc_name = "forkscan_free";
-                                fc_args = [ expr_of e ]
+                                fc_args = [ expr_of e ];
+                                fc_spawn = false
                               }
        in
        StmtExpr (d.td_pos, expr)
     | PTS_RetireExpr (r, e, _) ->
        let expr = ExprFcnCall { fc_pos = r.td_pos;
                                 fc_name = "forkscan_retire";
-                                fc_args = [ expr_of e ]
+                                fc_args = [ expr_of e ];
+                                fc_spawn = false
                               }
        in
        StmtExpr (r.td_pos, expr)
@@ -332,6 +336,7 @@ let of_parsetree =
     | PTS_Break (break, _) -> Break break.td_pos
     | PTS_Label (id, _) -> Label (id.td_pos, id.td_text)
     | PTS_Continue (continue, _) -> Continue continue.td_pos
+    | PTS_Sync (sync, _) -> Sync sync.td_pos
   and type_of = function
     | PTT_Volatile (vol, tp) ->
        let ret = match type_of tp with
@@ -410,10 +415,11 @@ let of_parsetree =
     | PTE_F64 (tok, value) -> ExprLit (tok.td_pos, LitF64 value)
     | PTE_F32 (tok, value) -> ExprLit (tok.td_pos, LitF32 value)
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
-    | PTE_FcnCall (id, _, params, _) ->
+    | PTE_FcnCall (spawn, id, _, params, _) ->
        let fcn_call = { fc_pos = id.td_pos;
                         fc_name = id.td_text;
-                        fc_args = List.map expr_of params
+                        fc_args = List.map expr_of params;
+                        fc_spawn = if spawn = None then false else true
                       }
        in
        ExprFcnCall fcn_call

@@ -1,6 +1,7 @@
 type cfg_expr =
   | Expr_New of Types.deftype * cfg_expr * (int * cfg_expr) list
   | Expr_FcnCall of string * cfg_expr list
+  | Expr_FcnCall_Refs of string * (*args=*)string list
   | Expr_String of string * string (* label, contents *)
   | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
@@ -13,6 +14,7 @@ type cfg_expr =
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_Nil
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
+  | Expr_Val_Ref of string
 
 and atomic_op =
   | AtomicCAS
@@ -22,6 +24,9 @@ type cfg_basic_block =
   | BB_Seq of string * sequential_block
   | BB_Cond of string * conditional_block
   | BB_Term of string * terminal_block
+  | BB_Detach of string * detach_block
+  | BB_Reattach of string * sequential_block
+  | BB_Sync of string * sequential_block
   | BB_Goto of string * sequential_block
   | BB_Error
 
@@ -44,6 +49,15 @@ and terminal_block =
   { mutable term_prev : cfg_basic_block list;
     term_expr         : (Lexing.position * cfg_expr) option;
     mutable term_mark_bit : bool
+  }
+
+and detach_block =
+  { mutable detach_prev : cfg_basic_block list;
+    detach_args : (string * cfg_expr) list;
+    detach_ret  : (string * cfg_expr) option;
+    mutable detach_next : cfg_basic_block;
+    mutable detach_continuation : cfg_basic_block;
+    mutable detach_mark_bit : bool
   }
 
 and decl =

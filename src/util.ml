@@ -135,3 +135,15 @@ let ref_set reference v already_set =
   else (already_set := true;
         reference := v;
         true)
+
+(** Return a unique id string. *)
+let unique_id =
+  let n = ref 0 in
+  fun () -> n := !n + 1;
+            string_of_int !n
+
+(** Non-existant position, for when a position is required but not used. *)
+let faux_pos = { pos_fname = "";
+                 pos_lnum = 0;
+                 pos_bol = 0;
+                 pos_cnum = 0 }

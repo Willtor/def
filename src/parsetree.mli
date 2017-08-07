@@ -48,6 +48,7 @@ type pt_stmt =
   | PTS_Break of tokendata * tokendata
   | PTS_Label of tokendata * tokendata
   | PTS_Continue of tokendata * tokendata
+  | PTS_Sync of tokendata * tokendata
 
 and pt_forinit =
   | PTForInit_Var of tokendata * tokendata * pt_type * tokendata * pt_expr
@@ -92,7 +93,8 @@ and pt_expr =
   | PTE_F64 of (tokendata * float)
   | PTE_F32 of (tokendata * float)
   | PTE_String of (tokendata * string)
-  | PTE_FcnCall of tokendata * tokendata * pt_expr list * tokendata
+  | PTE_FcnCall of tokendata option * tokendata * tokendata * pt_expr list
+                   * tokendata
   | PTE_Var of tokendata
   | PTE_StaticStruct of tokendata * pt_expr list * tokendata
   | PTE_Index of pt_expr * tokendata * pt_expr * tokendata

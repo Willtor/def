@@ -25,11 +25,6 @@ open Util
 
 exception NoReturn
 
-let faux_pos = { pos_fname = "";
-                 pos_lnum = 0;
-                 pos_bol = 0;
-                 pos_cnum = 0 }
-
 let position_of_stmt = function
   | StmtExpr (pos, _)
   | Block (pos, _)
@@ -49,6 +44,7 @@ let position_of_stmt = function
   | Goto (pos, _)
   | Break pos
   | Continue pos
+  | Sync pos
     -> pos
   | VarDecl _ ->
      Report.err_internal __FILE__ __LINE__ "VarDecl with no declarations."
@@ -94,6 +90,8 @@ let kill_dead_code =
       | TypeDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
       | Label _ as stmt :: rest ->
+         proc (stmt :: accum) rest
+      | Sync _ as stmt :: rest ->
          proc (stmt :: accum) rest
       | (Return _ as stmt) :: rest
       | (ReturnVoid _ as stmt) :: rest
@@ -160,6 +158,7 @@ let return_all_paths =
       | Goto _ :: rest (* FIXME: Think about Goto case some more... *)
       | Break _ :: rest (* FIXME: Also the break case. *)
       | Continue _ :: rest (* FIXME: Also, the Continue case. *)
+      | Sync _ :: rest
         -> returns_p rest
       | IfStmt (_, _, then_branch, Some else_branch) :: rest ->
          if (returns_p then_branch) && (returns_p else_branch) then true

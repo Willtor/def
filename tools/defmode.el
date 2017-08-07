@@ -26,7 +26,8 @@
                       'words)
          . font-lock-constant-face)
         ; Builtins
-        (,(regexp-opt '("sizeof" "new" "delete" "retire" "builtin_cas")
+        (,(regexp-opt '("sizeof" "new" "delete" "retire" "builtin_cas"
+                        "spawn" "sync")
                       'words)
          . font-lock-builtin-face)
         ))

@@ -27,6 +27,7 @@ exception Arg2ParamMismatch
 type cfg_expr =
   | Expr_New of Types.deftype * cfg_expr * (int * cfg_expr) list
   | Expr_FcnCall of string * cfg_expr list
+  | Expr_FcnCall_Refs of string * (*args=*)string list
   | Expr_String of string * string (* label, contents *)
   | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
@@ -39,6 +40,7 @@ type cfg_expr =
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_Nil
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
+  | Expr_Val_Ref of string
 
 and atomic_op =
   | AtomicCAS
@@ -48,6 +50,9 @@ type cfg_basic_block =
   | BB_Seq of string * sequential_block
   | BB_Cond of string * conditional_block
   | BB_Term of string * terminal_block
+  | BB_Detach of string * detach_block
+  | BB_Reattach of string * sequential_block
+  | BB_Sync of string * sequential_block
   | BB_Goto of string * sequential_block
   | BB_Error
 
@@ -70,6 +75,15 @@ and terminal_block =
   { mutable term_prev : cfg_basic_block list;
     term_expr         : (Lexing.position * cfg_expr) option;
     mutable term_mark_bit : bool
+  }
+
+and detach_block =
+  { mutable detach_prev : cfg_basic_block list;
+    detach_args : (string * cfg_expr) list;
+    detach_ret  : (string * cfg_expr) option;
+    mutable detach_next : cfg_basic_block;
+    mutable detach_continuation : cfg_basic_block;
+    mutable detach_mark_bit : bool
   }
 
 and decl =
@@ -119,6 +133,24 @@ let visit_df f bit =
        else
          (block.term_mark_bit <- bit;
           f param node)
+    | BB_Detach (_, block) ->
+       if block.detach_mark_bit = bit then param
+       else
+         (* WARNING: If this is ever used for something other than a normally
+            structured spawn (where the continuation follows the spawned block
+            then this will not cover the whole graph. *)
+         (block.detach_mark_bit <- bit;
+          visit (f param node) block.detach_next)
+    | BB_Reattach (_, block) ->
+       if block.seq_mark_bit = bit then param
+       else
+         (block.seq_mark_bit <- bit;
+          visit (f param node) block.seq_next)
+    | BB_Sync (_, block) ->
+       if block.seq_mark_bit = bit then param
+       else
+         (block.seq_mark_bit <- bit;
+          visit (f param node) block.seq_next)
     | BB_Error ->
        f param node
   in
@@ -744,6 +776,32 @@ let make_terminal_bb label rexpr =
                     term_mark_bit = false
                   })
 
+let make_detach_bb label args ret =
+  let rename base (_, e) = (base ^ "." ^ (Util.unique_id ())), e in
+  BB_Detach (label, { detach_prev = [];
+                      detach_args = List.map (rename "arg") args;
+                      detach_ret = (match ret with
+                                    | None -> None
+                                    | Some ret -> Some (rename "ret" ret));
+                      detach_next = BB_Error;
+                      detach_continuation = BB_Error;
+                      detach_mark_bit = false
+                    })
+
+let make_reattach_bb label exprs =
+  BB_Reattach (label, { seq_prev = [];
+                        seq_next = BB_Error;
+                        seq_expr = exprs;
+                        seq_mark_bit = false
+                      })
+
+let make_sync_bb label =
+  BB_Sync (label, { seq_prev = [];
+                    seq_next = BB_Error;
+                    seq_expr = [];
+                    seq_mark_bit = false
+                  })
+
 let make_goto_bb label =
   BB_Goto (label, { seq_prev = [];
                     seq_next = BB_Error;
@@ -770,9 +828,15 @@ let rec build_bbs name decltable typemap body =
   (* Create a two-way link between bb1 -> bb2. *)
   let add_next bb1 bb2 =
     let push_next bb = function
-      | BB_Seq (_, block) ->
+      | BB_Seq (_, block)
+      | BB_Reattach (_, block)
+      | BB_Sync (_, block) ->
          if block.seq_next = BB_Error then
            block.seq_next <- bb
+      | BB_Detach (_, block) ->
+         if block.detach_next = BB_Error then block.detach_next <- bb
+         else if block.detach_continuation = BB_Error then
+           block.detach_continuation <- bb
       | BB_Cond (_, block) ->
          if block.cond_next = BB_Error then block.cond_next <- bb
          else if block.cond_else = BB_Error then block.cond_else <- bb
@@ -783,8 +847,12 @@ let rec build_bbs name decltable typemap body =
     let push_prev bb = function
       (* FIXME: Shouldn't add if push_next didn't make the change. *)
       | BB_Seq (_, block)
+      | BB_Reattach (_, block)
+      | BB_Sync (_, block)
       | BB_Goto (_, block) ->
          block.seq_prev <- bb :: block.seq_prev
+      | BB_Detach (_, block) ->
+         block.detach_prev <- bb :: block.detach_prev
       | BB_Cond (_, block) ->
          block.cond_prev <- bb :: block.cond_prev
       | BB_Term (_, block) ->
@@ -821,11 +889,78 @@ let rec build_bbs name decltable typemap body =
   let rec process_bb scope decls prev_bb cont_bb = function
     | [] -> decls, prev_bb
     | StmtExpr (pos, expr) :: rest ->
-       let _, expr = convert_expr typemap scope expr in
-       let bb =
-         make_sequential_bb ("expr_" ^ (label_of_pos pos)) [(pos, expr)] in
-       let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb rest
+       let label = label_of_pos pos in
+       let make_spawn nm lhs args =
+         (* FIXME: Check order of things.  Is this what we want to do?
+            1. Compute arguments.
+            2. Compute left-hand-side (lhs).
+            3. Perform detach.
+            4. Call function and assign return value to lhs.
+            5. Continuation.
+            Do 1 and 2 want to be swapped?
+          *)
+         let args = List.map (convert_expr typemap scope) args in
+         let ret = match lhs with
+           | None -> None
+           | Some lhs ->
+              let lvalue = ExprPreUnary { op_pos = faux_pos;
+                                          op_op = OperAddrOf;
+                                          op_left = lhs;
+                                          op_right = None
+                                        }
+              in
+              Some (convert_expr typemap scope lvalue)
+         in
+         let detach = make_detach_bb ("detach_" ^ label) args ret in
+         let block = match detach with
+           | BB_Detach (_, block) -> block
+           | _ -> Report.err_internal __FILE__ __LINE__ "Do you even lift?"
+         in
+         let call = Expr_FcnCall_Refs (nm, List.map (fun (label, _) -> label)
+                                                    block.detach_args)
+         in detach, call
+       in
+       let begin_bb, end_bb = match expr with
+         | ExprFcnCall ({ fc_spawn = true } as fc) ->
+            let detach, call = make_spawn fc.fc_name None fc.fc_args in
+            let reattach =
+              make_reattach_bb (label ^ ".reattach") [(fc.fc_pos, call)] in
+            let cont_bb = make_sequential_bb (label ^ ".cont") [] in
+            let () = add_next detach reattach in
+            let () = add_next reattach cont_bb in
+            let () = add_next detach cont_bb in
+            detach, cont_bb
+         | ExprBinary ({ op_op = OperAssign;
+                         op_left = lhs;
+                         op_right =
+                           Some (ExprFcnCall ({ fc_spawn = true } as fc))
+                      }) ->
+            let detach, call = make_spawn fc.fc_name (Some lhs) fc.fc_args in
+            let lhslabel = match detach with
+              | BB_Detach (_, { detach_ret = Some (retlabel, _) }) -> retlabel
+              | _ -> Report.err_internal __FILE__ __LINE__ "ruh roh!"
+            in
+            let decl = Util.the (lookup_symbol scope fc.fc_name) in
+            let tp = match decl.tp with
+              | DefTypeFcn (_, rettp, _) -> rettp
+              | _ -> Report.err_internal __FILE__ __LINE__ "Bad function type."
+            in
+            let expr =
+              Expr_Binary (OperAssign, tp, Expr_Val_Ref lhslabel, call) in
+            let reattach =
+              make_reattach_bb (label ^ ".reattach") [(fc.fc_pos, expr)] in
+            let cont_bb = make_sequential_bb (label ^ ".cont") [] in
+            let () = add_next detach reattach in
+            let () = add_next reattach cont_bb in
+            let () = add_next detach cont_bb in
+            detach, cont_bb
+         | _ ->
+            let _, expr = convert_expr typemap scope expr in
+            let bb = make_sequential_bb ("expr_" ^ label) [(pos, expr)] in
+            bb, bb
+       in
+       let () = add_next prev_bb begin_bb in
+       process_bb scope decls end_bb cont_bb rest
     | Block (_, stmts) :: rest ->
        let decls, bb =
          process_bb (push_symtab_scope scope) decls prev_bb cont_bb stmts in
@@ -1094,6 +1229,10 @@ let rec build_bbs name decltable typemap body =
           let () = add_next bb condition in
           process_bb scope decls bb cont_bb rest
        end
+    | Sync pos :: rest ->
+       let bb = make_sync_bb ("sync_" ^ (label_of_pos pos)) in
+       let () = add_next prev_bb bb in
+       process_bb scope decls bb cont_bb rest
   in
   let replace_gotos table () = function
     | BB_Goto (label, block) as old_bb ->
@@ -1128,9 +1267,12 @@ let rec build_bbs name decltable typemap body =
 
 let verify_cfg name =
   let verify () = function
-    | BB_Seq (label, _)
-    | BB_Cond (label, _)
-    | BB_Term (label, _) -> ()
+    | BB_Seq _
+    | BB_Cond _
+    | BB_Term _
+    | BB_Detach _
+    | BB_Reattach _
+    | BB_Sync _ -> ()
     | BB_Goto (label, _) ->
        Report.err_internal __FILE__ __LINE__
          ("Found BB_Goto " ^ label ^ " in " ^ name)
@@ -1178,7 +1320,8 @@ let resolve_builtins stmts typemap =
             ExprFcnCall
               { fc_pos = f.fc_pos;
                 fc_name = f.fc_name;
-                fc_args = List.map process_expr f.fc_args
+                fc_args = List.map process_expr f.fc_args;
+                fc_spawn = f.fc_spawn
               }
        end
     | ExprBinary op ->

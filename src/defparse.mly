@@ -34,7 +34,7 @@
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
 %token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO OD CAST AS GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
-%token <Parsetree.tokendata> NIL VOLATILE
+%token <Parsetree.tokendata> NIL VOLATILE SPAWN SYNC
 
 %token <Parsetree.tokendata> EXPORT
 
@@ -118,6 +118,7 @@ statement:
 | BREAK SEMICOLON { PTS_Break ($1, $2) }
 | IDENT COLON { PTS_Label ($1, $2) }
 | CONTINUE SEMICOLON { PTS_Continue ($1, $2) }
+| SYNC SEMICOLON { PTS_Sync ($1, $2) }
 
 for_init:
 | VAR IDENT deftype EQUALS expr
@@ -203,8 +204,10 @@ expr:
 | LITERALF64 { PTE_F64 $1 }
 | LITERALF32 { PTE_F32 $1 }
 | STRING { PTE_String $1 }
-| IDENT LPAREN RPAREN { PTE_FcnCall ($1, $2, [], $3) }
-| IDENT LPAREN exprlist RPAREN { PTE_FcnCall ($1, $2, $3, $4) }
+| SPAWN IDENT LPAREN separated_list(COMMA, expr) RPAREN
+  { PTE_FcnCall (Some $1, $2, $3, $4, $5) }
+| IDENT LPAREN separated_list(COMMA, expr) RPAREN
+  { PTE_FcnCall (None, $1, $2, $3, $4) }
 | IDENT { PTE_Var $1 }
 | LPAREN expr RPAREN { $2 }
 | LCURLY exprlist RCURLY { PTE_StaticStruct ($1, $2, $3) }

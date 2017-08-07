@@ -57,3 +57,9 @@ val the : 'a option -> 'a
 (** Set the reference to the given value, but only if it has never been set
     before.  Return success or non-success. *)
 val ref_set : 'a ref -> 'a -> bool ref -> bool
+
+(** Return a unique id string. *)
+val unique_id : unit -> string
+
+(** Non-existant position, for when a position is required but not used. *)
+val faux_pos : Lexing.position

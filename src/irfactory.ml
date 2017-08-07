@@ -151,7 +151,7 @@ let bytes = function
   | _ ->
      Report.err_internal __FILE__ __LINE__ "Non primitive type."
 
-let process_expr data varmap pos_n_expr =
+let process_expr data llvals varmap pos_n_expr =
   let build_load_wrapper addr tp name bldr =
     let deref = build_load addr name bldr in
     if dt_is_volatile tp then set_volatile true deref;
@@ -439,6 +439,20 @@ let process_expr data varmap pos_n_expr =
          | _ -> "def_call"
        in
        build_call callee (Array.of_list arg_vals) retname data.bldr
+    | Expr_FcnCall_Refs (nm, args) ->
+       let arg_vals =
+         List.map Util.the (List.map (lookup_symbol llvals) args) in
+       let (_, tp, var) = the (lookup_symbol varmap nm) in
+       (* Protect programmers from this function pointer nonsense. *)
+       let callee = match classify_value var with
+         | ValueKind.Function -> var
+         | _ -> build_load_wrapper var tp "callee" data.bldr
+       in
+       let retname = match tp with
+         | DefTypeFcn (_, DefTypeVoid, _) -> ""
+         | _ -> "def_call"
+       in
+       build_call callee (Array.of_list arg_vals) retname data.bldr
     | Expr_String (label, value) ->
        let str = const_stringz data.ctx value in
        let ptr = define_global label str data.mdl in
@@ -526,6 +540,8 @@ let process_expr data varmap pos_n_expr =
                        data.bldr
     | Expr_Atomic (AtomicSwap, _) ->
        Report.err_internal __FILE__ __LINE__ "Swap on != 2 parameters"
+    | Expr_Val_Ref str ->
+       Util.the (lookup_symbol llvals str)
   in
   let _, expr = pos_n_expr in
   expr_gen true expr
@@ -537,7 +553,11 @@ let process_fcn cgdebug data symbols fcn =
   let make_llbbs () = function
     | BB_Seq (label, _)
     | BB_Cond (label, _)
-    | BB_Term (label, _) ->
+    | BB_Term (label, _)
+    | BB_Detach (label, _)
+    | BB_Reattach (label, _)
+    | BB_Sync (label, _)
+      ->
        Hashtbl.add llblocks label (append_block data.ctx label llfcn)
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
   in
@@ -546,12 +566,18 @@ let process_fcn cgdebug data symbols fcn =
   let () = Cfg.reset_bbs fcn.entry_bb in
   let () = Cfg.visit_df make_llbbs true () fcn.entry_bb in
 
+  let llvals = make_symtab () in
+
   let get_bb = Hashtbl.find llblocks in
 
   let get_label = function
     | BB_Seq (label, _)
     | BB_Cond (label, _)
-    | BB_Term (label, _) -> label
+    | BB_Term (label, _)
+    | BB_Detach (label, _)
+    | BB_Reattach (label, _)
+    | BB_Sync (label, _)
+      -> label
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
   in
 
@@ -560,14 +586,15 @@ let process_fcn cgdebug data symbols fcn =
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
        let () = List.iter
-         (fun expr -> ignore (process_expr data varmap expr)) block.seq_expr in
+         (fun expr ->
+           ignore (process_expr data llvals varmap expr)) block.seq_expr in
        let next_bb = get_bb (get_label block.seq_next) in
        let _ = build_br next_bb data.bldr in
        ()
     | BB_Cond (label, block) ->
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
-       let cond = process_expr data varmap block.cond_branch
+       let cond = process_expr data llvals varmap block.cond_branch
        and then_bb = get_bb (get_label block.cond_next)
        and else_bb = get_bb (get_label block.cond_else) in
        let _ = build_cond_br cond then_bb else_bb data.bldr in
@@ -578,8 +605,37 @@ let process_fcn cgdebug data symbols fcn =
        begin match block.term_expr with
        | None -> let _ = build_ret_void data.bldr in ()
        | Some e ->
-          let _ = build_ret (process_expr data varmap e) data.bldr in ()
+          let _ = build_ret (process_expr data llvals varmap e) data.bldr in ()
        end
+    | BB_Detach (label, block) ->
+       let bb = get_bb label in
+       let () = position_at_end bb data.bldr in
+       let proc (id, expr) =
+         let llval = process_expr data llvals varmap (faux_pos, expr) in
+         add_symbol llvals id llval
+       in
+       let () = List.iter proc block.detach_args in
+       let () = if block.detach_ret <> None then
+                  proc (Util.the block.detach_ret) in
+       let next_bb = get_bb (get_label block.detach_next) in
+       let _ = build_br next_bb data.bldr in
+       ()
+    | BB_Reattach (label, block) ->
+       let bb = get_bb label in
+       let () = position_at_end bb data.bldr in
+       let () = List.iter
+                  (fun expr ->
+                    ignore(process_expr data llvals varmap expr))
+                  block.seq_expr in
+       let next_bb = get_bb (get_label block.seq_next) in
+       let _ = build_br next_bb data.bldr in
+       ()
+    | BB_Sync (label, block) ->
+       let bb = get_bb label in
+       let () = position_at_end bb data.bldr in
+       let next_bb = get_bb (get_label block.seq_next) in
+       (* FIXME: Build a sync instruction. *)
+       ignore(build_br next_bb data.bldr)
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
   in
 

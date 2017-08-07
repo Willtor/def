@@ -83,7 +83,8 @@ let build_paths base_path gcc_ver =
                    "/usr/lib/llvm-3.9/lib"; (* FIXME: too specific. *)
                    "/lib";
                    "/usr/lib" ]
-  and libs = [ "-lgcc";
+  and libs = [ "-lforkscan";
+               "-lgcc";
                "--as-needed";
                "-lgcc_s";
                "--no-as-needed";
