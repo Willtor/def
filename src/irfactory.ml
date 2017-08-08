@@ -617,9 +617,9 @@ let process_fcn cgdebug data symbols fcn =
        let () = List.iter proc block.detach_args in
        let () = if block.detach_ret <> None then
                   proc (Util.the block.detach_ret) in
-       let next_bb = get_bb (get_label block.detach_next) in
-       let _ = build_br next_bb data.bldr in
-       ()
+       let spawn_bb = get_bb (get_label block.detach_next) in
+       let cont_bb = get_bb (get_label block.detach_continuation) in
+       ignore(build_detach spawn_bb cont_bb data.bldr)
     | BB_Reattach (label, block) ->
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
@@ -628,14 +628,12 @@ let process_fcn cgdebug data symbols fcn =
                     ignore(process_expr data llvals varmap expr))
                   block.seq_expr in
        let next_bb = get_bb (get_label block.seq_next) in
-       let _ = build_br next_bb data.bldr in
-       ()
+       ignore(build_reattach next_bb data.bldr)
     | BB_Sync (label, block) ->
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
        let next_bb = get_bb (get_label block.seq_next) in
-       (* FIXME: Build a sync instruction. *)
-       ignore(build_br next_bb data.bldr)
+       ignore(build_sync next_bb data.bldr)
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
   in
 

@@ -12,6 +12,7 @@ SRCFILES = 		\
 	build.mli	\
 	cmdline.ml	\
 	cmdline.mli	\
+	cilky.cpp	\
 	cmpxchg.cpp	\
 	cfg.ml		\
 	cfg.mli		\

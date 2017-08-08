@@ -24,7 +24,7 @@ GENERATED = version.mli llvmext.mli config.mli report.mli ast.mli defparse.ml de
 FILES1 = $(SRC:.mly=.ml)
 FILES2 = $(FILES1:.mll=.ml)
 
-OBJ = cmpxchg.o $(FILES2:.ml=.cmx)
+OBJ = cmpxchg.o cilky.o $(FILES2:.ml=.cmx)
 INTERFACE_OBJ = $(FILES2:.ml=.cmi)
 
 $(TARGET): $(INTERFACE_OBJ) $(OBJ)
