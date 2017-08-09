@@ -1,6 +1,8 @@
 #include "caml/callback.h"
 #include "llvm-c/Core.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/Transforms/Tapir.h"
 
 // FIXME: This code should be integrated into TAPIR.
 
@@ -23,6 +25,10 @@ LLVMValueRef LLVMBuildReattach(LLVMBuilderRef B,
                                LLVMBasicBlockRef ReattachBB)
 {
     return wrap(unwrap(B)->CreateReattach(unwrap(ReattachBB)));
+}
+
+void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM) {
+    unwrap(PM)->add(createLowerTapirToCilkPass(true, false));
 }
 
 LLVMValueRef LLVMBuildSync(LLVMBuilderRef B,
@@ -57,4 +63,12 @@ CAMLprim LLVMValueRef llvm_build_sync(LLVMBasicBlockRef ContinueBB,
                                       LLVMBuilderRef B)
 {
     return LLVMBuildSync(Builder_val(B), ContinueBB);
+}
+
+/* [`Module] Llvm.PassManager.t -> unit
+ */
+extern "C"
+CAMLprim value llvm_add_lower_tapir_to_cilk(LLVMPassManagerRef PM) {
+    LLVMAddLowerTapirToCilk(PM);
+    return Val_unit;
 }

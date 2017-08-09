@@ -38,3 +38,8 @@ external build_reattach :
 external build_sync :
   llbasicblock -> llbuilder -> llvalue
   = "llvm_build_sync"
+
+(** Tapir pass to install Cilky stuff in place of detach/sync instructions. *)
+external add_lower_tapir_to_cilk :
+  [ `Module ] Llvm.PassManager.t -> unit
+  = "llvm_add_lower_tapir_to_cilk"
