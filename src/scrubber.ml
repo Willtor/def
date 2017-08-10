@@ -18,6 +18,7 @@
 
 open Ast
 open Lexing
+open Parsetree
 open Util
 
 (* FIXME: This analysis should be done on the CFG instead of the AST.
@@ -30,7 +31,7 @@ let position_of_stmt = function
   | Block (pos, _)
   | DeclFcn (pos, _, _, _)
   | DefFcn (pos, _, _, _, _, _)
-  | VarDecl ((pos, _, _) :: _, _)
+  | VarDecl ({td_pos = pos} :: _, _, _)
   | InlineStructVarDecl (pos, _, _)
   | XBegin pos
   | XCommit pos

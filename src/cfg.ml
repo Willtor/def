@@ -18,6 +18,7 @@
 
 open Ast
 open Lexing
+open Parsetree
 open Str
 open Types
 open Util
@@ -969,34 +970,30 @@ let rec build_bbs name decltable typemap body =
        Report.err_internal __FILE__ __LINE__ "DeclFcn not expected."
     | DefFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DefFcn not supported."
-    | VarDecl (vars, tp) :: rest ->
+    | VarDecl (vars, inits, tp) :: rest ->
        let t = convert_type false false typemap tp in
-       let separate_vars (dlist, ilist) (pos, nm, init_maybe) =
-         let decl = make_decl pos scope nm t in
-         let () = add_symbol scope nm decl in
-         let ilist = match init_maybe with
-           | None -> ilist
-           | Some (pos, expr) ->
-              let oldtp, converted = convert_expr typemap scope expr in
-              let cast_expr = maybe_cast typemap oldtp t converted in
-              let assignment = Expr_Binary (OperAssign, t,
-                                            Expr_Variable decl.mappedname,
-                                            cast_expr) in
-              (pos, assignment) :: ilist
-         in
-         (nm, decl) :: dlist, ilist
+       let declare decls var =
+         let decl = make_decl var.td_pos scope var.td_text t in
+         add_symbol scope var.td_text decl;
+         (var.td_text, decl) :: decls
        in
-       let dlist, ilist = List.fold_left separate_vars (decls, []) vars in
-       let bb = match ilist with
-         | (pos, _) :: _ ->
-            let bb =
-              make_sequential_bb ("initializers_" ^ (label_of_pos pos)) ilist
+       let decls = List.fold_left declare decls vars in
+       let bb = match inits with
+         | [] -> prev_bb
+         | _ ->
+            let initialize e =
+              let _, cexpr = convert_expr typemap scope e in
+              (* FIXME: We don't use the pos in IRFacory anymore. *)
+              faux_pos, cexpr
+            in
+            let ilist = List.map initialize inits in
+            let bb = make_sequential_bb
+                       ("inits." ^ (label_of_pos (List.hd vars).td_pos)) ilist
             in
             let () = add_next prev_bb bb in
             bb
-         | [] -> prev_bb
        in
-       process_bb scope dlist bb cont_bb rest
+       process_bb scope decls bb cont_bb rest
     | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
        let idecls = List.fold_left
          (fun accum (pos, nm, tp) ->
@@ -1363,13 +1360,8 @@ let resolve_builtins stmts typemap =
     | Block (p, stmts) -> Block (p, List.map process_stmt stmts)
     | DefFcn (p, doc, vis, name, tp, stmts) ->
        DefFcn(p, doc, vis, name, tp, List.map process_stmt stmts)
-    | VarDecl (vlist, tp) ->
-       let fixedvlist = List.map (fun (p, nm, init) -> match init with
-         | None -> (p, nm, init)
-         | Some (p, e) -> (p, nm, Some (p, process_expr e)))
-         vlist
-       in
-       VarDecl (fixedvlist, tp)
+    | VarDecl (vars, inits, tp) ->
+       VarDecl (vars, List.map process_expr inits, tp)
     | InlineStructVarDecl (p, vars, (epos, expr)) ->
        InlineStructVarDecl (p, vars, (epos, process_expr expr))
     | IfStmt (p, cond, tstmts, estmts_maybe) ->

@@ -102,7 +102,7 @@ type stmt =
   | DeclFcn of position * Types.visibility * string * vartype
   | DefFcn of position * string option * Types.visibility * string * vartype
     * stmt list
-  | VarDecl of (position * string * (position * expr) option) list * vartype
+  | VarDecl of Parsetree.tokendata list * expr list * vartype
   | InlineStructVarDecl of position * (position * string * vartype) list
     * (position * expr)
   | XBegin of position
@@ -251,18 +251,19 @@ let of_parsetree =
        DeclFcn (decl.td_pos, VisExported decl.td_pos, id.td_text, type_of tp)
     | PTS_Expr (e, _) ->
        StmtExpr (pt_expr_pos e, expr_of e)
-    | PTS_Var (var, ids, tp, _) ->
-       VarDecl (List.map (fun id -> id.td_pos, id.td_text, None) ids,
-                type_of tp)
-    | PTS_VarInit (var, ids, tp, _, elist, _) ->
-       let varlist =
-         try List.map2 (fun id e ->
-                 id.td_pos, id.td_text, Some (pt_expr_pos e, expr_of e))
-                       ids elist
-         with _ ->
-           Report.err_var_decl_list_length_mismatch var.td_pos
-              (List.length ids) (List.length elist)
-       in VarDecl (varlist, type_of tp)
+    | PTS_Var (_, ids, tp, _) ->
+       VarDecl (ids, [], type_of tp)
+    | PTS_VarInit (var, ids, tp, eq, elist, _) ->
+       let asttp = type_of tp in
+       let initify id expr =
+         ExprBinary { op_pos = eq.td_pos;
+                      op_op = OperAssign;
+                      op_left = ExprVar (id.td_pos, id.td_text);
+                      op_right =
+                        Some (ExprCast (Util.faux_pos, asttp, expr_of expr))
+                    }
+       in
+       VarDecl (ids, List.map2 initify ids elist, asttp)
     | PTS_VarInlineStruct (var, _, vlist, _, _, e, _) ->
        let cvlist =
          List.map (fun (id, tp) -> id.td_pos, id.td_text, type_of tp) vlist
@@ -301,11 +302,15 @@ let of_parsetree =
     | PTS_ForLoop (fortok, init_p, _, cond, _, iter_p, _, stmts, _) ->
        let init = match init_p with
          | None -> None
-         | Some (PTForInit_Var (_, id, tp, _, e)) ->
-            let stmt = VarDecl ([(id.td_pos, id.td_text,
-                                  Some (pt_expr_pos e, expr_of e))],
-                                type_of tp)
-            in Some stmt
+         | Some (PTForInit_Var (_, id, tp, eq, e)) ->
+            let init =
+              ExprBinary { op_pos = eq.td_pos;
+                           op_op = OperAssign;
+                           op_left = ExprVar (id.td_pos, id.td_text);
+                           op_right = Some (expr_of e)
+                         }
+            in
+            Some (VarDecl ([id], [init], type_of tp))
          | Some (PTForInit_Expr e) ->
             Some (StmtExpr (pt_expr_pos e, expr_of e))
        in
