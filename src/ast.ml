@@ -259,8 +259,7 @@ let of_parsetree =
          ExprBinary { op_pos = eq.td_pos;
                       op_op = OperAssign;
                       op_left = ExprVar (id.td_pos, id.td_text);
-                      op_right =
-                        Some (ExprCast (Util.faux_pos, asttp, expr_of expr))
+                      op_right = Some (expr_of expr)
                     }
        in
        VarDecl (ids, List.map2 initify ids elist, asttp)
@@ -469,3 +468,21 @@ let of_parsetree =
        ExprBinary oper
   in
   List.map stmt_of
+
+let rec pos_of_astexpr = function
+  | ExprNew (pos, _, _)
+  | ExprFcnCall { fc_pos = pos }
+  | ExprString (pos, _)
+  | ExprPreUnary { op_pos = pos }
+  | ExprPostUnary { op_pos = pos }
+  | ExprVar (pos, _)
+  | ExprLit (pos, _)
+  | ExprCast (pos, _, _)
+  | ExprIndex (pos, _, _, _)
+  | ExprSelectField (pos, _, _, _)
+  | ExprStaticStruct (pos, _)
+  | ExprType (pos, _)
+  | ExprNil pos ->
+     pos
+  | ExprBinary { op_left = operand } ->
+     pos_of_astexpr operand

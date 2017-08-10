@@ -298,3 +298,11 @@ let err_type_mismatch pos =
     ^ "  Type mismatch.\n"
     ^ (show_source pos)
   in fatal_error err
+
+(** Tried to spawn internally in an expression or in a condition or some
+    such disallowed place. *)
+let err_bad_spawn_loc pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Can't spawn this function call.\n"
+    ^ (show_source pos)
+  in fatal_error err

@@ -636,8 +636,11 @@ let convert_expr typemap scope =
           DefTypePtr (tp, []), Expr_New (tp, i64sz, field_inits)
        end
     | ExprFcnCall call ->
-       let converted_args = List.map convert call.fc_args in
-       build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
+       if call.fc_spawn then
+         Report.err_bad_spawn_loc call.fc_pos
+       else
+         let converted_args = List.map convert call.fc_args in
+         build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
     | ExprString (pos, str) ->
        let raw =
          List.fold_left
@@ -936,6 +939,7 @@ let rec build_bbs name decltable typemap body =
                          op_right =
                            Some (ExprFcnCall ({ fc_spawn = true } as fc))
                       }) ->
+            (* FIXME: Do casting of return value, if necessary. *)
             let detach, call = make_spawn fc.fc_name (Some lhs) fc.fc_args in
             let lhslabel = match detach with
               | BB_Detach (_, { detach_ret = Some (retlabel, _) }) -> retlabel
@@ -978,21 +982,11 @@ let rec build_bbs name decltable typemap body =
          (var.td_text, decl) :: decls
        in
        let decls = List.fold_left declare decls vars in
-       let bb = match inits with
-         | [] -> prev_bb
-         | _ ->
-            let initialize e =
-              let _, cexpr = convert_expr typemap scope e in
-              (* FIXME: We don't use the pos in IRFacory anymore. *)
-              faux_pos, cexpr
-            in
-            let ilist = List.map initialize inits in
-            let bb = make_sequential_bb
-                       ("inits." ^ (label_of_pos (List.hd vars).td_pos)) ilist
-            in
-            let () = add_next prev_bb bb in
-            bb
+       let initialize (decls, bb) expr =
+         let faux_stmt = StmtExpr (pos_of_astexpr expr, expr) in
+         process_bb scope decls bb cont_bb [faux_stmt]
        in
+       let decls, bb = List.fold_left initialize (decls, prev_bb) inits in
        process_bb scope decls bb cont_bb rest
     | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
        let idecls = List.fold_left
