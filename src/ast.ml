@@ -97,6 +97,7 @@ and vartype =
   | Ellipsis of position
 
 type stmt =
+  | Import of tokendata * tokendata
   | StmtExpr of position * expr
   | Block of position * stmt list
   | DeclFcn of position * Types.visibility * string * vartype
@@ -237,6 +238,7 @@ let of_parsetree =
                                 ("unknown binary operator: " ^ op.td_text)
   in
   let rec stmt_of = function
+    | PTS_Import (importtok, (pathtok, _), _) -> Import (importtok, pathtok)
     | PTS_Begin (b, stmts, _) -> Block (b.td_pos, List.map stmt_of stmts)
     | PTS_FcnDefExpr ((exp, def, id, tp), equals, e, _) ->
        let vis, doc = visdoc exp in

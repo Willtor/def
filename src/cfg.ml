@@ -337,6 +337,7 @@ let global_decls decltable typemap = function
         in
         add_symbol decltable name fcn
      end
+  | Import _ -> ()
   | TypeDecl _ -> ()
   | _ -> Report.err_internal __FILE__ __LINE__
      "FIXME: Incomplete implementation of Cfg.global_decls."
@@ -1224,6 +1225,8 @@ let rec build_bbs name decltable typemap body =
        let bb = make_sync_bb ("sync_" ^ (label_of_pos pos)) in
        let () = add_next prev_bb bb in
        process_bb scope decls bb cont_bb rest
+    | Import (tok, _) :: _ ->
+       Report.err_import_in_function tok.td_pos name
   in
   let replace_gotos table () = function
     | BB_Goto (label, block) as old_bb ->

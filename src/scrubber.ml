@@ -47,6 +47,7 @@ let position_of_stmt = function
   | Continue pos
   | Sync pos
     -> pos
+  | Import (tok, _) -> tok.td_pos
   | VarDecl _ ->
      Report.err_internal __FILE__ __LINE__ "VarDecl with no declarations."
 
@@ -103,6 +104,8 @@ let kill_dead_code =
            | [] -> ()
            | extra :: _ -> report_dead_code name (position_of_stmt extra)
          in List.rev (stmt :: accum)
+      | Import _ :: _ ->
+         Report.err_internal __FILE__ __LINE__ "import in function."
     in proc []
   in
   let toplevel = function
@@ -169,6 +172,8 @@ let return_all_paths =
       | WhileLoop (_, _, cond, body) :: rest ->
          if expr_must_be_true cond then contains_return body
          else returns_p rest
+      | Import _ :: _ ->
+         Report.err_internal __FILE__ __LINE__ "import in function."
     in
     if returns_p body then body
     else if can_return_void then

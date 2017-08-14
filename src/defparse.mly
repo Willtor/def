@@ -30,7 +30,7 @@
 %token <Parsetree.tokendata * float> LITERALF32 LITERALF64
 %token <Parsetree.tokendata> IDENT
 %token <Parsetree.tokendata * string> STRING
-%token <Parsetree.tokendata> TYPE TYPEDEF
+%token <Parsetree.tokendata> IMPORT TYPE TYPEDEF
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
 %token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO OD CAST AS GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
@@ -87,6 +87,7 @@ block:
 | BEGIN statement* END { PTS_Begin ($1, $2, $3) }
 
 statement:
+| IMPORT STRING SEMICOLON { PTS_Import ($1, $2, $3) }
 | fcndef EQUALS expr SEMICOLON { PTS_FcnDefExpr ($1, $2, $3, $4) }
 | fcndef block { PTS_FcnDefBlock ($1, $2) }
 | DECL IDENT fcntype SEMICOLON { PTS_FcnDecl ($1, $2, $3, $4) }

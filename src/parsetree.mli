@@ -7,6 +7,7 @@ type tokendata =
   }
 
 type pt_stmt =
+  | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of
       (tokendata option * tokendata * tokendata * pt_type)

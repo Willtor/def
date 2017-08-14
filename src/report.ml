@@ -306,3 +306,11 @@ let err_bad_spawn_loc pos =
     ^ "  Can't spawn this function call.\n"
     ^ (show_source pos)
   in fatal_error err
+
+(** Found an "import" statement inside a function. *)
+let err_import_in_function pos fname =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Import inside a the function: " ^ fname ^ "\n"
+    ^ "  Importing should be done in the global scope-only.\n"
+    ^ (show_source pos)
+  in fatal_error err

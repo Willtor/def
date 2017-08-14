@@ -56,6 +56,11 @@ let verify_extension filename =
   | ".bc" | ".o" -> ()
   | ext -> Report.err_unknown_infile_type filename ext
 
+let findfile file relative_base =
+  let filename = relative_base ^ "/" ^ file in
+  if Sys.file_exists filename then filename
+  else Report.err_unable_to_open_file filename
+
 let add_builtin_fcns stmts =
   let pos = { pos_fname = "builtin";
               pos_lnum = 1;
@@ -101,7 +106,7 @@ let outfile_name file ext =
 
 let parse_def_file file =
   let infile = try open_in file
-    with _ -> Report.err_unable_to_open_file file
+               with _ -> Report.err_unable_to_open_file file
   in
   let parsetree =
     let lexbuf = set_fname file (Lexing.from_channel infile) in
@@ -110,6 +115,16 @@ let parse_def_file file =
   in
   close_in infile;
   parsetree
+
+let rec recursive_parse_def_file file =
+  let proc parsetree = function
+    | PTS_Import (_, (tok, str), _) ->
+       let subfile = findfile str (Filename.dirname file) in
+       (recursive_parse_def_file subfile) @ parsetree
+    | _ -> parsetree
+  in
+  let parsetree = parse_def_file file in
+  List.fold_left proc parsetree parsetree
 
 let llmodule_of_ast infile ast =
   let stmts = scrub (add_builtin_fcns ast) in
@@ -155,7 +170,7 @@ let read_bc file =
 let generate_asm file =
   match extension file with
   | ".def" ->
-     let ast = Ast.of_parsetree (parse_def_file file) in
+     let ast = Ast.of_parsetree (recursive_parse_def_file file) in
      let mdl = llmodule_of_ast file ast in
      if !compile_llvm then
        let outfile = outfile_name file ".ll" in
@@ -172,7 +187,7 @@ let generate_asm file =
 let generate_obj tmp_obj file =
   match extension file with
   | ".def" ->
-     let ast = Ast.of_parsetree (parse_def_file file) in
+     let ast = Ast.of_parsetree (recursive_parse_def_file file) in
      let mdl = llmodule_of_ast file ast in
      if !compile_llvm then
        let outfile = outfile_name file ".bc" in

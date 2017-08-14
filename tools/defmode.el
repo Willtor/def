@@ -26,7 +26,7 @@
                       'words)
          . font-lock-constant-face)
         ; Builtins
-        (,(regexp-opt '("sizeof" "new" "delete" "retire" "builtin_cas"
+        (,(regexp-opt '("import" "sizeof" "new" "delete" "retire" "builtin_cas"
                         "spawn" "sync")
                       'words)
          . font-lock-builtin-face)
@@ -67,6 +67,7 @@
         (indent-line-to 0)))))
 
 (add-to-list 'auto-mode-alist '("\\.def\\'" . def-mode))
+(add-to-list 'auto-mode-alist '("\\.defi\\'" . def-mode))
 
 (defun def-mode ()
   "Major mode for editing DEF Engineering Framework files"
