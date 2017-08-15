@@ -48,6 +48,13 @@ let err_unable_to_open_file filename =
   let err = "Unable to open file \"" ^ filename ^ "\""
   in fatal_error err
 
+(** Couldn't find the file to open. *)
+let err_unable_to_locate_imported_file pos filename =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Unable to locate file to import: " ^ filename ^ "\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Tried to generate a header file from a non-def source file. *)
 let err_cant_generate_header_from filename =
   let err = "Unable to generate a header from non-def source file \""

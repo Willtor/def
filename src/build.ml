@@ -37,6 +37,11 @@ open Scrubber
 open Util
 open Version
 
+let filepaths =
+  [ "/usr/include";
+    "/usr/local/include"
+  ]
+
 let tm =
   let triple = Target.default_triple () in
   Llvm_all_backends.initialize ();
@@ -56,10 +61,14 @@ let verify_extension filename =
   | ".bc" | ".o" -> ()
   | ext -> Report.err_unknown_infile_type filename ext
 
-let findfile file relative_base =
-  let filename = relative_base ^ "/" ^ file in
-  if Sys.file_exists filename then filename
-  else Report.err_unable_to_open_file filename
+let findfile file relative_base pos =
+  let paths = relative_base :: filepaths in
+  let exists_in base = Sys.file_exists (base ^ "/" ^ file) in
+  let path =
+    try List.find exists_in paths
+    with _ -> Report.err_unable_to_locate_imported_file pos file
+  in
+  path ^ "/" ^ file
 
 let add_builtin_fcns stmts =
   let pos = { pos_fname = "builtin";
@@ -119,7 +128,7 @@ let parse_def_file file =
 let rec recursive_parse_def_file file =
   let proc parsetree = function
     | PTS_Import (_, (tok, str), _) ->
-       let subfile = findfile str (Filename.dirname file) in
+       let subfile = findfile str (Filename.dirname file) tok.td_pos in
        (recursive_parse_def_file subfile) @ parsetree
     | _ -> parsetree
   in
