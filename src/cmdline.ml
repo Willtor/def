@@ -54,6 +54,11 @@ let set_codegen_debug () =
   set_param codegen_debug true codegen_debug_is_set
     "Specified -cgdebug multiple times."
 
+let no_cilk_is_set = ref false
+let set_no_cilk () =
+  set_param no_cilk true no_cilk_is_set
+    "Specified -fno-cilk multiple times."
+
 (** Print the version information and exit. *)
 let print_version () =
   print_endline
@@ -89,6 +94,8 @@ let parameter_set =
      "Level 3 compiler optimizations. (identical to -O2 at this time)");
     ("-gh", Unit (fun () -> set_comp_depth COMPILE_GENERATE_HEADER),
      "Generate a C/C++-compatible header file.");
+    ("-fno-cilk", Unit (fun () -> set_no_cilk ()),
+     "Elide Cilk primitives and don't include the Cilk runtime.");
     ("-v", Unit (fun () -> print_version ()),
      "Print version info and exit.")
   ]

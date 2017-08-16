@@ -24,6 +24,8 @@ type compilation_level =
 
 let opt_level = ref 1
 
+let no_cilk = ref false
+
 let input_files : string list ref = ref []
 
 let output_file : string option ref = ref None

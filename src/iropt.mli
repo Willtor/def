@@ -1,1 +1,1 @@
-val create_pm : int -> [ `Module ] Llvm.PassManager.t
+val create_pm : unit -> [ `Module ] Llvm.PassManager.t

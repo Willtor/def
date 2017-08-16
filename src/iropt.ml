@@ -16,14 +16,15 @@
    02110-1301, USA.
  *)
 
+open Config
 open Llvm
 open Llvm_passmgr_builder
 open Llvmext (* add_lower_tapir_to_cilk *)
 
-let create_pm opt_level = (* FIXME: Verify opt_level input. *)
+let create_pm () = (* FIXME: Verify opt_level input. *)
   let bldr = Llvm_passmgr_builder.create () in
   let pass_manager = PassManager.create () in
-  Llvm_passmgr_builder.set_opt_level opt_level bldr;
+  Llvm_passmgr_builder.set_opt_level !Config.opt_level bldr;
   Llvm_passmgr_builder.populate_module_pass_manager pass_manager bldr;
-  add_lower_tapir_to_cilk pass_manager;
+  if not (!Config.no_cilk) then add_lower_tapir_to_cilk pass_manager;
   pass_manager

@@ -675,7 +675,7 @@ let process_cfg cgdebug module_name program opt_level =
   let mdl  = create_module ctx module_name in
   let ()   = set_target_triple (Target.default_triple ()) mdl in
   let bldr = builder ctx in
-  let pm = create_pm opt_level in
+  let pm = create_pm () in
   let typemap = build_types ctx program.deftypemap in
   let data = { ctx = ctx;
                mdl = mdl;
