@@ -17,6 +17,7 @@
  *)
 
 open Llvm
+open Llvmext (* token_type *)
 open Util
 
 type qualifier =
@@ -46,6 +47,7 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
+  | DefTypeLLVMToken
 
 type primitive_kind =
   | KindInteger
@@ -138,7 +140,8 @@ let map_builtin_types =
     ("i64", DefTypePrimitive (PrimI64, []), i64_type, "long long");
     ("u64", DefTypePrimitive (PrimU64, []), i64_type, "unsigned long long");
     ("f32", DefTypePrimitive (PrimF32, []), float_type, "float");
-    ("f64", DefTypePrimitive (PrimF64, []), double_type, "double")
+    ("f64", DefTypePrimitive (PrimF64, []), double_type, "double");
+    ("llvm.token", DefTypeLLVMToken, token_type, "")
   ]
 
 (** Convert a primitive type to its string representation. *)
@@ -236,6 +239,8 @@ let rec size_of typemap = function
      (* FIXME: Take aligment into account. *)
      List.fold_left (fun accum t -> accum + (size_of typemap t))
        0 members
+  | DefTypeLLVMToken ->
+     Report.err_internal __FILE__ __LINE__ "Shouldn't need size of LLVM token."
 
 let rec string_of_type = function
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"

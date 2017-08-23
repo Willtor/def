@@ -24,9 +24,9 @@ type cfg_basic_block =
   | BB_Seq of string * sequential_block
   | BB_Cond of string * conditional_block
   | BB_Term of string * terminal_block
-  | BB_Detach of string * detach_block
-  | BB_Reattach of string * sequential_block
-  | BB_Sync of string * sequential_block
+  | BB_Detach of string * string * detach_block
+  | BB_Reattach of string * string * sequential_block
+  | BB_Sync of string * string * sequential_block
   | BB_Goto of string * sequential_block
   | BB_Error
 
@@ -74,6 +74,7 @@ and function_defn =
     name       : string;
     local_vars : (string * decl) list;
     mutable entry_bb : cfg_basic_block;
+    fcn_cilk_init : string list
   }
 
 type program =

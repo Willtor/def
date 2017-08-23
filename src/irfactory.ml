@@ -20,7 +20,7 @@ open Ast
 open Cfg
 open Iropt
 open Llvm
-open Llvmext (* build_cmpxchg *)
+open Llvmext (* build_cmpxchg, token_type *)
 open Llvm_target
 open Types
 open Util
@@ -80,6 +80,7 @@ let deftype2llvmtype ctx typemap =
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
        struct_type ctx (Array.of_list llvm_members)
+    | DefTypeLLVMToken -> token_type ctx
     | _ ->
        Report.err_internal __FILE__ __LINE__ "deftype2llvmtype"
   in convert
@@ -554,9 +555,9 @@ let process_fcn cgdebug data symbols fcn =
     | BB_Seq (label, _)
     | BB_Cond (label, _)
     | BB_Term (label, _)
-    | BB_Detach (label, _)
-    | BB_Reattach (label, _)
-    | BB_Sync (label, _)
+    | BB_Detach (label, _, _)
+    | BB_Reattach (label, _,  _)
+    | BB_Sync (label, _, _)
       ->
        Hashtbl.add llblocks label (append_block data.ctx label llfcn)
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
@@ -568,15 +569,22 @@ let process_fcn cgdebug data symbols fcn =
 
   let llvals = make_symtab () in
 
+  let make_sync_region sync_region =
+    let _, _, syncreg_start =
+      the (lookup_symbol varmap "llvm.syncregion.start") in
+    let ret = build_call syncreg_start [| |] "sync_region" data.bldr in
+    add_symbol llvals sync_region ret
+  in
+
   let get_bb = Hashtbl.find llblocks in
 
   let get_label = function
     | BB_Seq (label, _)
     | BB_Cond (label, _)
     | BB_Term (label, _)
-    | BB_Detach (label, _)
-    | BB_Reattach (label, _)
-    | BB_Sync (label, _)
+    | BB_Detach (label, _, _)
+    | BB_Reattach (label, _, _)
+    | BB_Sync (label, _, _)
       -> label
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
   in
@@ -607,9 +615,10 @@ let process_fcn cgdebug data symbols fcn =
        | Some e ->
           let _ = build_ret (process_expr data llvals varmap e) data.bldr in ()
        end
-    | BB_Detach (label, block) ->
+    | BB_Detach (label, sb, block) ->
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
+       let sync_region = the (lookup_symbol llvals sb) in
        let proc (id, expr) =
          let llval = process_expr data llvals varmap (faux_pos, expr) in
          add_symbol llvals id llval
@@ -619,26 +628,30 @@ let process_fcn cgdebug data symbols fcn =
                   proc (Util.the block.detach_ret) in
        let spawn_bb = get_bb (get_label block.detach_next) in
        let cont_bb = get_bb (get_label block.detach_continuation) in
-       ignore(build_detach spawn_bb cont_bb data.bldr)
-    | BB_Reattach (label, block) ->
+       ignore(build_detach spawn_bb cont_bb sync_region data.bldr)
+    | BB_Reattach (label, sb, block) ->
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
+       let sync_region = the (lookup_symbol llvals sb) in
        let () = List.iter
                   (fun expr ->
                     ignore(process_expr data llvals varmap expr))
                   block.seq_expr in
        let next_bb = get_bb (get_label block.seq_next) in
-       ignore(build_reattach next_bb data.bldr)
-    | BB_Sync (label, block) ->
+       ignore(build_reattach next_bb sync_region data.bldr)
+    | BB_Sync (label, sb, block) ->
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
+       let sync_region = the (lookup_symbol llvals sb) in
        let next_bb = get_bb (get_label block.seq_next) in
-       ignore(build_sync next_bb data.bldr)
+       ignore(build_sync next_bb sync_region data.bldr)
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
   in
 
   let entry = get_bb "entry" in
   position_at_end entry data.bldr;
+
+  (* Arguments. *)
   let (args, _, _) = get_fcntype profile.tp in
   let llparams = params llfcn in
   List.iteri (fun i ((pos, n), tp) ->
@@ -648,11 +661,16 @@ let process_fcn cgdebug data symbols fcn =
       add_symbol varmap n (pos, tp, alloc);
       ignore (build_store llparams.(i) alloc data.bldr);
     end) (List.combine profile.params args);
+
+  (* Space for local variables. *)
   List.iter (fun (name, decl) ->
     let alloc = build_alloca
       (deftype2llvmtype data.ctx data.typemap true decl.tp) name data.bldr
     in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
     fcn.local_vars;
+
+  (* Initialize Cilk sync regions. *)
+  List.iter make_sync_region fcn.fcn_cilk_init;
 
   Cfg.visit_df populate_blocks false () fcn.entry_bb;
   List.iter

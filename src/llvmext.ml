@@ -26,18 +26,22 @@ external build_cmpxchg :
 
 (** Detach (spawn) operation. *)
 external build_detach :
-  llbasicblock -> llbasicblock -> llbuilder -> llvalue
+  llbasicblock -> llbasicblock -> llvalue -> llbuilder -> llvalue
   = "llvm_build_detach"
 
 (** Reattach (continuation after spawn) operation. *)
 external build_reattach :
-  llbasicblock -> llbuilder -> llvalue
+  llbasicblock -> llvalue -> llbuilder -> llvalue
   = "llvm_build_reattach"
 
 (** Sync (join all spawned work in this context) operation. *)
 external build_sync :
-  llbasicblock -> llbuilder -> llvalue
+  llbasicblock -> llvalue -> llbuilder -> llvalue
   = "llvm_build_sync"
+
+external token_type :
+  llcontext -> lltype
+  = "llvm_token_type"
 
 (** Tapir pass to install Cilky stuff in place of detach/sync instructions. *)
 external add_lower_tapir_to_cilk :

@@ -15,54 +15,68 @@ using namespace llvm;
 
 LLVMValueRef LLVMBuildDetach(LLVMBuilderRef B,
                              LLVMBasicBlockRef DetachBB,
-                             LLVMBasicBlockRef ContinueBB)
+                             LLVMBasicBlockRef ContinueBB,
+                             LLVMValueRef SyncRegion)
 {
     return wrap(unwrap(B)->CreateDetach(unwrap(DetachBB),
-                                        unwrap(ContinueBB)));
+                                        unwrap(ContinueBB),
+                                        unwrap(SyncRegion)));
 }
 
 LLVMValueRef LLVMBuildReattach(LLVMBuilderRef B,
-                               LLVMBasicBlockRef ReattachBB)
+                               LLVMBasicBlockRef ReattachBB,
+                               LLVMValueRef SyncRegion)
 {
-    return wrap(unwrap(B)->CreateReattach(unwrap(ReattachBB)));
+    return wrap(unwrap(B)->CreateReattach(unwrap(ReattachBB),
+                                          unwrap(SyncRegion)));
+}
+
+LLVMValueRef LLVMBuildSync(LLVMBuilderRef B,
+                           LLVMBasicBlockRef ContinueBB,
+                           LLVMValueRef SyncRegion)
+{
+    return wrap(unwrap(B)->CreateSync(unwrap(ContinueBB),
+                                      unwrap(SyncRegion)));
 }
 
 void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM) {
     unwrap(PM)->add(createLowerTapirToCilkPass(true, false));
 }
 
-LLVMValueRef LLVMBuildSync(LLVMBuilderRef B,
-                           LLVMBasicBlockRef ContinueBB)
-{
-    return wrap(unwrap(B)->CreateSync(unwrap(ContinueBB)));
-}
+extern LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C);
+/*LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C) {
+    return (LLVMTypeRef) Type::getTokenTy(*unwrap(C));
+}*/
 
-/* llbasicblock -> llbasicblock -> llbuilder -> llvalue
+/* llbasicblock -> llbasicblock -> llvalue -> llbuilder -> llvalue
  */
 extern "C"
 CAMLprim LLVMValueRef llvm_build_detach(LLVMBasicBlockRef DetachBB,
                                         LLVMBasicBlockRef ContinueBB,
+                                        LLVMValueRef SyncRegion,
                                         LLVMBuilderRef B)
 {
-    return LLVMBuildDetach(Builder_val(B), DetachBB, ContinueBB);
+    return LLVMBuildDetach(Builder_val(B), DetachBB, ContinueBB, SyncRegion);
 }
 
-/* llbasicblock -> llbuilder -> llvalue
+/* llbasicblock -> llvalue -> llbuilder -> llvalue
  */
 extern "C"
 CAMLprim LLVMValueRef llvm_build_reattach(LLVMBasicBlockRef ReattachBB,
+                                          LLVMValueRef SyncRegion,
                                           LLVMBuilderRef B)
 {
-    return LLVMBuildReattach(Builder_val(B), ReattachBB);
+    return LLVMBuildReattach(Builder_val(B), ReattachBB, SyncRegion);
 }
 
-/* llbasicblock -> llbuilder -> llvalue
+/* llbasicblock -> llvalue -> llbuilder -> llvalue
  */
 extern "C"
 CAMLprim LLVMValueRef llvm_build_sync(LLVMBasicBlockRef ContinueBB,
+                                      LLVMValueRef SyncRegion,
                                       LLVMBuilderRef B)
 {
-    return LLVMBuildSync(Builder_val(B), ContinueBB);
+    return LLVMBuildSync(Builder_val(B), ContinueBB, SyncRegion);
 }
 
 /* [`Module] Llvm.PassManager.t -> unit
@@ -72,3 +86,15 @@ CAMLprim value llvm_add_lower_tapir_to_cilk(LLVMPassManagerRef PM) {
     LLVMAddLowerTapirToCilk(PM);
     return Val_unit;
 }
+
+/* llcontext -> lltype
+ */
+extern "C"
+CAMLprim LLVMTypeRef llvm_token_type(LLVMContextRef Context) {
+    return LLVMTokenTypeInContext(Context);
+}
+
+/* FIXME: For some reason, we need this with the current Tapir branch.
+ */
+extern "C"
+void LLVMDumpType(LLVMTypeRef Ty) { return; }

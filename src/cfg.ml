@@ -51,9 +51,9 @@ type cfg_basic_block =
   | BB_Seq of string * sequential_block
   | BB_Cond of string * conditional_block
   | BB_Term of string * terminal_block
-  | BB_Detach of string * detach_block
-  | BB_Reattach of string * sequential_block
-  | BB_Sync of string * sequential_block
+  | BB_Detach of string * string * detach_block
+  | BB_Reattach of string * string * sequential_block
+  | BB_Sync of string * string * sequential_block
   | BB_Goto of string * sequential_block
   | BB_Error
 
@@ -101,6 +101,7 @@ and function_defn =
     name       : string;
     local_vars : (string * decl) list;
     mutable entry_bb : cfg_basic_block;
+    fcn_cilk_init : string list
   }
 
 type program =
@@ -134,7 +135,7 @@ let visit_df f bit =
        else
          (block.term_mark_bit <- bit;
           f param node)
-    | BB_Detach (_, block) ->
+    | BB_Detach (_, _, block) ->
        if block.detach_mark_bit = bit then param
        else
          (* WARNING: If this is ever used for something other than a normally
@@ -142,12 +143,12 @@ let visit_df f bit =
             then this will not cover the whole graph. *)
          (block.detach_mark_bit <- bit;
           visit (f param node) block.detach_next)
-    | BB_Reattach (_, block) ->
+    | BB_Reattach (_, _, block) ->
        if block.seq_mark_bit = bit then param
        else
          (block.seq_mark_bit <- bit;
           visit (f param node) block.seq_next)
-    | BB_Sync (_, block) ->
+    | BB_Sync (_, _, block) ->
        if block.seq_mark_bit = bit then param
        else
          (block.seq_mark_bit <- bit;
@@ -319,6 +320,7 @@ let resolve_type typemap typename oldtp =
        DefTypeLiteralStruct (List.map v fields, names)
     | DefTypeStaticStruct members ->
        DefTypeStaticStruct (List.map v members)
+    | DefTypeLLVMToken -> DefTypeLLVMToken
   in Some (v oldtp)
 
 let global_decls decltable typemap = function
@@ -584,6 +586,9 @@ let build_fcn_call scope typemap pos name args =
      | DefTypeLiteralStruct _
      | DefTypeStaticStruct _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call a struct."
+     | DefTypeLLVMToken ->
+        Report.err_internal __FILE__ __LINE__
+                            "Tried to call an LLVM Token."
      end
 
 (** Convert an expression, verifying that all operations are valid on the
@@ -781,31 +786,34 @@ let make_terminal_bb label rexpr =
                     term_mark_bit = false
                   })
 
-let make_detach_bb label args ret =
+let make_detach_bb label sync args ret =
   let rename base (_, e) = (base ^ "." ^ (Util.unique_id ())), e in
-  BB_Detach (label, { detach_prev = [];
-                      detach_args = List.map (rename "arg") args;
-                      detach_ret = (match ret with
-                                    | None -> None
-                                    | Some ret -> Some (rename "ret" ret));
-                      detach_next = BB_Error;
-                      detach_continuation = BB_Error;
-                      detach_mark_bit = false
-                    })
+  BB_Detach (label,
+             sync, { detach_prev = [];
+                     detach_args = List.map (rename "arg") args;
+                     detach_ret = (match ret with
+                                   | None -> None
+                                   | Some ret -> Some (rename "ret" ret));
+                     detach_next = BB_Error;
+                     detach_continuation = BB_Error;
+                     detach_mark_bit = false
+                   })
 
-let make_reattach_bb label exprs =
-  BB_Reattach (label, { seq_prev = [];
-                        seq_next = BB_Error;
-                        seq_expr = exprs;
-                        seq_mark_bit = false
-                      })
+let make_reattach_bb label sync exprs =
+  BB_Reattach (label,
+               sync, { seq_prev = [];
+                       seq_next = BB_Error;
+                       seq_expr = exprs;
+                       seq_mark_bit = false
+                     })
 
-let make_sync_bb label =
-  BB_Sync (label, { seq_prev = [];
-                    seq_next = BB_Error;
-                    seq_expr = [];
-                    seq_mark_bit = false
-                  })
+let make_sync_bb label sync =
+  BB_Sync (label,
+           sync, { seq_prev = [];
+                   seq_next = BB_Error;
+                   seq_expr = [];
+                   seq_mark_bit = false
+                 })
 
 let make_goto_bb label =
   BB_Goto (label, { seq_prev = [];
@@ -834,11 +842,11 @@ let rec build_bbs name decltable typemap body =
   let add_next bb1 bb2 =
     let push_next bb = function
       | BB_Seq (_, block)
-      | BB_Reattach (_, block)
-      | BB_Sync (_, block) ->
+      | BB_Reattach (_, _, block)
+      | BB_Sync (_, _, block) ->
          if block.seq_next = BB_Error then
            block.seq_next <- bb
-      | BB_Detach (_, block) ->
+      | BB_Detach (_, _, block) ->
          if block.detach_next = BB_Error then block.detach_next <- bb
          else if block.detach_continuation = BB_Error then
            block.detach_continuation <- bb
@@ -852,11 +860,11 @@ let rec build_bbs name decltable typemap body =
     let push_prev bb = function
       (* FIXME: Shouldn't add if push_next didn't make the change. *)
       | BB_Seq (_, block)
-      | BB_Reattach (_, block)
-      | BB_Sync (_, block)
+      | BB_Reattach (_, _, block)
+      | BB_Sync (_, _, block)
       | BB_Goto (_, block) ->
          block.seq_prev <- bb :: block.seq_prev
-      | BB_Detach (_, block) ->
+      | BB_Detach (_, _, block) ->
          block.detach_prev <- bb :: block.detach_prev
       | BB_Cond (_, block) ->
          block.cond_prev <- bb :: block.cond_prev
@@ -887,15 +895,27 @@ let rec build_bbs name decltable typemap body =
 
   let label_bbs = Hashtbl.create 8 in
 
+  let sync_regions = ref [] in
+  let unique_regions () =
+    let ordered_regions = List.sort String.compare !sync_regions in
+    let uniquify accum str = match accum with
+      | [] -> [ str ]
+      | last :: _ -> if str = last then accum
+                     else str :: accum
+    in
+    List.fold_left uniquify [] ordered_regions
+  in
+
   (* Iterate through the basic blocks and convert them to the CFG structure
      along with all of the contained expressions.  This function will leave
      temporary placeholders, like BB_Goto and BB_Error, so the CFG needs
      cleanup. *)
-  let rec process_bb scope decls prev_bb cont_bb = function
+  let rec process_bb scope decls prev_bb cont_bb sync_label = function
     | [] -> decls, prev_bb
     | StmtExpr (pos, expr) :: rest ->
        let label = label_of_pos pos in
        let make_spawn nm lhs args =
+         let () = sync_regions := sync_label :: !sync_regions in
          (* FIXME: Check order of things.  Is this what we want to do?
             1. Compute arguments.
             2. Compute left-hand-side (lhs).
@@ -916,9 +936,9 @@ let rec build_bbs name decltable typemap body =
               in
               Some (convert_expr typemap scope lvalue)
          in
-         let detach = make_detach_bb ("detach_" ^ label) args ret in
+         let detach = make_detach_bb ("detach_" ^ label) sync_label args ret in
          let block = match detach with
-           | BB_Detach (_, block) -> block
+           | BB_Detach (_, _, block) -> block
            | _ -> Report.err_internal __FILE__ __LINE__ "Do you even lift?"
          in
          let call = Expr_FcnCall_Refs (nm, List.map (fun (label, _) -> label)
@@ -929,7 +949,8 @@ let rec build_bbs name decltable typemap body =
          | ExprFcnCall ({ fc_spawn = true } as fc) ->
             let detach, call = make_spawn fc.fc_name None fc.fc_args in
             let reattach =
-              make_reattach_bb (label ^ ".reattach") [(fc.fc_pos, call)] in
+              make_reattach_bb (label ^ ".reattach") sync_label
+                               [(fc.fc_pos, call)] in
             let cont_bb = make_sequential_bb (label ^ ".cont") [] in
             let () = add_next detach reattach in
             let () = add_next reattach cont_bb in
@@ -943,7 +964,8 @@ let rec build_bbs name decltable typemap body =
             (* FIXME: Do casting of return value, if necessary. *)
             let detach, call = make_spawn fc.fc_name (Some lhs) fc.fc_args in
             let lhslabel = match detach with
-              | BB_Detach (_, { detach_ret = Some (retlabel, _) }) -> retlabel
+              | BB_Detach (_, _, { detach_ret = Some (retlabel, _) }) ->
+                 retlabel
               | _ -> Report.err_internal __FILE__ __LINE__ "ruh roh!"
             in
             let decl = Util.the (lookup_symbol scope fc.fc_name) in
@@ -954,7 +976,8 @@ let rec build_bbs name decltable typemap body =
             let expr =
               Expr_Binary (OperAssign, tp, Expr_Val_Ref lhslabel, call) in
             let reattach =
-              make_reattach_bb (label ^ ".reattach") [(fc.fc_pos, expr)] in
+              make_reattach_bb (label ^ ".reattach") sync_label
+                               [(fc.fc_pos, expr)] in
             let cont_bb = make_sequential_bb (label ^ ".cont") [] in
             let () = add_next detach reattach in
             let () = add_next reattach cont_bb in
@@ -966,11 +989,12 @@ let rec build_bbs name decltable typemap body =
             bb, bb
        in
        let () = add_next prev_bb begin_bb in
-       process_bb scope decls end_bb cont_bb rest
+       process_bb scope decls end_bb cont_bb sync_label rest
     | Block (_, stmts) :: rest ->
        let decls, bb =
-         process_bb (push_symtab_scope scope) decls prev_bb cont_bb stmts in
-       process_bb scope decls bb cont_bb rest
+         process_bb (push_symtab_scope scope) decls prev_bb cont_bb sync_label
+                    stmts in
+       process_bb scope decls bb cont_bb sync_label rest
     | DeclFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DeclFcn not expected."
     | DefFcn _ :: _ ->
@@ -985,10 +1009,10 @@ let rec build_bbs name decltable typemap body =
        let decls = List.fold_left declare decls vars in
        let initialize (decls, bb) expr =
          let faux_stmt = StmtExpr (pos_of_astexpr expr, expr) in
-         process_bb scope decls bb cont_bb [faux_stmt]
+         process_bb scope decls bb cont_bb sync_label [faux_stmt]
        in
        let decls, bb = List.fold_left initialize (decls, prev_bb) inits in
-       process_bb scope decls bb cont_bb rest
+       process_bb scope decls bb cont_bb sync_label rest
     | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
        let idecls = List.fold_left
          (fun accum (pos, nm, tp) ->
@@ -1029,7 +1053,8 @@ let rec build_bbs name decltable typemap body =
          make_sequential_bb (label_of_pos p) ((p, cexpr) :: assignments) in
        let () = add_next prev_bb bb in
        process_bb scope
-         (("def_inline_struct", target_struct) :: idecls) bb cont_bb rest
+         (("def_inline_struct", target_struct) :: idecls) bb cont_bb
+         sync_label rest
     | XBegin pos :: rest ->
        let _, f = build_fcn_call scope typemap pos "llvm.x86.xbegin" [] in
        let e = Expr_Binary (OperEquals, DefTypePrimitive (PrimI32, [Volatile]),
@@ -1042,14 +1067,14 @@ let rec build_bbs name decltable typemap body =
          add_next prev_bb bb;
          add_next bb xact_bb;
          add_next bb bb;
-         process_bb scope decls xact_bb cont_bb rest
+         process_bb scope decls xact_bb cont_bb sync_label rest
        end
     | XCommit pos :: rest ->
        let _, f = build_fcn_call scope typemap pos "llvm.x86.xend" [] in
        let bb =
          make_sequential_bb ("xcommit_" ^ (label_of_pos pos)) [(pos, f)] in
        let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb rest
+       process_bb scope decls bb cont_bb sync_label rest
     | IfStmt (pos, cond, then_block, else_block_maybe) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
@@ -1060,7 +1085,8 @@ let rec build_bbs name decltable typemap body =
        let () = add_next prev_bb cond_bb in
        let decls, then_bb =
          process_bb
-           (push_symtab_scope scope) decls succ_bb cont_bb then_block in
+           (push_symtab_scope scope) decls succ_bb cont_bb sync_label
+           then_block in
        let merge_bb = make_sequential_bb ("merge_" ^ (label_of_pos pos)) [] in
        let () = add_next then_bb merge_bb in
        let decls = match else_block_maybe with
@@ -1069,16 +1095,17 @@ let rec build_bbs name decltable typemap body =
          | Some stmts ->
             let decls, else_bb =
               process_bb
-                (push_symtab_scope scope) decls fail_bb cont_bb stmts in
+                (push_symtab_scope scope) decls fail_bb cont_bb sync_label
+                stmts in
             (add_next else_bb merge_bb; decls)
        in
-       process_bb scope decls merge_bb cont_bb rest
+       process_bb scope decls merge_bb cont_bb sync_label rest
     | ForLoop (pos, init, (_, cond), iter, body) :: rest ->
        let body_scope = push_symtab_scope scope in
        let init_decls, init_bb = match init with
          | None -> decls, prev_bb
          | Some stmt_or_decl ->
-            process_bb body_scope decls prev_bb None [stmt_or_decl]
+            process_bb body_scope decls prev_bb None sync_label [stmt_or_decl]
        in
        let succ_bb = make_sequential_bb ("fsucc_" ^ (label_of_pos pos)) [] in
        let fail_bb = make_sequential_bb ("ffail_" ^ (label_of_pos pos)) [] in
@@ -1100,10 +1127,10 @@ let rec build_bbs name decltable typemap body =
        let () = add_next cond_bb succ_bb in
        let () = add_next cond_bb fail_bb in
        let for_decls, for_body_end = process_bb body_scope init_decls succ_bb
-         (Some iter_bb) body
+                                                (Some iter_bb) sync_label body
        in
        let () = add_next for_body_end iter_bb in
-       process_bb scope for_decls fail_bb cont_bb rest
+       process_bb scope for_decls fail_bb cont_bb sync_label rest
     | WhileLoop (pos, precheck, cond, body) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
@@ -1129,16 +1156,16 @@ let rec build_bbs name decltable typemap body =
          let () = add_next succ_bb body_begin in
          let decls, body_end =
            process_bb (push_symtab_scope scope) decls body_begin
-             (Some cond_bb) body in
+             (Some cond_bb) sync_label body in
          let () = add_next body_end cond_bb in
-         process_bb scope decls fail_bb cont_bb rest
+         process_bb scope decls fail_bb cont_bb sync_label rest
        else
          let () = add_next prev_bb body_begin in
          let decls, body_end =
            process_bb (push_symtab_scope scope) decls body_begin
-             (Some cond_bb) body in
+             (Some cond_bb) sync_label body in
          let () = add_next succ_bb body_begin in
-         process_bb scope decls fail_bb cont_bb rest
+         process_bb scope decls fail_bb cont_bb sync_label rest
     | Return (pos, expr) :: rest ->
        let tp, expr = convert_expr typemap scope expr in
        begin
@@ -1170,18 +1197,19 @@ let rec build_bbs name decltable typemap body =
               ("ret_" ^ (label_of_pos pos))
               (Some (pos, (maybe_cast typemap tp ret_type retexpr))) in
             let () = add_next expr_bb term_bb in
-            process_bb scope (("__defret", decl) :: decls) term_bb cont_bb rest
+            process_bb scope (("__defret", decl) :: decls) term_bb cont_bb
+                       sync_label rest
          | _ ->
             let term_bb = make_terminal_bb
               ("ret_" ^ (label_of_pos pos))
               (Some (pos, (maybe_cast typemap tp ret_type expr))) in
             let () = add_next prev_bb term_bb in
-            process_bb scope decls term_bb cont_bb rest
+            process_bb scope decls term_bb cont_bb sync_label rest
        end
     | ReturnVoid pos :: rest ->
        let term_bb = make_terminal_bb ("ret_" ^ (label_of_pos pos)) None in
        let () = add_next prev_bb term_bb in
-       process_bb scope decls term_bb cont_bb rest
+       process_bb scope decls term_bb cont_bb sync_label rest
     | TypeDecl _ :: _ ->
        Report.err_internal __FILE__ __LINE__
          "FIXME: TypeDecl not implemented Cfg.build_bbs (TypeDecl)"
@@ -1189,11 +1217,11 @@ let rec build_bbs name decltable typemap body =
        let bb = make_sequential_bb label [] in
        let () = Hashtbl.add label_bbs label bb in
        let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb rest
+       process_bb scope decls bb cont_bb sync_label rest
     | Goto (pos, label) :: rest ->
        let bb = make_goto_bb label in
        let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb rest
+       process_bb scope decls bb cont_bb sync_label rest
     | Break pos :: rest ->
        begin match cont_bb with
        | None ->
@@ -1206,7 +1234,7 @@ let rec build_bbs name decltable typemap body =
           let bb = make_sequential_bb ("break_" ^ (label_of_pos pos)) [] in
           let () = add_next prev_bb bb in
           let () = add_next bb follow_bb in
-          process_bb scope decls bb cont_bb rest
+          process_bb scope decls bb cont_bb sync_label rest
        | _ ->
           Report.err_internal __FILE__ __LINE__ "No follow block."
        end
@@ -1219,12 +1247,12 @@ let rec build_bbs name decltable typemap body =
           let bb = make_sequential_bb ("cont_" ^ (label_of_pos pos)) [] in
           let () = add_next prev_bb bb in
           let () = add_next bb condition in
-          process_bb scope decls bb cont_bb rest
+          process_bb scope decls bb cont_bb sync_label rest
        end
     | Sync pos :: rest ->
-       let bb = make_sync_bb ("sync_" ^ (label_of_pos pos)) in
+       let bb = make_sync_bb ("sync_" ^ (label_of_pos pos)) sync_label in
        let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb rest
+       process_bb scope decls bb cont_bb sync_label rest
     | Import (tok, _) :: _ ->
        Report.err_import_in_function tok.td_pos name
   in
@@ -1245,7 +1273,7 @@ let rec build_bbs name decltable typemap body =
     | _ -> ()
   in
   let entry_bb = make_sequential_bb "entry" [] in
-  let decls, bb = process_bb fcnscope [] entry_bb None body in
+  let decls, bb = process_bb fcnscope [] entry_bb None "bodysync" body in
   let bb_table = Hashtbl.create 32 in
   let () = visit_df (fun () bb -> match bb with
     | BB_Seq (label, _)
@@ -1257,7 +1285,7 @@ let rec build_bbs name decltable typemap body =
     entry_bb
   in
   let () = visit_df (replace_gotos bb_table) false () entry_bb in
-  List.rev decls, entry_bb
+  unique_regions (), List.rev decls, entry_bb
 
 let verify_cfg name =
   let verify () = function
@@ -1277,7 +1305,7 @@ let verify_cfg name =
 
 let build_fcns decltable typemap fcns = function
   | DefFcn (pos, _, _, name, _, body) ->
-     let decls, entry_bb = build_bbs name decltable typemap body in
+     let syncs, decls, entry_bb = build_bbs name decltable typemap body in
      let () = verify_cfg name entry_bb in
      let () = reset_bbs entry_bb in
      let fcn =
@@ -1286,6 +1314,7 @@ let build_fcns decltable typemap fcns = function
          name = name;
          local_vars = decls;
          entry_bb = entry_bb;
+         fcn_cilk_init = syncs
        }
      in fcn :: fcns
   | _ -> fcns

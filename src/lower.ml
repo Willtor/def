@@ -31,10 +31,10 @@ let lift_lhs_static_structs program =
                      Expr_StaticStruct (_, members),
                      rhs) ->
          let decl = { decl_pos = fcn.defn_begin;
-                       mappedname = "__defstatic";
-                       vis = VisLocal;
-                       tp = DefTypeStaticStruct mtypes;
-                       params = []
+                      mappedname = "__defstatic";
+                      vis = VisLocal;
+                      tp = DefTypeStaticStruct mtypes;
+                      params = [];
                      } in
          let vars = ("__defstatic", decl) in
          let exprs = List.mapi (fun n (tp, e) ->
@@ -58,7 +58,7 @@ let lift_lhs_static_structs program =
                       mappedname = "__defstatic";
                       vis = VisLocal;
                       tp = DefTypeLiteralStruct (mtypes, mnames);
-                      params = []
+                      params = [];
                     } in
          let vars = ("__defstatic", decl) in
          let exprs = List.mapi (fun n (tp, e) ->
@@ -93,7 +93,8 @@ let lift_lhs_static_structs program =
       defn_end = fcn.defn_end;
       name = fcn.name;
       local_vars = vars;
-      entry_bb = fcn.entry_bb
+      entry_bb = fcn.entry_bb;
+      fcn_cilk_init = fcn.fcn_cilk_init
     }
   in
   { global_decls = program.global_decls;

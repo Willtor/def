@@ -25,6 +25,7 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
+  | DefTypeLLVMToken
 
 (** Return whether the given integer type is signed. *)
 val signed_p : deftype -> bool
