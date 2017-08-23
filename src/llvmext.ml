@@ -43,6 +43,12 @@ external token_type :
   llcontext -> lltype
   = "llvm_token_type"
 
+(** Merge all return nodes into a single node.  This needs to be done before
+    Cilkifying a function (lowering detaches/syncs). *)
+external add_unify_function_exit_nodes :
+  [ `Module ] Llvm.PassManager.t -> unit
+  = "llvm_add_unify_function_exit_nodes"
+
 (** Tapir pass to install Cilky stuff in place of detach/sync instructions. *)
 external add_lower_tapir_to_cilk :
   [ `Module ] Llvm.PassManager.t -> unit

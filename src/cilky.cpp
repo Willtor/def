@@ -3,6 +3,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/Tapir.h"
+#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 // FIXME: This code should be integrated into TAPIR.
 
@@ -39,14 +40,15 @@ LLVMValueRef LLVMBuildSync(LLVMBuilderRef B,
                                       unwrap(SyncRegion)));
 }
 
+void LLVMAddUnifyFunctionExitNodes(LLVMPassManagerRef PM) {
+    unwrap(PM)->add(createUnifyFunctionExitNodesPass());
+}
+
 void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM) {
     unwrap(PM)->add(createLowerTapirToCilkPass(true, false));
 }
 
 extern LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C);
-/*LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C) {
-    return (LLVMTypeRef) Type::getTokenTy(*unwrap(C));
-}*/
 
 /* llbasicblock -> llbasicblock -> llvalue -> llbuilder -> llvalue
  */
@@ -77,6 +79,14 @@ CAMLprim LLVMValueRef llvm_build_sync(LLVMBasicBlockRef ContinueBB,
                                       LLVMBuilderRef B)
 {
     return LLVMBuildSync(Builder_val(B), ContinueBB, SyncRegion);
+}
+
+/* [`Module] Llvm.Passmanager.t -> unit
+ */
+extern "C"
+CAMLprim value llvm_add_unify_function_exit_nodes(LLVMPassManagerRef PM) {
+    LLVMAddUnifyFunctionExitNodes(PM);
+    return Val_unit;
 }
 
 /* [`Module] Llvm.PassManager.t -> unit
