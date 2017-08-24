@@ -999,6 +999,8 @@ let rec build_bbs name decltable typemap body =
        Report.err_internal __FILE__ __LINE__ "DeclFcn not expected."
     | DefFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DefFcn not supported."
+    | DefTemplateFcn _ :: _ ->
+       Report.err_internal __FILE__ __LINE__ "DefTemplateFcn not supported."
     | VarDecl (vars, inits, tp) :: rest ->
        let t = convert_type false false typemap tp in
        let declare decls var =

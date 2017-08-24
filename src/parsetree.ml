@@ -23,14 +23,22 @@ type tokendata =
                                   previous token and this one. *)
   }
 
+type pt_template =
+  { tmp_template : tokendata;                 (* template *)
+    tmp_langle : tokendata;                   (* < *)
+    tmp_args : (tokendata * tokendata) list;  (* type T, type U, <etc.> *)
+    tmp_rangle : tokendata                    (* > *)
+  }
+
 type pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of
-      (tokendata option * tokendata * tokendata * pt_type)
+      (tokendata option * tokendata * pt_template option * tokendata * pt_type)
       * tokendata * pt_expr * tokendata
   | PTS_FcnDefBlock of
-      (tokendata option * tokendata * tokendata * pt_type) * pt_stmt
+      (tokendata option * tokendata * pt_template option * tokendata * pt_type)
+      * pt_stmt
   | PTS_FcnDecl of tokendata * tokendata * pt_type * tokendata
   | PTS_Expr of pt_expr * tokendata
   | PTS_Var of tokendata * tokendata list * pt_type * tokendata

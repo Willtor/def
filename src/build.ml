@@ -138,7 +138,8 @@ let rec recursive_parse_def_file file =
   List.fold_left proc parsetree parsetree
 
 let llmodule_of_ast infile ast =
-  let stmts = scrub (add_builtin_fcns ast) in
+  let expanded_ast = Templates.expand ast in
+  let stmts = scrub (add_builtin_fcns expanded_ast) in
   let prog = lower_cfg (Cfg.of_ast stmts) in
   process_cfg !codegen_debug infile prog !opt_level
 

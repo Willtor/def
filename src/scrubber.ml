@@ -31,6 +31,7 @@ let position_of_stmt = function
   | Block (pos, _)
   | DeclFcn (pos, _, _, _)
   | DefFcn (pos, _, _, _, _, _)
+  | DefTemplateFcn (pos, _, _, _, _, _, _)
   | VarDecl ({td_pos = pos} :: _, _, _)
   | InlineStructVarDecl (pos, _, _)
   | XBegin pos
@@ -69,6 +70,8 @@ let kill_dead_code =
       | DefFcn (pos, doc, vis, name, tp, body) :: rest ->
          let stmt = DefFcn (pos, doc, vis, name, tp, process name body) in
          proc (stmt :: accum) rest
+      | DefTemplateFcn _ :: _ ->
+         Report.err_internal __FILE__ __LINE__ "unexpanded template."
       | VarDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
       | InlineStructVarDecl _ as stmt :: rest ->
@@ -174,6 +177,8 @@ let return_all_paths =
          else returns_p rest
       | Import _ :: _ ->
          Report.err_internal __FILE__ __LINE__ "import in function."
+      | DefTemplateFcn _ :: _ ->
+         Report.err_internal __FILE__ __LINE__ "unexpanded template."
     in
     if returns_p body then body
     else if can_return_void then

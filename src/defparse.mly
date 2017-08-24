@@ -30,7 +30,7 @@
 %token <Parsetree.tokendata * float> LITERALF32 LITERALF64
 %token <Parsetree.tokendata> IDENT
 %token <Parsetree.tokendata * string> STRING
-%token <Parsetree.tokendata> IMPORT TYPE TYPEDEF
+%token <Parsetree.tokendata> IMPORT TEMPLATE TYPE TYPEDEF
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
 %token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO OD CAST AS GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
@@ -162,8 +162,20 @@ unnamedplist:
 variabledecl:
 | IDENT deftype { $1, $2 }
 
+%inline telement:
+| TYPE IDENT { $1, $2 }
+
+template:
+| TEMPLATE LANGLE separated_nonempty_list(COMMA, telement) RANGLE
+  { { tmp_template = $1;
+      tmp_langle = $2;
+      tmp_args = $3;
+      tmp_rangle = $4
+    }
+  }
+
 fcndef:
-| EXPORT? DEF IDENT fcntype { $1, $2, $3, $4 }
+| EXPORT? DEF template? IDENT fcntype { $1, $2, $3, $4, $5 }
 
 exprlist:
 | separated_nonempty_list(COMMA, expr) { $1 }

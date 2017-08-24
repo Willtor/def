@@ -103,6 +103,8 @@ type stmt =
   | DeclFcn of position * Types.visibility * string * vartype
   | DefFcn of position * string option * Types.visibility * string * vartype
     * stmt list
+  | DefTemplateFcn of position * pt_template * string option * Types.visibility
+    * string * vartype * stmt list
   | VarDecl of Parsetree.tokendata list * expr list * vartype
   | InlineStructVarDecl of position * (position * string * vartype) list
     * (position * expr)
@@ -240,15 +242,23 @@ let of_parsetree =
   let rec stmt_of = function
     | PTS_Import (importtok, (pathtok, _), _) -> Import (importtok, pathtok)
     | PTS_Begin (b, stmts, _) -> Block (b.td_pos, List.map stmt_of stmts)
-    | PTS_FcnDefExpr ((exp, def, id, tp), equals, e, _) ->
+    | PTS_FcnDefExpr ((exp, def, template_maybe, id, tp), equals, e, _) ->
        let vis, doc = visdoc exp in
        let contents = if void_rettp_p tp then StmtExpr (def.td_pos, expr_of e)
                       else Return (equals.td_pos, expr_of e)
        in
-       DefFcn (def.td_pos, doc, vis, id.td_text, type_of tp, [contents])
-    | PTS_FcnDefBlock ((exp, def, id, tp), stmt) ->
+       if template_maybe = None then
+         DefFcn (def.td_pos, doc, vis, id.td_text, type_of tp, [contents])
+       else
+         DefTemplateFcn (def.td_pos, Util.the template_maybe, doc, vis,
+                         id.td_text, type_of tp, [contents])
+    | PTS_FcnDefBlock ((exp, def, template_maybe, id, tp), stmt) ->
        let vis, doc = visdoc exp in
-       DefFcn (def.td_pos, doc, vis, id.td_text, type_of tp, [stmt_of stmt])
+       if template_maybe = None then
+         DefFcn (def.td_pos, doc, vis, id.td_text, type_of tp, [stmt_of stmt])
+       else
+         DefTemplateFcn (def.td_pos, Util.the template_maybe, doc, vis,
+                         id.td_text, type_of tp, [stmt_of stmt])
     | PTS_FcnDecl (decl, id, tp, _) ->
        DeclFcn (decl.td_pos, VisExported decl.td_pos, id.td_text, type_of tp)
     | PTS_Expr (e, _) ->
