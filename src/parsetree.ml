@@ -24,10 +24,10 @@ type tokendata =
   }
 
 type pt_template =
-  { tmp_template : tokendata;                 (* template *)
-    tmp_langle : tokendata;                   (* < *)
-    tmp_args : (tokendata * tokendata) list;  (* type T, type U, <etc.> *)
-    tmp_rangle : tokendata                    (* > *)
+  { tmp_backtick : tokendata;                     (* ` *)
+    tmp_lparen   : tokendata;                     (* ( *)
+    tmp_args     : (tokendata * tokendata) list;  (* type T, type U, <etc.> *)
+    tmp_rparen   : tokendata                      (* ) *)
   }
 
 type pt_stmt =
@@ -101,6 +101,22 @@ and pt_field_init =
     ptfi_expr  : pt_expr;
   }
 
+and pt_fcn_call =
+  { ptfc_spawn    : tokendata option;
+    ptfc_name     : tokendata;
+    ptfc_template : pt_template_inst option;
+    ptfc_lparen   : tokendata;
+    ptfc_args     : pt_expr list;
+    ptfc_rparen   : tokendata
+  }
+
+and pt_template_inst =
+  { ptti_bt     : tokendata;
+    ptti_lparen : tokendata option;
+    ptti_args   : pt_type list;
+    ptti_rparen : tokendata option
+  }
+
 and pt_expr =
   | PTE_New of tokendata * pt_type
                * (tokendata * pt_field_init list * tokendata) option
@@ -119,8 +135,7 @@ and pt_expr =
   | PTE_F64 of (tokendata * float)
   | PTE_F32 of (tokendata * float)
   | PTE_String of (tokendata * string)
-  | PTE_FcnCall of tokendata option * tokendata * tokendata * pt_expr list
-                   * tokendata
+  | PTE_FcnCall of pt_fcn_call
   | PTE_Var of tokendata
   | PTE_StaticStruct of tokendata * pt_expr list * tokendata
   | PTE_Index of pt_expr * tokendata * pt_expr * tokendata
@@ -156,7 +171,7 @@ let rec pt_expr_pos = function
   | PTE_F64 (tok, _)
   | PTE_F32 (tok, _)
   | PTE_String (tok, _)
-  | PTE_FcnCall (_, tok, _, _, _)
+  | PTE_FcnCall { ptfc_name = tok }
   | PTE_Var tok
   | PTE_StaticStruct (tok, _, _)
   | PTE_PreUni (tok, _) ->

@@ -431,11 +431,12 @@ let of_parsetree =
     | PTE_F64 (tok, value) -> ExprLit (tok.td_pos, LitF64 value)
     | PTE_F32 (tok, value) -> ExprLit (tok.td_pos, LitF32 value)
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
-    | PTE_FcnCall (spawn, id, _, params, _) ->
-       let fcn_call = { fc_pos = id.td_pos;
-                        fc_name = id.td_text;
-                        fc_args = List.map expr_of params;
-                        fc_spawn = if spawn = None then false else true
+    | PTE_FcnCall fcn ->
+       let fcn_call = { fc_pos = fcn.ptfc_name.td_pos;
+                        fc_name = fcn.ptfc_name.td_text;
+                        fc_args = List.map expr_of fcn.ptfc_args;
+                        fc_spawn =
+                          if fcn.ptfc_spawn = None then false else true
                       }
        in
        ExprFcnCall fcn_call

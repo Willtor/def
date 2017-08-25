@@ -30,7 +30,7 @@
 %token <Parsetree.tokendata * float> LITERALF32 LITERALF64
 %token <Parsetree.tokendata> IDENT
 %token <Parsetree.tokendata * string> STRING
-%token <Parsetree.tokendata> IMPORT TEMPLATE TYPE TYPEDEF
+%token <Parsetree.tokendata> IMPORT TYPE TYPEDEF
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
 %token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO OD CAST AS GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
@@ -39,7 +39,7 @@
 %token <Parsetree.tokendata> EXPORT
 
 (* Operators *)
-%token <Parsetree.tokendata> ELLIPSIS RARROW
+%token <Parsetree.tokendata> BACKTICK ELLIPSIS RARROW
 %token <Parsetree.tokendata> INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS
 %token <Parsetree.tokendata> STAREQUALS SLASHEQUALS PERCENTEQUALS
 %token <Parsetree.tokendata> DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS
@@ -166,11 +166,11 @@ variabledecl:
 | TYPE IDENT { $1, $2 }
 
 template:
-| TEMPLATE LANGLE separated_nonempty_list(COMMA, telement) RANGLE
-  { { tmp_template = $1;
-      tmp_langle = $2;
+| BACKTICK LPAREN separated_nonempty_list(COMMA, telement) RPAREN
+  { { tmp_backtick = $1;
+      tmp_lparen = $2;
       tmp_args = $3;
-      tmp_rangle = $4
+      tmp_rparen = $4
     }
   }
 
@@ -200,6 +200,24 @@ struct_init:
 | LCURLY separated_nonempty_list(COMMA, field_init) RCURLY
     { $1, $2, $3 }
 
+%inline template_inst:
+| BACKTICK deftype
+    { { ptti_bt     = $1;
+        ptti_lparen = None;
+        ptti_args   = [$2];
+        ptti_rparen = None
+      }
+    }
+(* shift/reduce with the lparen (a function type can start with lparen)
+| BACKTICK LPAREN separated_nonempty_list(COMMA, deftype) RPAREN
+    { { ptti_bt     = $1;
+        ptti_lparen = Some $2;
+        ptti_args   = $3;
+        ptti_rparen = Some $4
+      }
+    }
+ *)
+
 expr:
 | NEW deftype struct_init? { PTE_New ($1, $2, $3) }
 | NIL { PTE_Nil $1 }
@@ -217,10 +235,26 @@ expr:
 | LITERALF64 { PTE_F64 $1 }
 | LITERALF32 { PTE_F32 $1 }
 | STRING { PTE_String $1 }
-| SPAWN IDENT LPAREN separated_list(COMMA, expr) RPAREN
-  { PTE_FcnCall (Some $1, $2, $3, $4, $5) }
-| IDENT LPAREN separated_list(COMMA, expr) RPAREN
-  { PTE_FcnCall (None, $1, $2, $3, $4) }
+| SPAWN IDENT template_inst? LPAREN separated_list(COMMA, expr) RPAREN
+  { PTE_FcnCall
+      { ptfc_spawn = Some $1;
+        ptfc_name = $2;
+        ptfc_template = $3;
+        ptfc_lparen = $4;
+        ptfc_args = $5;
+        ptfc_rparen = $6
+      }
+  }
+| IDENT template_inst? LPAREN separated_list(COMMA, expr) RPAREN
+  { PTE_FcnCall
+      { ptfc_spawn = None;
+        ptfc_name = $1;
+        ptfc_template = $2;
+        ptfc_lparen = $3;
+        ptfc_args = $4;
+        ptfc_rparen = $5
+      }
+  }
 | IDENT { PTE_Var $1 }
 | LPAREN expr RPAREN { $2 }
 | LCURLY exprlist RCURLY { PTE_StaticStruct ($1, $2, $3) }

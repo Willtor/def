@@ -72,7 +72,6 @@ rule deflex = parse
       deflex lexbuf }
 | "//"[^'\n']* as comment { push_noncode comment; deflex lexbuf }
 | "import" as tok { IMPORT (get_token_data tok lexbuf) }
-| "template" as tok { TEMPLATE (get_token_data tok lexbuf) }
 | "type" as tok { TYPE (get_token_data tok lexbuf) }
 | "typedef" as tok { TYPEDEF (get_token_data tok lexbuf) }
 | "begin" as tok { BEGIN (get_token_data tok lexbuf) }
@@ -180,6 +179,7 @@ rule deflex = parse
     { IDENT (get_token_data ident lexbuf) }
 
 (* Operators. *)
+| "`" as tok { BACKTICK (get_token_data (String.make 1 tok) lexbuf) }
 | "..." as tok { ELLIPSIS (get_token_data tok lexbuf) }
 | "->" as tok { RARROW (get_token_data tok lexbuf) }
 | "++" as tok { INCREMENT (get_token_data tok lexbuf) }
