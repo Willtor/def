@@ -175,7 +175,7 @@ template:
   }
 
 fcndef:
-| EXPORT? DEF template? IDENT fcntype { $1, $2, $3, $4, $5 }
+| EXPORT? DEF IDENT template? fcntype { $1, $2, $3, $4, $5 }
 
 exprlist:
 | separated_nonempty_list(COMMA, expr) { $1 }

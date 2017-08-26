@@ -242,7 +242,7 @@ let of_parsetree =
   let rec stmt_of = function
     | PTS_Import (importtok, (pathtok, _), _) -> Import (importtok, pathtok)
     | PTS_Begin (b, stmts, _) -> Block (b.td_pos, List.map stmt_of stmts)
-    | PTS_FcnDefExpr ((exp, def, template_maybe, id, tp), equals, e, _) ->
+    | PTS_FcnDefExpr ((exp, def, id, template_maybe, tp), equals, e, _) ->
        let vis, doc = visdoc exp in
        let contents = if void_rettp_p tp then StmtExpr (def.td_pos, expr_of e)
                       else Return (equals.td_pos, expr_of e)
@@ -252,7 +252,7 @@ let of_parsetree =
        else
          DefTemplateFcn (def.td_pos, Util.the template_maybe, doc, vis,
                          id.td_text, type_of tp, [contents])
-    | PTS_FcnDefBlock ((exp, def, template_maybe, id, tp), stmt) ->
+    | PTS_FcnDefBlock ((exp, def, id, template_maybe, tp), stmt) ->
        let vis, doc = visdoc exp in
        if template_maybe = None then
          DefFcn (def.td_pos, doc, vis, id.td_text, type_of tp, [stmt_of stmt])

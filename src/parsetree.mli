@@ -17,10 +17,10 @@ type pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of
-      (tokendata option * tokendata * pt_template option * tokendata * pt_type)
+      (tokendata option * tokendata * tokendata * pt_template option * pt_type)
       * tokendata * pt_expr * tokendata
   | PTS_FcnDefBlock of
-      (tokendata option * tokendata * pt_template option * tokendata * pt_type)
+      (tokendata option * tokendata * tokendata * pt_template option * pt_type)
       * pt_stmt
   | PTS_FcnDecl of tokendata * tokendata * pt_type * tokendata
   | PTS_Expr of pt_expr * tokendata

@@ -155,8 +155,8 @@ rule deflex = parse
 
 (* Floating point. *)
 
-| ['0'-'9']+'.'(['e' 'E']['0'-'9']+)?"F64" as fstr
-| ['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)?"F64" as fstr
+| ['0'-'9']+'.'?(['e' 'E']['0'-'9']+)?"F64" as fstr
+| ['0'-'9']*'.'?['0'-'9']+(['e' 'E']['0'-'9']+)?"F64" as fstr
     { LITERALF64 (get_token_data fstr lexbuf,
                   float_of_string (remove_suffix fstr 3)) }
 
