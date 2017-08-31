@@ -51,10 +51,11 @@ type operator =
   | OperBAndAssign | OperBXorAssign | OperBOrAssign
 
 type fcn_call =
-  { fc_pos   : position;
-    fc_name  : string;
-    fc_args  : expr list;
-    fc_spawn : bool
+  { fc_pos      : position;
+    fc_name     : string;
+    fc_template : Parsetree.tokendata list;
+    fc_args     : expr list;
+    fc_spawn    : bool
   }
 
 and operation =
@@ -283,6 +284,7 @@ let of_parsetree =
     | PTS_DeleteExpr (d, e, _) ->
        let expr = ExprFcnCall { fc_pos = d.td_pos;
                                 fc_name = "forkscan_free";
+                                fc_template = [];
                                 fc_args = [ expr_of e ];
                                 fc_spawn = false
                               }
@@ -291,6 +293,7 @@ let of_parsetree =
     | PTS_RetireExpr (r, e, _) ->
        let expr = ExprFcnCall { fc_pos = r.td_pos;
                                 fc_name = "forkscan_retire";
+                                fc_template = [];
                                 fc_args = [ expr_of e ];
                                 fc_spawn = false
                               }
@@ -432,8 +435,19 @@ let of_parsetree =
     | PTE_F32 (tok, value) -> ExprLit (tok.td_pos, LitF32 value)
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
     | PTE_FcnCall fcn ->
+       let template = match fcn.ptfc_template with
+         | None -> []
+         | Some tinst ->
+            let get_template_name = function
+              | PTT_Name tok -> tok
+              | _ -> Report.err_internal __FILE__ __LINE__
+                                         "Unexpected template type."
+            in
+            List.map get_template_name tinst.ptti_args
+       in
        let fcn_call = { fc_pos = fcn.ptfc_name.td_pos;
                         fc_name = fcn.ptfc_name.td_text;
+                        fc_template = template;
                         fc_args = List.map expr_of fcn.ptfc_args;
                         fc_spawn =
                           if fcn.ptfc_spawn = None then false else true
@@ -499,3 +513,85 @@ let rec pos_of_astexpr = function
      pos
   | ExprBinary { op_left = operand } ->
      pos_of_astexpr operand
+
+(* Visit all subexpressions and call the function on them. *)
+let visit_expr f =
+  let rec visit expr =
+    f expr;
+    match expr with
+    | ExprNew (_, _, init) ->
+       let visit_init (_, _, p_e_opt, _, expr) =
+         visit expr;
+         match p_e_opt with
+         | None -> ()
+         | Some (_, e) -> visit e
+       in
+       List.iter visit_init init
+    | ExprFcnCall fcn_call -> List.iter visit fcn_call.fc_args
+    | ExprString _ -> ()
+    | ExprBinary op ->
+       begin
+         visit op.op_left;
+         visit (Util.the op.op_right)
+       end
+    | ExprPreUnary op
+    | ExprPostUnary op -> visit op.op_left
+    | ExprVar _ -> ()
+    | ExprLit _ -> ()
+    | ExprCast (_, _, e) -> visit e
+    | ExprIndex (_, base, _, idx) ->
+       begin
+         visit base;
+         visit idx
+       end
+    | ExprSelectField (_, _, e, _) -> visit e
+    | ExprStaticStruct (_, members) ->
+       List.iter (fun (_, e) -> visit e) members
+    | ExprType _ -> ()
+    | ExprNil _ -> ()
+  in
+  visit
+
+(* Visit all subexpressions in the stmt and call the function on them. *)
+let rec visit_expr_in_stmt f = function
+  | Import _ -> ()
+  | StmtExpr (_, expr) -> visit_expr f expr
+  | Block (_, block) -> List.iter (visit_expr_in_stmt f) block
+  | DeclFcn _
+  | DefFcn _
+  | DefTemplateFcn _ ->
+     Report.err_internal __FILE__ __LINE__ "not implemented."
+  | VarDecl (_, exprs, _) -> List.iter (visit_expr f) exprs
+  | InlineStructVarDecl (_, _, (_, expr)) -> visit_expr f expr
+  | XBegin _ -> ()
+  | XCommit _ -> ()
+  | IfStmt (_, cond, then_stmts, else_stmts_maybe) ->
+     begin
+       visit_expr f cond;
+       List.iter (visit_expr_in_stmt f) then_stmts;
+       if None <> else_stmts_maybe then
+         List.iter (visit_expr_in_stmt f) (Util.the else_stmts_maybe)
+     end
+  | ForLoop (_, init_maybe, (_, cond), iter_option, body) ->
+     begin
+       if None <> init_maybe then
+         visit_expr_in_stmt f (Util.the init_maybe);
+       visit_expr f cond;
+       List.iter (visit_expr_in_stmt f) body;
+       match iter_option with
+       | None -> ()
+       | Some (_, e) -> visit_expr f e
+     end
+  | WhileLoop (_, _, cond, body) ->
+     begin
+       visit_expr f cond;
+       List.iter (visit_expr_in_stmt f) body
+     end
+  | Return (_, e) -> visit_expr f e
+  | ReturnVoid _ -> ()
+  | TypeDecl _ -> ()
+  | Label _
+  | Goto _
+  | Break _
+  | Continue _
+  | Sync _ -> ()

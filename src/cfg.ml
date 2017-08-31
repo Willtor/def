@@ -341,6 +341,8 @@ let global_decls decltable typemap = function
      end
   | Import _ -> ()
   | TypeDecl _ -> ()
+  | DefTemplateFcn _ ->
+     Report.err_internal __FILE__ __LINE__ "Shouldn't be any templates here."
   | _ -> Report.err_internal __FILE__ __LINE__
      "FIXME: Incomplete implementation of Cfg.global_decls."
 
@@ -1345,6 +1347,7 @@ let resolve_builtins stmts typemap =
             ExprFcnCall
               { fc_pos = f.fc_pos;
                 fc_name = f.fc_name;
+                fc_template = [];
                 fc_args = List.map process_expr f.fc_args;
                 fc_spawn = f.fc_spawn
               }

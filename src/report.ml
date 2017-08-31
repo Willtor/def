@@ -321,3 +321,11 @@ let err_import_in_function pos fname =
     ^ "  Importing should be done in the global scope-only.\n"
     ^ (show_source pos)
   in fatal_error err
+
+(** Tried to instantiate a template that didn't exist. *)
+let err_no_such_template pos name =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  No such template: " ^ name ^ "\n"
+    ^ (show_source pos)
+  in fatal_error err
+
