@@ -19,9 +19,10 @@
 open Ast
 open Parsetree
 
+(** Mangle a name with template parameters. *)
 let mangle name params =
   (* FIXME: Need better mangling. *)
-  let do_mangle accum tok = accum ^ "." ^ tok.td_text in
+  let do_mangle accum param = accum ^ "." ^ param.td_text in
   List.fold_left do_mangle name params
 
 let instantiate templates non_templates =

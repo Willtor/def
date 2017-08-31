@@ -648,7 +648,8 @@ let convert_expr typemap scope =
          Report.err_bad_spawn_loc call.fc_pos
        else
          let converted_args = List.map convert call.fc_args in
-         build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
+         let nm = Templates.mangle call.fc_name call.fc_template in
+         build_fcn_call scope typemap call.fc_pos nm converted_args
     | ExprString (pos, str) ->
        let raw =
          List.fold_left
@@ -1347,7 +1348,7 @@ let resolve_builtins stmts typemap =
             ExprFcnCall
               { fc_pos = f.fc_pos;
                 fc_name = f.fc_name;
-                fc_template = [];
+                fc_template = f.fc_template;
                 fc_args = List.map process_expr f.fc_args;
                 fc_spawn = f.fc_spawn
               }
