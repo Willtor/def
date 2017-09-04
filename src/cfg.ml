@@ -1104,7 +1104,7 @@ let rec build_bbs name decltable typemap body =
             (add_next else_bb merge_bb; decls)
        in
        process_bb scope decls merge_bb cont_bb sync_label rest
-    | ForLoop (pos, init, (_, cond), iter, body) :: rest ->
+    | ForLoop (pos, _, init, (_, cond), iter, body) :: rest ->
        let body_scope = push_symtab_scope scope in
        let init_decls, init_bb = match init with
          | None -> decls, prev_bb
@@ -1407,7 +1407,7 @@ let resolve_builtins stmts typemap =
                List.map process_stmt tstmts,
                if estmts_maybe = None then None
                else Some (List.map process_stmt (Util.the estmts_maybe)))
-    | ForLoop (p, init, cond, iter, stmts) ->
+    | ForLoop (p, is_parallel, init, cond, iter, stmts) ->
        let newinit = match init with
          | None -> None
          | Some s -> Some (process_stmt s)
@@ -1417,7 +1417,7 @@ let resolve_builtins stmts typemap =
          | None -> None
          | Some (p, e) -> Some (p, process_expr e)
        in
-       ForLoop (p, newinit, newcond, newiter,
+       ForLoop (p, is_parallel, newinit, newcond, newiter,
                 List.map process_stmt stmts)
     | WhileLoop (p, pre, cond, stmts) ->
        WhileLoop (p, pre, process_expr cond, List.map process_stmt stmts)

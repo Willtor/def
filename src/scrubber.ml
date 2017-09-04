@@ -37,7 +37,7 @@ let position_of_stmt = function
   | XBegin pos
   | XCommit pos
   | IfStmt (pos, _, _, _)
-  | ForLoop (pos, _, _, _, _)
+  | ForLoop (pos, _, _, _, _, _)
   | WhileLoop (pos, _, _, _)
   | Return (pos, _)
   | ReturnVoid pos
@@ -86,8 +86,8 @@ let kill_dead_code =
                             | None -> None
                             | Some elseblk -> Some (proc [] elseblk))
          in proc (stmt :: accum) rest
-      | ForLoop (pos, init, cond, iter, body) :: rest ->
-         let stmt = ForLoop (pos, init, cond, iter, proc [] body)
+      | ForLoop (pos, is_parallel, init, cond, iter, body) :: rest ->
+         let stmt = ForLoop (pos, is_parallel, init, cond, iter, proc [] body)
          in proc (stmt :: accum) rest
       | WhileLoop (pos, precheck, cond, body) :: rest ->
          let stmt = WhileLoop (pos, precheck, cond, proc [] body)
@@ -138,7 +138,7 @@ let return_all_paths =
          if contains_return tstmts then true
          else if contains_return estmts then true
          else contains_return rest
-      | ForLoop (_, _, _, _, body) :: rest
+      | ForLoop (_, _, _, _, _, body) :: rest
       | WhileLoop (_, _, _, body) :: rest ->
          if contains_return body then true
          else contains_return rest

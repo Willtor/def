@@ -156,8 +156,9 @@ let instantiate templates non_templates =
                     List.map do_replace tblock,
                     if eblock_opt = None then None
                     else Some (List.map do_replace (Util.the eblock_opt)))
-         | ForLoop (pos, init_opt, (cpos, cond), iter_opt, body) ->
-            ForLoop (pos,
+         | ForLoop (pos, is_parallel, init_opt, (cpos, cond), iter_opt, body)
+           ->
+            ForLoop (pos, is_parallel,
                      (if init_opt = None then None
                       else Some (do_replace (Util.the init_opt))),
                      (cpos, do_replace_expr cond),

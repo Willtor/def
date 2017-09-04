@@ -18,7 +18,7 @@
         ; Keywords
         (,(regexp-opt '("def" "decl" "begin" "end" "do" "od" "while" "for"
                         "if" "then" "elif" "else" "fi" "return" "var" "export"
-                        "continue" "typedef" "cast" "as" "goto" "type")
+                        "continue" "typedef" "goto" "type")
                       'words)
          . font-lock-keyword-face)
         ; Constants.
@@ -27,7 +27,7 @@
          . font-lock-constant-face)
         ; Builtins
         (,(regexp-opt '("import" "sizeof" "new" "delete" "retire" "builtin_cas"
-                        "spawn" "sync")
+                        "spawn" "sync" "cast")
                       'words)
          . font-lock-builtin-face)
         ))

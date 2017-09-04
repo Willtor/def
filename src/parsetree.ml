@@ -61,6 +61,9 @@ type pt_stmt =
   | PTS_ForLoop of
       tokendata * pt_forinit option * tokendata * pt_expr * tokendata
       * pt_expr option * tokendata * pt_stmt list * tokendata
+  | PTS_ParforLoop of
+      tokendata * pt_forinit option * tokendata * pt_expr * tokendata
+      * pt_expr option * tokendata * pt_stmt list * tokendata
   | PTS_WhileLoop of
       tokendata * pt_expr * tokendata * pt_stmt list * tokendata
   | PTS_DoWhileLoop of

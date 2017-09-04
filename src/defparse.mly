@@ -32,7 +32,7 @@
 %token <Parsetree.tokendata * string> STRING
 %token <Parsetree.tokendata> IMPORT TYPE TYPEDEF
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
-%token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO OD GOTO BREAK
+%token <Parsetree.tokendata> ELIF ELSE FI FOR PARFOR WHILE DO OD GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
 %token <Parsetree.tokendata> NIL VOLATILE SPAWN SYNC
 
@@ -108,6 +108,8 @@ statement:
     { PTS_IfStmt ($1, $2, $3, $4, $5, $6, $7) }
 | FOR for_init? SEMICOLON expr SEMICOLON expr? DO statement* OD
     { PTS_ForLoop ($1, $2, $3, $4, $5, $6, $7, $8, $9) }
+| PARFOR for_init? SEMICOLON expr SEMICOLON expr? DO statement* OD
+    { PTS_ParforLoop ($1, $2, $3, $4, $5, $6, $7, $8, $9) }
 | WHILE expr DO statement* OD { PTS_WhileLoop ($1, $2, $3, $4, $5) }
 | DO statement* OD WHILE expr SEMICOLON
     { PTS_DoWhileLoop ($1, $2, $3, $4, $5, $6) }

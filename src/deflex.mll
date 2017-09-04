@@ -88,6 +88,7 @@ rule deflex = parse
 | "else" as tok { ELSE (get_token_data tok lexbuf) }
 | "fi" as tok   { FI (get_token_data tok lexbuf) }
 | "for" as tok { FOR (get_token_data tok lexbuf) }
+| "parfor" as tok { PARFOR (get_token_data tok lexbuf) }
 | "while" as tok { WHILE (get_token_data tok lexbuf) }
 | "do" as tok { DO (get_token_data tok lexbuf) }
 | "od" as tok { OD (get_token_data tok lexbuf) }
