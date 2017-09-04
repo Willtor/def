@@ -418,8 +418,6 @@ let of_parsetree =
        in
        ExprNew (newtok.td_pos, type_of tp, init)
     | PTE_Nil nil -> ExprNil nil.td_pos
-    | PTE_Cast (cast, e, _, tp) ->
-       ExprCast (cast.td_pos, type_of tp, expr_of e)
     | PTE_Type (typetok, tp) ->
        ExprType (typetok.td_pos, type_of tp)
     | PTE_I64 (tok, value) -> ExprLit (tok.td_pos, LitI64 value)

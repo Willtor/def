@@ -744,8 +744,7 @@ let convert_expr typemap scope =
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
          (t :: taccum)) [] cmembers) in
        DefTypeStaticStruct tlist, Expr_StaticStruct (None, cmembers)
-    | ExprType _ ->
-       Report.err_internal __FILE__ __LINE__ "ExprType"
+    | ExprType (pos, _) -> Report.err_unexpected_type_expr pos
     | ExprNil _ -> DefTypeNullPtr, Expr_Nil
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
@@ -1343,6 +1342,13 @@ let resolve_builtins stmts typemap =
                "FIXME: No error message for this."
             | _ -> Report.err_internal __FILE__ __LINE__
                "FIXME: No error message for this."
+            end
+         | "cast" ->
+            begin match f.fc_args with
+            | [ ExprType (p, tp); e ] ->
+               ExprCast (p, tp, process_expr e)
+            | _ ->
+               Report.err_bad_args_for_builtin f.fc_pos "cast"
             end
          | _ ->
             ExprFcnCall

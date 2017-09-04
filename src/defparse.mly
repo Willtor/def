@@ -32,7 +32,7 @@
 %token <Parsetree.tokendata * string> STRING
 %token <Parsetree.tokendata> IMPORT TYPE TYPEDEF
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
-%token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO OD CAST AS GOTO BREAK
+%token <Parsetree.tokendata> ELIF ELSE FI FOR WHILE DO OD GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
 %token <Parsetree.tokendata> NIL VOLATILE SPAWN SYNC
 
@@ -221,7 +221,6 @@ struct_init:
 expr:
 | NEW deftype struct_init? { PTE_New ($1, $2, $3) }
 | NIL { PTE_Nil $1 }
-| CAST expr AS deftype { PTE_Cast ($1, $2, $3, $4) }
 | TYPE deftype { PTE_Type ($1, $2) }
 | LITERALI64 { PTE_I64 $1 }
 | LITERALU64 { PTE_U64 $1 }

@@ -104,7 +104,6 @@ and pt_expr =
   | PTE_New of tokendata * pt_type
                * (tokendata * pt_field_init list * tokendata) option
   | PTE_Nil of tokendata
-  | PTE_Cast of tokendata * pt_expr * tokendata * pt_type
   | PTE_Type of tokendata * pt_type
   | PTE_I64 of (tokendata * int64)
   | PTE_U64 of (tokendata * int64)

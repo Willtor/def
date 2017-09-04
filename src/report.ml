@@ -306,6 +306,20 @@ let err_type_mismatch pos =
     ^ (show_source pos)
   in fatal_error err
 
+(** Type expression in unexpected (disallowed) location. *)
+let err_unexpected_type_expr pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Unexpected type expression.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
+(** Builtin function doesn't allow the given format. *)
+let err_bad_args_for_builtin pos builtin_fcn =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Format not allowed for builtin function: " ^ builtin_fcn ^ "\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 (** Tried to spawn internally in an expression or in a condition or some
     such disallowed place. *)
 let err_bad_spawn_loc pos =
