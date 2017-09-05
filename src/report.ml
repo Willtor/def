@@ -180,6 +180,14 @@ let err_atomic_dest_not_ptr pos name =
     ^ (show_source pos) ^ "\n"
   in fatal_error err
 
+(** parfor was written without an iteration expression.  It requires this since
+    this is the only thing that happens outside the parallel region. *)
+let err_parfor_needs_iter pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  A parfor requires an iteration expression.\n"
+    ^ (show_source pos) ^ "\n"
+  in fatal_error err
+
 (** Tried to call a variable that was not a function. *)
 let err_called_non_fcn use_pos decl_pos name =
   let err = "At " ^ (format_position use_pos) ^ ":\n"

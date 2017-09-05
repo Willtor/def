@@ -898,6 +898,7 @@ let rec build_bbs name decltable typemap body =
   let label_bbs = Hashtbl.create 8 in
 
   let sync_regions = ref [] in
+  let push_sync_region region = sync_regions := region :: !sync_regions in
   let unique_regions () =
     let ordered_regions = List.sort String.compare !sync_regions in
     let uniquify accum str = match accum with
@@ -917,7 +918,7 @@ let rec build_bbs name decltable typemap body =
     | StmtExpr (pos, expr) :: rest ->
        let label = label_of_pos pos in
        let make_spawn nm lhs args =
-         let () = sync_regions := sync_label :: !sync_regions in
+         let () = push_sync_region sync_label in
          (* FIXME: Check order of things.  Is this what we want to do?
             1. Compute arguments.
             2. Compute left-hand-side (lhs).
@@ -938,7 +939,7 @@ let rec build_bbs name decltable typemap body =
               in
               Some (convert_expr typemap scope lvalue)
          in
-         let detach = make_detach_bb ("detach_" ^ label) sync_label args ret in
+         let detach = make_detach_bb ("detach." ^ label) sync_label args ret in
          let block = match detach with
            | BB_Detach (_, _, block) -> block
            | _ -> Report.err_internal __FILE__ __LINE__ "Do you even lift?"
@@ -1104,18 +1105,18 @@ let rec build_bbs name decltable typemap body =
             (add_next else_bb merge_bb; decls)
        in
        process_bb scope decls merge_bb cont_bb sync_label rest
-    | ForLoop (pos, _, init, (_, cond), iter, body) :: rest ->
+    | ForLoop (pos, (*parallel=*)false, init, (_, cond), iter, body) :: rest ->
        let body_scope = push_symtab_scope scope in
        let init_decls, init_bb = match init with
          | None -> decls, prev_bb
          | Some stmt_or_decl ->
             process_bb body_scope decls prev_bb None sync_label [stmt_or_decl]
        in
-       let succ_bb = make_sequential_bb ("fsucc_" ^ (label_of_pos pos)) [] in
-       let fail_bb = make_sequential_bb ("ffail_" ^ (label_of_pos pos)) [] in
+       let succ_bb = make_sequential_bb ("fsucc." ^ (label_of_pos pos)) [] in
+       let fail_bb = make_sequential_bb ("ffail." ^ (label_of_pos pos)) [] in
        let _, cexpr = convert_expr typemap body_scope cond in
        let cond_bb = generate_conditional ("for_" ^ (label_of_pos pos))
-         pos cexpr succ_bb fail_bb in
+                                          pos cexpr succ_bb fail_bb in
        let iter_bb = match iter with
          | None -> cond_bb
          | Some (pos, e) ->
@@ -1128,13 +1129,53 @@ let rec build_bbs name decltable typemap body =
        in
        let () = add_next prev_bb init_bb in
        let () = add_next init_bb cond_bb in
-       let () = add_next cond_bb succ_bb in
-       let () = add_next cond_bb fail_bb in
        let for_decls, for_body_end = process_bb body_scope init_decls succ_bb
                                                 (Some iter_bb) sync_label body
        in
        let () = add_next for_body_end iter_bb in
        process_bb scope for_decls fail_bb cont_bb sync_label rest
+    | ForLoop (pos, (*parallel=*)true, init, (_, cond), iter, body) :: rest ->
+       let body_scope = push_symtab_scope scope in
+       let init_decls, init_bb = match init with
+         | None -> decls, prev_bb
+         | Some stmt_or_decl ->
+            process_bb body_scope decls prev_bb None sync_label [stmt_or_decl]
+       in
+       let for_region = (label_of_pos pos) ^ "." ^ (Util.unique_id ()) in
+       let () = push_sync_region for_region in
+       let succ_bb = make_detach_bb ("pfdetach." ^ (label_of_pos pos))
+                                    for_region [] None in
+       let fail_bb = make_sequential_bb ("pffail." ^ (label_of_pos pos)) [] in
+       let _, cexpr = convert_expr typemap body_scope cond in
+       let cond_bb = generate_conditional ("parfor." ^ (label_of_pos pos))
+                                          pos cexpr succ_bb fail_bb in
+       let iter_bb = match iter with
+         | None -> Report.err_parfor_needs_iter pos
+         | Some (pos, e) ->
+            let _, iexpr = convert_expr typemap body_scope e in
+            let bb =
+              make_sequential_bb ("pfiter." ^ (label_of_pos pos))
+                                 [(pos, iexpr)]
+            in
+            let () = add_next bb cond_bb in
+            bb
+       in
+       let () = add_next prev_bb init_bb in
+       let () = add_next init_bb cond_bb in
+       let internal_sync = sync_label ^ "." ^ (Util.unique_id ()) in
+       let for_decls, for_body_end = process_bb body_scope init_decls succ_bb
+                                                (Some iter_bb)
+                                                internal_sync body
+       in
+       let () = add_next succ_bb iter_bb in
+       let reattach = make_reattach_bb ((label_of_pos pos) ^ ".reattach")
+                                       for_region [] in
+       let () = add_next for_body_end reattach in
+       let () = add_next reattach iter_bb in
+       let sync_block = make_sync_bb ((label_of_pos pos) ^ ".sync") for_region
+       in
+       let () = add_next fail_bb sync_block in
+       process_bb scope for_decls sync_block cont_bb sync_label rest
     | WhileLoop (pos, precheck, cond, body) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in

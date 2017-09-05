@@ -586,6 +586,8 @@ let process_fcn cgdebug data symbols fcn =
     | BB_Reattach (label, _, _)
     | BB_Sync (label, _, _)
       -> label
+    | BB_Error ->
+       Report.err_internal __FILE__ __LINE__ "Found an error block."
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
   in
 
