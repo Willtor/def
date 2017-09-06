@@ -176,6 +176,22 @@ let process_expr data llvals varmap pos_n_expr =
        in
        let _ = build_store incr_result addr bldr in
        if pre_p then incr_result else value
+    | OperDecr ->
+       let addr = expr_gen false expr in
+       let value = build_load_wrapper addr tp "deref" bldr in
+       let decr_result = match is_integer_type tp, bytes tp with
+         | true, 1 -> build_sub value data.one_i8 "decr" bldr
+         | true, 2 -> build_sub value data.one_i16 "decr" bldr
+         | true, 4 -> build_sub value data.one_i32 "decr" bldr
+         | true, 8 -> build_sub value data.one_i64 "decr" bldr
+         | false, 4 -> build_fsub value data.one_f32 "fdecr" bldr
+         | false, 8 -> build_fsub value data.one_f64 "fdecr" bldr
+         | _ ->
+            Report.err_internal __FILE__ __LINE__
+                                "Tried to decrement unknown type."
+       in
+       let _ = build_store decr_result addr bldr in
+       if pre_p then decr_result else value
     | OperAddrOf ->
        let llvm_expr = expr_gen false expr in
        build_gep llvm_expr [| data.zero_i32 |] "addrof" bldr
