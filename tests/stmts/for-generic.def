@@ -1,3 +1,5 @@
+// Unit test for generic for loops.
+
 decl printf (*char, ...) -> i32;
 
 export

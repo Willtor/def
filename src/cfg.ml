@@ -1209,6 +1209,7 @@ let rec build_bbs name decltable typemap body =
          let decls, body_end =
            process_bb (push_symtab_scope scope) decls body_begin
              (Some cond_bb) sync_label body in
+         let () = add_next body_end cond_bb in
          let () = add_next succ_bb body_begin in
          process_bb scope decls fail_bb cont_bb sync_label rest
     | Return (pos, expr) :: rest ->
