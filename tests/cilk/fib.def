@@ -1,0 +1,31 @@
+// Smoke test of fib.
+
+decl printf (*char, ...) -> i32;
+
+def fib (n i32) -> i32
+begin
+    if n < 2 then return n; fi
+    var a i32 = spawn fib(n - 1);
+    var b i32 = fib(n - 2);
+    sync;
+    return a + b;
+end
+
+export
+def main () -> i32
+begin
+    printf("fib(%d) = %d\n", 0, fib(0));
+    printf("fib(%d) = %d\n", 1, fib(1));
+    printf("fib(%d) = %d\n", 2, fib(2));
+    printf("fib(%d) = %d\n", 3, fib(3));
+    printf("fib(%d) = %d\n", 5, fib(5));
+    printf("fib(%d) = %d\n", 15, fib(15));
+    printf("fib(%d) = %d\n", 25, fib(25));
+    printf("fib(%d) = %d\n", 35, fib(35));
+    printf("fib(%d) = %d\n", 40, fib(40));
+
+    // Done.
+    printf("done.\n");
+
+    return 0;
+end
