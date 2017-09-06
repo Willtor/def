@@ -17,6 +17,7 @@
         (,"/\\*\\([^*]\\|\\*+[^*/]\\)*\\*+*/" . font-lock-comment-delimiter-face)
         ; Keywords
         (,(regexp-opt '("def" "decl" "begin" "end" "do" "od" "while" "for"
+                        "parfor"
                         "if" "then" "elif" "else" "fi" "return" "var" "export"
                         "continue" "typedef" "goto" "type")
                       'words)
