@@ -1,6 +1,6 @@
 include ../common.mk
 
-UNIT = for-generic
+UNIT = for-generic while-generic
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 
