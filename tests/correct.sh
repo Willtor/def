@@ -6,6 +6,10 @@
 ## Usage: correct.sh <program>
 ## The files, <program> and <program>.correct, should exist.
 
+default_color='\033[0m'
+red_color='\033[1;31m'
+green_color='\033[1;32m'
+
 prog=./$1
 correct=$1.correct
 output=$1.out
@@ -18,18 +22,18 @@ eval $prog > $output
 code=$?
 
 if [ "$code" != "0" ]; then
-    echo "Fail: program terminated with code $code."
+    echo -e "${red_color}Fail: program terminated with code $code.${default_color}"
     exit 1
 fi
 
 result=`diff $correct $output`
 
 if [ "$result" = "" ]; then
-    echo "Pass."
+    echo -e "${green_color}Pass.${default_color}"
     echo
     exit 0
 else
-    echo "Fail: Output differed from reference."
+    echo "${red_color}Fail: Output differed from reference.${default_color}"
     diff $correct $output
     exit 1
 fi
