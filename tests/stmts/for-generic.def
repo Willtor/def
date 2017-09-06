@@ -28,5 +28,14 @@ begin
         printf("  %d\n", j);
     od
 
+    // Never pass conditional.
+
+    printf("loop\n");
+    for var j i32 = 0; j > 0; ++j do
+        printf("  %d BAD NEWS\n", j);
+    od
+
+    printf("done.\n");
+
     return 0;
 end
