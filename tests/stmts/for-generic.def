@@ -1,0 +1,30 @@
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var i i32;
+
+    printf("loop\n");
+    for i = 0; i < 4; ++i do
+        printf("  %d\n", i);
+    od
+
+    printf("loop\n");
+    for var j i32 = 0; j < 4; ++j do
+        printf("  %d\n", j);
+    od
+
+    printf("loop\n");
+    for var j i32 = 0; j < 4; do
+        printf("  %d\n", j);
+        ++j;
+    od
+
+    printf("loop\n");
+    for var j i32 = 4; j > 0; --j do
+        printf("  %d\n", j);
+    od
+
+    return 0;
+end

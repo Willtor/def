@@ -1,5 +1,5 @@
 
-DIRECTORIES = ops cilk
+DIRECTORIES = ops stmts cilk
 
 .PHONY: all unit smoke clean
 
