@@ -1,5 +1,5 @@
-DEFC = def -O0
-CORRECT = ../correct.sh
+include ../common.mk
+
 UNIT =
 SMOKE = fib
 ALL = $(SMOKE) $(UNIT)
