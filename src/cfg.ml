@@ -280,6 +280,9 @@ let rec convert_type defining_p array2ptr typemap = function
      Report.err_internal __FILE__ __LINE__
        ("Found an ellipsis at an unexpected location: "
         ^ (format_position pos))
+  | InferredType ->
+     Report.err_internal __FILE__ __LINE__
+                         "Trying to convert an inferred type."
 
 let param_pos_names = function
   | VarType _
@@ -289,6 +292,9 @@ let param_pos_names = function
   | Ellipsis _ -> []
   | FcnType (params, _) ->
      List.map (fun (pos, name, _) -> (pos, name)) params
+  | InferredType ->
+     Report.err_internal __FILE__ __LINE__
+                         "Should not have inferred types in parameters."
 
 let global_types typemap = function
   | TypeDecl (pos, name, tp, _, _) ->
@@ -909,6 +915,89 @@ let rec build_bbs name decltable typemap body =
     List.fold_left uniquify [] ordered_regions
   in
 
+  let rec get_type_from_expr scope = function
+    | ExprNew (_, vt, _) -> convert_type false false typemap vt
+    | ExprFcnCall f ->
+       let fdecl = Util.the (lookup_symbol scope f.fc_name) in
+       begin match fdecl.tp with
+       | DefTypeFcn (_, ret, _) -> ret
+       | _ -> Report.err_internal __FILE__ __LINE__
+                                  "Function w/o function type."
+       end
+    | ExprString _ -> DefTypePtr (DefTypePrimitive (PrimI8, []), [])
+    | ExprBinary op ->
+       begin match op.op_op with
+       | OperLogicalNot
+       | OperLT | OperGT | OperLTE | OperGTE
+       | OperEquals | OperNEquals
+       | OperLogicalAnd | OperLogicalOr ->
+          DefTypePrimitive (PrimBool, [])
+       | OperAssign ->
+          get_type_from_expr scope (Util.the op.op_right)
+       | _ ->
+          let lhs = get_type_from_expr scope op.op_left in
+          let rhs = get_type_from_expr scope (Util.the op.op_right) in
+          begin match lhs, rhs with
+          | DefTypePrimitive (prim_left, _), DefTypePrimitive (prim_right, _)
+            ->
+             DefTypePrimitive (generalize_primitives prim_left prim_right, [])
+          | a, b when a = b -> a
+          | _ ->
+             Report.err_internal __FILE__ __LINE__
+                                 "Couldn't generalize types."
+          end
+       end
+    | ExprPreUnary op
+    | ExprPostUnary op ->
+       let tp = get_type_from_expr scope op.op_left in
+       if op.op_op = OperAddrOf then DefTypePtr (tp, [])
+       else tp
+    | ExprVar (_, name) ->
+       let decl = Util.the (lookup_symbol scope name) in
+       decl.tp
+    | ExprLit (_, literal) ->
+       typeof_literal literal
+    | ExprCast (_, vt, _) ->
+       convert_type false false typemap vt
+    | ExprIndex (_, base, _, _) ->
+       begin match get_type_from_expr scope base with
+       | DefTypePtr (tp, _)
+       | DefTypeArray (tp, _) -> tp
+       | _ ->
+          Report.err_internal __FILE__ __LINE__ "Dereferenced unknown type."
+       end
+    | ExprSelectField (_, _, base, field) ->
+       let rec get_field_tp = function
+         | DefTypeNamedStruct name ->
+            get_field_tp (Util.the (lookup_symbol typemap name))
+         | DefTypeLiteralStruct (tlist, names) ->
+            begin match field with
+            | FieldNumber n -> List.nth tlist n
+            | FieldName s ->
+               let f (tp, nm) = if s = nm then true else false in
+               let tp, _ = List.find f (List.combine tlist names) in
+               tp
+            end
+         | DefTypeStaticStruct tlist ->
+            begin match field with
+            | FieldNumber n -> List.nth tlist n
+            | _ -> Report.err_internal __FILE__ __LINE__
+                                       "Field name on a static struct."
+            end
+         | _ -> Report.err_internal __FILE__ __LINE__
+                                    "Trying to get field from non-struct."
+       in
+       get_field_tp (get_type_from_expr scope base)
+    | ExprStaticStruct (_, fields) ->
+       let ftypes = List.map (fun (_, e) -> get_type_from_expr scope e) fields
+       in
+       DefTypeStaticStruct ftypes
+    | ExprType _ ->
+       Report.err_internal __FILE__ __LINE__ "Type of type?"
+    | ExprNil _ ->
+       Report.err_internal __FILE__ __LINE__ "Type of nil?"
+  in
+
   (* Iterate through the basic blocks and convert them to the CFG structure
      along with all of the contained expressions.  This function will leave
      temporary placeholders, like BB_Goto and BB_Error, so the CFG needs
@@ -954,11 +1043,11 @@ let rec build_bbs name decltable typemap body =
             let reattach =
               make_reattach_bb (label ^ ".reattach") sync_label
                                [(fc.fc_pos, call)] in
-            let cont_bb = make_sequential_bb (label ^ ".cont") [] in
+            let end_bb = make_sequential_bb (label ^ ".cont") [] in
             let () = add_next detach reattach in
-            let () = add_next reattach cont_bb in
-            let () = add_next detach cont_bb in
-            detach, cont_bb
+            let () = add_next reattach end_bb in
+            let () = add_next detach end_bb in
+            detach, end_bb
          | ExprBinary ({ op_op = OperAssign;
                          op_left = lhs;
                          op_right =
@@ -981,11 +1070,11 @@ let rec build_bbs name decltable typemap body =
             let reattach =
               make_reattach_bb (label ^ ".reattach") sync_label
                                [(fc.fc_pos, expr)] in
-            let cont_bb = make_sequential_bb (label ^ ".cont") [] in
+            let end_bb = make_sequential_bb (label ^ ".cont") [] in
             let () = add_next detach reattach in
-            let () = add_next reattach cont_bb in
-            let () = add_next detach cont_bb in
-            detach, cont_bb
+            let () = add_next reattach end_bb in
+            let () = add_next detach end_bb in
+            detach, end_bb
          | _ ->
             let _, expr = convert_expr typemap scope expr in
             let bb = make_sequential_bb ("expr_" ^ label) [(pos, expr)] in
@@ -1005,17 +1094,25 @@ let rec build_bbs name decltable typemap body =
     | DefTemplateFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DefTemplateFcn not supported."
     | VarDecl (vars, inits, tp) :: rest ->
-       let t = convert_type false false typemap tp in
+       let t = match tp with
+         | InferredType ->
+            (* Get the type from the rhs. *)
+            let tp_list = List.map (get_type_from_expr scope) inits in
+            (* FIXME: Should do error checking on whether the types of all
+               right-hand sides match each other. *)
+            List.hd tp_list
+         | _ -> convert_type false false typemap tp
+       in
        let declare decls var =
          let decl = make_decl var.td_pos scope var.td_text t in
          add_symbol scope var.td_text decl;
          (var.td_text, decl) :: decls
        in
-       let decls = List.fold_left declare decls vars in
        let initialize (decls, bb) expr =
          let faux_stmt = StmtExpr (pos_of_astexpr expr, expr) in
          process_bb scope decls bb cont_bb sync_label [faux_stmt]
        in
+       let decls = List.fold_left declare decls vars in
        let decls, bb = List.fold_left initialize (decls, prev_bb) inits in
        process_bb scope decls bb cont_bb sync_label rest
     | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->

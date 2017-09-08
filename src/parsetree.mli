@@ -26,7 +26,7 @@ type pt_stmt =
   | PTS_Expr of pt_expr * tokendata
   | PTS_Var of tokendata * tokendata list * pt_type * tokendata
   | PTS_VarInit of
-      tokendata * tokendata list * pt_type * tokendata * pt_expr list
+      tokendata * tokendata list * pt_type option * tokendata * pt_expr list
       * tokendata
   | PTS_VarInlineStruct of
       tokendata * tokendata

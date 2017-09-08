@@ -95,7 +95,7 @@ statement:
 | block { $1 }
 | VAR separated_nonempty_list(COMMA, IDENT) deftype SEMICOLON
     { PTS_Var ($1, $2, $3, $4) }
-| VAR separated_nonempty_list(COMMA, IDENT) deftype EQUALS exprlist SEMICOLON
+| VAR separated_nonempty_list(COMMA, IDENT) deftype? EQUALS exprlist SEMICOLON
     { PTS_VarInit ($1, $2, $3, $4, $5, $6) }
 | VAR LCURLY separated_nonempty_list(COMMA, variabledecl) RCURLY
     EQUALS expr SEMICOLON

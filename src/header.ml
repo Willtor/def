@@ -75,6 +75,9 @@ let rec cstring_of_type accum = function
      (cstring_of_type (accum ^ "[" ^ (unparse_expr e) ^ "]") t)
   | PtrType (_, t, _) -> (cstring_of_type ("*" ^ accum) t) (* FIXME: qualifiers. *)
   | Ellipsis _ -> "..."
+  | InferredType ->
+     Report.err_internal __FILE__ __LINE__
+                         "Inferred types not implemented in header files."
 
 let output_typedefs oc = function
   | TypeDecl (_, nm, StructType _, VisExported _, _) ->

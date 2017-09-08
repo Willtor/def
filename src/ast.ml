@@ -96,6 +96,7 @@ and vartype =
   | ArrayType of position * expr * vartype
   | PtrType of position * vartype * Types.qualifier list
   | Ellipsis of position
+  | InferredType
 
 type stmt =
   | Import of tokendata * tokendata
@@ -266,8 +267,9 @@ let of_parsetree =
        StmtExpr (pt_expr_pos e, expr_of e)
     | PTS_Var (_, ids, tp, _) ->
        VarDecl (ids, [], type_of tp)
-    | PTS_VarInit (var, ids, tp, eq, elist, _) ->
-       let asttp = type_of tp in
+    | PTS_VarInit (var, ids, tp_opt, eq, elist, _) ->
+       let asttp = if tp_opt = None then InferredType
+                   else type_of (Util.the tp_opt) in
        let initify id expr =
          ExprBinary { op_pos = eq.td_pos;
                       op_op = OperAssign;
