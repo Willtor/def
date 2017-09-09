@@ -53,7 +53,9 @@ all: $(BINDIR)/$(DEF)
 install: $(INSTALL_DIR)/bin/$(DEF)
 
 $(INSTALL_DIR)/bin/$(DEF): $(BINDIR)/$(DEF)
-	cp $< $@
+	cp $< $(INSTALL_DIR)/bin/`bash version_info.sh patch`
+	ln -f -s `bash version_info.sh patch` $(INSTALL_DIR)/bin/`bash version_info.sh minor`
+	ln -f -s `bash version_info.sh minor` $@
 
 $(BINDIR):
 	mkdir -p $@
