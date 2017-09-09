@@ -63,6 +63,7 @@ let instantiate templates non_templates =
          | PtrType (pos, vt, qlist) ->
             PtrType (pos, map_type vt, qlist)
          | Ellipsis pos -> Ellipsis pos
+         | InferredType -> InferredType
        in
 
        let mname = mangle name fcn.fc_template in
