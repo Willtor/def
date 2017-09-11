@@ -180,12 +180,11 @@ let literal2primitive = function
 let of_parsetree =
   let rec get_documentation = function
     | [] -> None
-    | [ str ] ->
+    | str :: rest ->
        begin try let sub = String.sub str 0 3 in
-                 if sub = "/**" then Some str else None
-             with _ -> None
+                 if sub = "/**" then Some str else get_documentation rest
+             with _ -> get_documentation rest
        end
-    | _ :: rest -> get_documentation rest
   in
   let visdoc = function
     | None -> VisLocal, None
