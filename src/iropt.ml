@@ -22,14 +22,19 @@ open Llvm_passmgr_builder
 open Llvmext (* add_unify_function_exit_nodes,
                 add_lower_tapir_to_cilk *)
 
+(** Create optimization pass managers. *)
 let create_pm () = (* FIXME: Verify opt_level input. *)
   let bldr = Llvm_passmgr_builder.create () in
-  let pass_manager = PassManager.create () in
+  let opt_pass = PassManager.create () in
+  let cilk_pass = PassManager.create () in
+
   Llvm_passmgr_builder.set_opt_level !Config.opt_level bldr;
-  Llvm_passmgr_builder.populate_module_pass_manager pass_manager bldr;
+  Llvm_passmgr_builder.populate_module_pass_manager opt_pass bldr;
+
   if not (!Config.no_cilk) then
     begin
-      add_unify_function_exit_nodes pass_manager;
-      add_lower_tapir_to_cilk pass_manager
+      add_unify_function_exit_nodes cilk_pass;
+      add_lower_tapir_to_cilk cilk_pass
     end;
-  pass_manager
+
+  opt_pass, cilk_pass

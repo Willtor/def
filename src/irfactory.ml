@@ -711,7 +711,7 @@ let process_cfg cgdebug module_name program opt_level =
   let mdl  = create_module ctx module_name in
   let ()   = set_target_triple (Target.default_triple ()) mdl in
   let bldr = builder ctx in
-  let pm = create_pm () in
+  let opt_pm, cilk_pm = create_pm () in
   let typemap = build_types ctx program.deftypemap in
   let data = { ctx = ctx;
                mdl = mdl;
@@ -733,5 +733,6 @@ let process_cfg cgdebug module_name program opt_level =
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols) program.global_decls;
   List.iter (process_fcn cgdebug data symbols) program.fcnlist;
-  ignore (PassManager.run_module mdl pm);
+  ignore (PassManager.run_module mdl opt_pm);
+  ignore (PassManager.run_module mdl cilk_pm);
   mdl
