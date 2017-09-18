@@ -36,6 +36,8 @@ let split_on_char c str =
   in
   substrings [] breaks
 
+let env_paths = split_on_char ':' (Unix.getenv "LIBRARY_PATH")
+
 (** Get the default version of GCC on the system -- we use its libraries and
     runtime for DEF. *)
 let gcc_path_and_version () =
@@ -74,15 +76,16 @@ let build_paths base_path gcc_ver =
   let pathset = [ opath ^ "/crt1.o";
                   opath ^ "/crti.o";
                   gcc_libpath ^ "/crtbegin.o" ]
-  and libpaths = [ gcc_libpath;
-                   opath;
-                   "/lib/x86_64-linux-gnu";
-                   "/lib64";
-                   "/usr/lib/x86_64-linux-gnu";
-                   base_path ^ "../lib";
-                   "/usr/lib/llvm-3.9/lib"; (* FIXME: too specific. *)
-                   "/lib";
-                   "/usr/lib" ]
+  and libpaths = env_paths @
+                   [ gcc_libpath;
+                     opath;
+                     "/lib/x86_64-linux-gnu";
+                     "/lib64";
+                     "/usr/lib/x86_64-linux-gnu";
+                     base_path ^ "../lib";
+                     "/usr/lib/llvm-3.9/lib"; (* FIXME: too specific. *)
+                     "/lib";
+                     "/usr/lib" ]
   and libs = [ "-lforkscan";
                "-lcilkrts";
                "-lgcc";
