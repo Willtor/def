@@ -348,7 +348,8 @@ let global_decls decltable typemap = function
   | Import _ -> ()
   | TypeDecl _ -> ()
   | DefTemplateFcn _ ->
-     Report.err_internal __FILE__ __LINE__ "Shouldn't be any templates here."
+     Report.err_internal __FILE__ __LINE__
+                         "Templates should have been resolved."
   | _ -> Report.err_internal __FILE__ __LINE__
      "FIXME: Incomplete implementation of Cfg.global_decls."
 
