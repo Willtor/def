@@ -106,6 +106,7 @@ and function_defn =
 
 type program =
   { global_decls : decl Util.symtab;
+    initializers : (string, cfg_expr) Hashtbl.t;
     fcnlist : function_defn list;
     deftypemap : Types.deftype Util.symtab
   }
@@ -345,6 +346,22 @@ let global_decls decltable typemap = function
         in
         add_symbol decltable name fcn
      end
+  | VarDecl (vars, _, tp) ->
+     let f tok = match lookup_symbol decltable tok.td_text with
+       | Some decl ->
+          Report.err_redefined_var tok.td_pos decl.decl_pos tok.td_text
+       | None ->
+          let decl =
+            { decl_pos = tok.td_pos;
+              mappedname = tok.td_text;
+              vis = VisLocal; (* FIXME *)
+              tp = convert_type false false typemap tp;
+              params = []
+            }
+          in
+          add_symbol decltable tok.td_text decl
+     in
+     List.iter f vars
   | Import _ -> ()
   | TypeDecl _ -> ()
   | DefTemplateFcn _ ->
@@ -1447,6 +1464,22 @@ let verify_cfg name =
   in
   visit_df verify true ()
 
+let build_global_vars decltable typemap globals = function
+  | VarDecl (vars, inits, _) ->
+     let procvar accum (var, init) =
+       if init = None then accum
+       else
+         let decl = Util.the (lookup_symbol decltable var.td_text) in
+         let etp, expr = convert_expr typemap decltable (Util.the init) in
+         (decl.mappedname, maybe_cast typemap etp decl.tp expr) :: accum
+     in
+     let varset = if inits = [] then List.map (fun v -> v, None) vars
+                  else List.map (fun (v, i) -> v, Some i)
+                                (List.combine vars inits)
+     in
+     List.fold_left procvar globals varset
+  | _ -> globals
+
 let build_fcns decltable typemap fcns = function
   | DefFcn (pos, _, _, name, _, body) ->
      let syncs, decls, entry_bb = build_bbs name decltable typemap body in
@@ -1573,10 +1606,17 @@ let of_ast stmts =
   let typemap = symtab_filter (resolve_type typemap) typemap in
   let sanitized_stmts = resolve_builtins stmts typemap in
   List.iter (global_decls decltable typemap) sanitized_stmts;
+  let global_vars =
+    List.fold_left (build_global_vars decltable typemap) [] sanitized_stmts
+  in
   let fcnlist =
     List.fold_left (build_fcns decltable typemap) [] sanitized_stmts
   in
+  let initializers = Hashtbl.create 16 in
+  let () = List.iter (fun (nm, e) -> Hashtbl.add initializers nm e) global_vars
+  in
   { global_decls = decltable;
+    initializers = initializers;
     fcnlist = List.rev fcnlist;
     deftypemap = typemap
   }

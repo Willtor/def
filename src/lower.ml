@@ -98,6 +98,7 @@ let lift_lhs_static_structs program =
     }
   in
   { global_decls = program.global_decls;
+    initializers = program.initializers;
     fcnlist = List.map lift program.fcnlist;
     deftypemap = program.deftypemap
   }

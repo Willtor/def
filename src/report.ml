@@ -147,6 +147,15 @@ let err_undefined_var pos name =
     ^ (show_source pos)
   in fatal_error err
 
+(** Redefined a variable. *)
+let err_redefined_var pos orig_pos name =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Variable " ^ name ^ " was redefined.\n"
+    ^ (show_source pos) ^ "\n"
+    ^ "  Original definition at " ^ (format_position orig_pos) ^ ":\n"
+    ^ (show_source orig_pos)
+  in fatal_error err
+
 (** Error: Tried to call an unknown function. *)
 let err_unknown_fcn_call pos name =
   let err = "At " ^ (format_position pos) ^ ":\n"

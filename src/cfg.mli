@@ -79,6 +79,7 @@ and function_defn =
 
 type program =
   { global_decls : decl Util.symtab;
+    initializers : (string, cfg_expr) Hashtbl.t;
     fcnlist : function_defn list;
     deftypemap : Types.deftype Util.symtab
   }

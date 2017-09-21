@@ -696,15 +696,56 @@ let process_fcn cgdebug data symbols fcn =
     data.fattrs;
   if not cgdebug then Llvm_analysis.assert_valid_function llfcn
 
-let declare_globals data symbols name decl =
-  let llfcn =
-    (* FIXME: Might not be a function.  Need to check decl.tp. *)
-    declare_function
-      decl.mappedname (deftype2llvmtype data.ctx data.typemap false decl.tp)
-      data.mdl
+let get_const_val data = function
+  | Expr_String (_, str) -> const_stringz data.ctx str
+  | Expr_Literal astlit -> process_literal data.typemap astlit
+  | Expr_Cast (from, totp, e) ->
+     (prerr_endline ("cast " ^ (string_of_type from) ^ " to "
+                     ^ (string_of_type totp));
+      Report.err_internal __FILE__ __LINE__ "no cast initializers.  Sorry.")
+  | _ -> Report.err_internal __FILE__ __LINE__
+                             "Not implemented case of get_const_val"
+
+let zero_llval data = function
+  | DefTypePrimitive (prim, []) ->
+     let primzero = match prim with
+       | PrimBool -> LitBool false
+       | PrimI8 -> LitI8 (Char.chr 0)
+       | PrimU8 -> LitU8 (Char.chr 0)
+       | PrimI16 -> LitI16 (Int32.of_int 0)
+       | PrimU16 -> LitU16 (Int32.of_int 0)
+       | PrimI32 -> LitI32 (Int32.of_int 0)
+       | PrimU32 -> LitU32 (Int32.of_int 0)
+       | PrimI64 -> LitI64 (Int64.of_int 0)
+       | PrimU64 -> LitU64 (Int64.of_int 0)
+       | PrimF32 -> LitF32 0.0
+       | PrimF64 -> LitF64 0.0
+     in
+     process_literal data.typemap primzero
+  | _ -> Report.err_internal __FILE__ __LINE__ "Unknown zero val"
+
+let declare_globals data symbols initializers name decl =
+  let lltp = deftype2llvmtype data.ctx data.typemap false decl.tp in
+  let llval = match decl.tp with
+    | DefTypeFcn _ ->
+       let llfcn = declare_function decl.mappedname lltp data.mdl in
+       (if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
+        llfcn)
+    | _ ->
+       begin
+         try
+           let init = match Hashtbl.find initializers decl.mappedname with
+             | Expr_Binary (OperAssign, _, _, rhs) ->
+                get_const_val data rhs
+             | _ -> Report.err_internal __FILE__ __LINE__
+                                        "Init that is not an assignment."
+           in
+           define_global decl.mappedname init data.mdl
+         with _ ->
+           define_global decl.mappedname (zero_llval data decl.tp) data.mdl
+       end
   in
-  if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
-  add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llfcn)
+  add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 
 let process_cfg cgdebug module_name program opt_level =
   let ctx  = global_context () in
@@ -731,7 +772,8 @@ let process_cfg cgdebug module_name program opt_level =
                one_f64 = const_float (the (lookup_symbol typemap "f64")) 1.0
              } in
   let symbols = make_symtab () in
-  symtab_iter (declare_globals data symbols) program.global_decls;
+  symtab_iter (declare_globals data symbols program.initializers)
+              program.global_decls;
   List.iter (process_fcn cgdebug data symbols) program.fcnlist;
   ignore (PassManager.run_module mdl opt_pm);
   ignore (PassManager.run_module mdl cilk_pm);
