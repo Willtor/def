@@ -36,7 +36,8 @@ let split_on_char c str =
   in
   substrings [] breaks
 
-let env_paths = split_on_char ':' (Unix.getenv "LIBRARY_PATH")
+let env_paths = try split_on_char ':' (Unix.getenv "LIBRARY_PATH")
+                with _ -> []
 
 (** Get the default version of GCC on the system -- we use its libraries and
     runtime for DEF. *)
