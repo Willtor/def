@@ -287,6 +287,10 @@ let process_expr data llvals varmap pos_n_expr =
        maybe_atomic_op (if integer_math then build_add else build_fadd)
                        AtomicRMWBinOp.Add
                        "pluseq"
+    | OperMinusAssign, _ ->
+       maybe_atomic_op (if integer_math then build_sub else build_fsub)
+                       AtomicRMWBinOp.Sub
+                       "minuseq"
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_operator not fully implemented: operator "
