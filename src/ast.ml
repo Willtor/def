@@ -62,7 +62,8 @@ and operation =
   { op_pos : position;
     op_op : operator;
     op_left : expr;
-    op_right : expr option
+    op_right : expr option;
+    op_atomic : bool
   }
 
 and field_id =
@@ -273,7 +274,8 @@ let of_parsetree =
          ExprBinary { op_pos = eq.td_pos;
                       op_op = OperAssign;
                       op_left = ExprVar (id.td_pos, id.td_text);
-                      op_right = Some (expr_of expr)
+                      op_right = Some (expr_of expr);
+                      op_atomic = false;
                     }
        in
        VarDecl (ids, List.map2 initify ids elist, asttp)
@@ -324,7 +326,8 @@ let of_parsetree =
               ExprBinary { op_pos = eq.td_pos;
                            op_op = OperAssign;
                            op_left = ExprVar (id.td_pos, id.td_text);
-                           op_right = Some (expr_of e)
+                           op_right = Some (expr_of e);
+                           op_atomic = false;
                          }
             in
             Some (VarDecl ([id], [init], type_of tp))
@@ -476,7 +479,8 @@ let of_parsetree =
        let oper = { op_pos = op.td_pos;
                     op_op = unop_of op;
                     op_left = expr_of e;
-                    op_right = None
+                    op_right = None;
+                    op_atomic = false;
                   }
        in
        ExprPostUnary oper
@@ -484,15 +488,19 @@ let of_parsetree =
        let oper = { op_pos = op.td_pos;
                     op_op = unop_of op;
                     op_left = expr_of e;
-                    op_right = None
+                    op_right = None;
+                    op_atomic = false;
                   }
        in
        ExprPreUnary oper
-    | PTE_Bin (left, op, right) ->
+    | PTE_Bin (left, atomic_opt, op, right) ->
+       (* FIXME: WORKING HERE!  Carry atomic_opt into the AST. *)
        let oper = { op_pos = op.td_pos;
                     op_op = binop_of op;
                     op_left = expr_of left;
-                    op_right = Some (expr_of right)
+                    op_right = Some (expr_of right);
+                    op_atomic = if atomic_opt = None then false
+                                else true
                   }
        in
        ExprBinary oper

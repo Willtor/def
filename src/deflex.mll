@@ -102,6 +102,7 @@ rule deflex = parse
 | "xcommit" as tok { XCOMMIT (get_token_data tok lexbuf) }
 | "nil" as tok { NIL (get_token_data tok lexbuf) }
 | "volatile" as tok { VOLATILE (get_token_data tok lexbuf) }
+| "atomic" as tok { ATOMIC (get_token_data tok lexbuf) }
 | "spawn" as tok { SPAWN (get_token_data tok lexbuf) }
 | "sync" as tok { SYNC (get_token_data tok lexbuf) }
 | "true" as tok { LITERALBOOL (get_token_data tok lexbuf, true) }

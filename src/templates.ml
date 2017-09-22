@@ -113,19 +113,22 @@ let instantiate templates non_templates =
                          op_op = op.op_op;
                          op_left = do_replace_expr op.op_left;
                          op_right =
-                           Some (do_replace_expr (Util.the op.op_right))
+                           Some (do_replace_expr (Util.the op.op_right));
+                         op_atomic = op.op_atomic
                        }
          | ExprPreUnary op ->
             ExprPreUnary { op_pos = op.op_pos;
                            op_op = op.op_op;
                            op_left = do_replace_expr op.op_left;
-                           op_right = None
+                           op_right = None;
+                           op_atomic = op.op_atomic
                          }
          | ExprPostUnary op ->
             ExprPostUnary { op_pos = op.op_pos;
                             op_op = op.op_op;
                             op_left = do_replace_expr op.op_left;
-                            op_right = None
+                            op_right = None;
+                            op_atomic = op.op_atomic
                           }
          | ExprCast (pos, tp, e) ->
             ExprCast (pos, map_type tp, do_replace_expr e)

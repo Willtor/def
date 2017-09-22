@@ -34,7 +34,7 @@
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
 %token <Parsetree.tokendata> ELIF ELSE FI FOR PARFOR WHILE DO OD GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
-%token <Parsetree.tokendata> NIL VOLATILE SPAWN SYNC
+%token <Parsetree.tokendata> NIL VOLATILE ATOMIC SPAWN SYNC
 
 %token <Parsetree.tokendata> EXPORT
 
@@ -57,6 +57,7 @@
 
 (* Operator precedence. *)
 (*%left COMMA*)
+%right ATOMIC
 %right EQUALS PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS CARATEQUALS VBAREQUALS
 (* Ternary conditional "a ? b : c" *)
 %nonassoc ELLIPSIS
@@ -270,33 +271,44 @@ expr:
 | LNOT expr { PTE_PreUni ($1, $2) }
 | BNOT expr { PTE_PreUni ($1, $2) }
 | AMPERSAND expr %prec ADDR_OF { PTE_PreUni ($1, $2) }
-| expr STAR expr { PTE_Bin ($1, $2, $3) }
-| expr SLASH expr { PTE_Bin ($1, $2, $3) }
-| expr PERCENT expr { PTE_Bin ($1, $2, $3) }
-| expr PLUS expr { PTE_Bin ($1, $2, $3) }
-| expr MINUS expr { PTE_Bin ($1, $2, $3) }
-| expr DBLLANGLE expr { PTE_Bin ($1, $2, $3) }
-| expr DBLRANGLE expr { PTE_Bin ($1, $2, $3) }
-| expr LANGLE expr { PTE_Bin ($1, $2, $3) }
-| expr RANGLE expr { PTE_Bin ($1, $2, $3) }
-| expr LEQ expr { PTE_Bin ($1, $2, $3) }
-| expr GEQ expr { PTE_Bin ($1, $2, $3) }
-| expr EQUALSEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr BANGEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr AMPERSAND expr { PTE_Bin ($1, $2, $3) }
-| expr CARAT expr { PTE_Bin ($1, $2, $3) }
-| expr VBAR expr { PTE_Bin ($1, $2, $3) }
-| expr DBLAMPERSAND expr { PTE_Bin ($1, $2, $3) }
-| expr DBLVBAR expr { PTE_Bin ($1, $2, $3) }
-| expr ELLIPSIS expr { PTE_Bin ($1, $2, $3) }
-| expr EQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr PLUSEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr MINUSEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr STAREQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr SLASHEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr PERCENTEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr DBLLANGLEEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr DBLRANGLEEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr AMPERSANDEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr CARATEQUALS expr { PTE_Bin ($1, $2, $3) }
-| expr VBAREQUALS expr { PTE_Bin ($1, $2, $3) }
+| expr STAR expr { PTE_Bin ($1, None, $2, $3) }
+| expr SLASH expr { PTE_Bin ($1, None, $2, $3) }
+| expr PERCENT expr { PTE_Bin ($1, None, $2, $3) }
+| expr PLUS expr { PTE_Bin ($1, None, $2, $3) }
+| expr MINUS expr { PTE_Bin ($1, None, $2, $3) }
+| expr DBLLANGLE expr { PTE_Bin ($1, None, $2, $3) }
+| expr DBLRANGLE expr { PTE_Bin ($1, None, $2, $3) }
+| expr LANGLE expr { PTE_Bin ($1, None, $2, $3) }
+| expr RANGLE expr { PTE_Bin ($1, None, $2, $3) }
+| expr LEQ expr { PTE_Bin ($1, None, $2, $3) }
+| expr GEQ expr { PTE_Bin ($1, None, $2, $3) }
+| expr EQUALSEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr BANGEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr AMPERSAND expr { PTE_Bin ($1, None, $2, $3) }
+| expr CARAT expr { PTE_Bin ($1, None, $2, $3) }
+| expr VBAR expr { PTE_Bin ($1, None, $2, $3) }
+| expr DBLAMPERSAND expr { PTE_Bin ($1, None, $2, $3) }
+| expr DBLVBAR expr { PTE_Bin ($1, None, $2, $3) }
+| expr ELLIPSIS expr { PTE_Bin ($1, None, $2, $3) }
+| expr EQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr PLUSEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr MINUSEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr STAREQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr SLASHEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr PERCENTEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr DBLLANGLEEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr DBLRANGLEEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr AMPERSANDEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr CARATEQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr VBAREQUALS expr { PTE_Bin ($1, None, $2, $3) }
+
+| expr ATOMIC PLUSEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC MINUSEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC STAREQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC SLASHEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC PERCENTEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC DBLLANGLEEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC DBLRANGLEEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC AMPERSANDEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC CARATEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC VBAREQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }

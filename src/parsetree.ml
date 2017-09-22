@@ -144,7 +144,7 @@ and pt_expr =
   | PTE_SelectField of pt_expr * tokendata * tokendata
   | PTE_PostUni of pt_expr * tokendata
   | PTE_PreUni of tokendata * pt_expr
-  | PTE_Bin of pt_expr * tokendata * pt_expr
+  | PTE_Bin of pt_expr * tokendata option * tokendata * pt_expr
 
 let pt_type_pos = function
   | PTT_Fcn (tok, _, _, _, _)
@@ -180,5 +180,5 @@ let rec pt_expr_pos = function
   | PTE_Index (e, _, _, _)
   | PTE_SelectField (e, _, _)
   | PTE_PostUni (e, _)
-  | PTE_Bin (e, _, _) ->
+  | PTE_Bin (e, _, _, _) ->
      pt_expr_pos e

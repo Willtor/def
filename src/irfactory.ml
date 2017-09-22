@@ -207,11 +207,29 @@ let process_expr data llvals varmap pos_n_expr =
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_unop not fully implemented: operator " ^ (operator2string op))
-  and llvm_binop op tp left right bldr =
+  and llvm_binop op is_atomic tp left right bldr =
     let standard_op fnc name =
       fnc (expr_gen true left) (expr_gen true right) name bldr
     in
-    match op, (is_integer_type tp) || (is_pointer_type tp) with
+    let maybe_atomic_op nonatomic_fcn atomic_op name =
+      let rhs = expr_gen true right in
+      let left_addr = expr_gen false left in
+      if is_atomic then
+        build_atomicrmw atomic_op left_addr rhs
+                        AtomicOrdering.AcqiureRelease
+                        (* FIXME: misspelling of Acquire.  Contact LLVM. *)
+                        false
+                        name
+                        bldr
+      else
+        let lhs = build_load_wrapper left_addr tp "deref" bldr in
+        let res = nonatomic_fcn lhs rhs name bldr in
+        let _ = build_store res left_addr bldr in
+        res
+    in
+
+    let integer_math = (is_integer_type tp) || (is_pointer_type tp) in
+    match op, integer_math with
     (* FIXME: Distinguish between signed/unsigned integers. *)
     | OperMult, true -> standard_op build_mul "def_mult"
     | OperMult, false -> standard_op build_fmul "def_mult_f"
@@ -265,6 +283,10 @@ let process_expr data llvals varmap pos_n_expr =
        Report.err_internal __FILE__ __LINE__
          ("tried to perform an operation \"" ^ (operator2string op)
           ^ ") on float operands.  This should have been caught earlier.")
+    | OperPlusAssign, _ ->
+       maybe_atomic_op (if integer_math then build_add else build_fadd)
+                       AtomicRMWBinOp.Add
+                       "pluseq"
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_operator not fully implemented: operator "
@@ -496,8 +518,8 @@ let process_expr data llvals varmap pos_n_expr =
           if rvalue_p then build_load_wrapper llvar tp name data.bldr
           else llvar
        end
-    | Expr_Binary (op, tp, left, right) ->
-       llvm_binop op tp left right data.bldr
+    | Expr_Binary (op, is_atomic, tp, left, right) ->
+       llvm_binop op is_atomic tp left right data.bldr
     | Expr_Unary (op, tp, expr, pre_p) ->
        llvm_unop op tp expr pre_p data.bldr
     | Expr_Cast (_, to_tp, Expr_Nil) ->
@@ -735,7 +757,7 @@ let declare_globals data symbols initializers name decl =
        begin
          try
            let init = match Hashtbl.find initializers decl.mappedname with
-             | Expr_Binary (OperAssign, _, _, rhs) ->
+             | Expr_Binary (OperAssign, _, _, _, rhs) ->
                 get_const_val data rhs
              | _ -> Report.err_internal __FILE__ __LINE__
                                         "Init that is not an assignment."

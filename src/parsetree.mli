@@ -127,7 +127,7 @@ and pt_expr =
   | PTE_SelectField of pt_expr * tokendata * tokendata
   | PTE_PostUni of pt_expr * tokendata
   | PTE_PreUni of tokendata * pt_expr
-  | PTE_Bin of pt_expr * tokendata * pt_expr
+  | PTE_Bin of pt_expr * tokendata option * tokendata * pt_expr
 
 val pt_type_pos : pt_type -> Lexing.position
 val pt_expr_pos : pt_expr -> Lexing.position

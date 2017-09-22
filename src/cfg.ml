@@ -30,7 +30,7 @@ type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_FcnCall_Refs of string * (*args=*)string list
   | Expr_String of string * string (* label, contents *)
-  | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
+  | Expr_Binary of Ast.operator * bool * Types.deftype * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
@@ -380,7 +380,8 @@ let rec make_size_expr typemap p = function
      let op = { op_pos = ap;
                 op_op = OperMult;
                 op_left = e;
-                op_right = Some subsize
+                op_right = Some subsize;
+                op_atomic = false
               }
      in
      ExprBinary op
@@ -531,7 +532,8 @@ let binary_reconcile typemap =
          maybe_cast typemap ltype primbool lexpr,
          maybe_cast typemap rtype primbool rexpr
        end
-    | OperAssign ->
+    | OperAssign
+    | OperPlusAssign ->
        begin
          (* FIXME: Do automatic casting of static structs to named or literal
             structs, if possible.  Otherwise, casting doesn't work.  Literal
@@ -689,7 +691,7 @@ let convert_expr typemap scope =
        let rettp, tp, lhs, rhs =
          binary_reconcile typemap op.op_pos op.op_op
            (convert op.op_left) (convert (the op.op_right))
-       in rettp, Expr_Binary (op.op_op, tp, lhs, rhs)
+       in rettp, Expr_Binary (op.op_op, op.op_atomic, tp, lhs, rhs)
     | ExprPreUnary op ->
        let tp, subexpr = convert op.op_left in
        let rettp = match op.op_op with
@@ -906,10 +908,10 @@ let rec build_bbs name decltable typemap body =
   *)
   let rec generate_conditional str pos expr succ fail =
     match expr with
-    | Expr_Binary (OperLogicalAnd, _, left, right) ->
+    | Expr_Binary (OperLogicalAnd, _, _, left, right) ->
        let right_bb = generate_conditional (str ^ "r") pos right succ fail in
        generate_conditional (str ^ "l") pos left right_bb fail
-    | Expr_Binary (OperLogicalOr, _, left, right) ->
+    | Expr_Binary (OperLogicalOr, _, _, left, right) ->
        let right_bb = generate_conditional (str ^ "r") pos right succ fail in
        generate_conditional (str ^ "l") pos left succ right_bb
     | e ->
@@ -1041,7 +1043,8 @@ let rec build_bbs name decltable typemap body =
               let lvalue = ExprPreUnary { op_pos = faux_pos;
                                           op_op = OperAddrOf;
                                           op_left = lhs;
-                                          op_right = None
+                                          op_right = None;
+                                          op_atomic = false;
                                         }
               in
               Some (convert_expr typemap scope lvalue)
@@ -1084,7 +1087,8 @@ let rec build_bbs name decltable typemap body =
               | _ -> Report.err_internal __FILE__ __LINE__ "Bad function type."
             in
             let expr =
-              Expr_Binary (OperAssign, tp, Expr_Val_Ref lhslabel, call) in
+              Expr_Binary (OperAssign, false, tp, Expr_Val_Ref lhslabel, call)
+            in
             let reattach =
               make_reattach_bb (label ^ ".reattach") sync_label
                                [(fc.fc_pos, expr)] in
@@ -1152,7 +1156,8 @@ let rec build_bbs name decltable typemap body =
          (ExprBinary { op_pos = epos;
                        op_op = OperAssign;
                        op_left = ExprVar (p, "def_inline_struct");
-                       op_right = Some expr
+                       op_right = Some expr;
+                       op_atomic = false
                      })
        in
        let assignments = List.mapi
@@ -1164,7 +1169,8 @@ let rec build_bbs name decltable typemap body =
              (ExprBinary { op_pos = pos;
                            op_op = OperAssign;
                            op_left = ExprVar (pos, nm);
-                           op_right = Some rhs
+                           op_right = Some rhs;
+                           op_atomic = false
                          })
            in pos, cexpr)
          vars
@@ -1177,7 +1183,8 @@ let rec build_bbs name decltable typemap body =
          sync_label rest
     | XBegin pos :: rest ->
        let _, f = build_fcn_call scope typemap pos "llvm.x86.xbegin" [] in
-       let e = Expr_Binary (OperEquals, DefTypePrimitive (PrimI32, [Volatile]),
+       let e = Expr_Binary (OperEquals, false,
+                            DefTypePrimitive (PrimI32, [Volatile]),
                             Expr_Literal (LitI32 (Int32.of_int (-1))), f)
        in
        let xact_bb = make_sequential_bb ("xact_" ^ (label_of_pos pos)) [] in
@@ -1343,7 +1350,7 @@ let rec build_bbs name decltable typemap body =
             let exprs =
               List.mapi (fun n (t, e) ->
                 pos,
-                Expr_Binary (OperAssign, t,
+                Expr_Binary (OperAssign, false, t,
                              (* volatility doesn't matter, here, since it's
                                 the lhs of an assignment. => false *)
                              Expr_SelectField (structvar, n, false),
@@ -1537,7 +1544,8 @@ let resolve_builtins stmts typemap =
          { op_pos = op.op_pos;
            op_op = op.op_op;
            op_left = process_expr op.op_left;
-           op_right = Some (process_expr (Util.the op.op_right))
+           op_right = Some (process_expr (Util.the op.op_right));
+           op_atomic = op.op_atomic
          }
        in ExprBinary newop
     | ExprPreUnary op ->
@@ -1545,7 +1553,8 @@ let resolve_builtins stmts typemap =
          { op_pos = op.op_pos;
            op_op = op.op_op;
            op_left = process_expr op.op_left;
-           op_right = None
+           op_right = None;
+           op_atomic = op.op_atomic
          }
        in ExprPreUnary newop
     | ExprPostUnary op ->
@@ -1553,7 +1562,8 @@ let resolve_builtins stmts typemap =
          { op_pos = op.op_pos;
            op_op = op.op_op;
            op_left = process_expr op.op_left;
-           op_right = None
+           op_right = None;
+           op_atomic = op.op_atomic
          }
        in ExprPostUnary newop
     | ExprCast (p, v, e) ->

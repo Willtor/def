@@ -3,7 +3,7 @@ type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_FcnCall_Refs of string * (*args=*)string list
   | Expr_String of string * string (* label, contents *)
-  | Expr_Binary of Ast.operator * Types.deftype * cfg_expr * cfg_expr
+  | Expr_Binary of Ast.operator * bool * Types.deftype * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
