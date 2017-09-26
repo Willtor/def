@@ -14,7 +14,8 @@
         ; Single-line comments.
         (,"//.*" . font-lock-comment-face)
         ; Multi-line comments.
-        (,"/\\*\\([^*]\\|\\*+[^*/]\\)*\\*+*/" . font-lock-comment-delimiter-face)
+        (,"/\\*\\([^*]\\|\\*+[^*/]\\)*\\*+*/"
+         . font-lock-comment-delimiter-face)
         ; Keywords
         (,(regexp-opt '("def" "decl" "begin" "end" "do" "od" "while" "for"
                         "parfor"
@@ -28,7 +29,7 @@
          . font-lock-constant-face)
         ; Builtins
         (,(regexp-opt '("import" "sizeof" "new" "delete" "retire" "builtin_cas"
-                        "spawn" "sync" "cast")
+                        "spawn" "sync" "cast" "atomic")
                       'words)
          . font-lock-builtin-face)
         ))
