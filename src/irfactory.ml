@@ -18,7 +18,6 @@
 
 open Ast
 open Cfg
-open Iropt
 open Llvm
 open Llvmext (* build_cmpxchg, token_type *)
 open Llvm_target
@@ -776,12 +775,11 @@ let declare_globals data symbols initializers name decl =
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 
-let process_cfg cgdebug module_name program opt_level =
+let process_cfg cgdebug module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let ()   = set_target_triple (Target.default_triple ()) mdl in
   let bldr = builder ctx in
-  let opt_pm, cilk_pm = create_pm () in
   let typemap = build_types ctx program.deftypemap in
   let data = { ctx = ctx;
                mdl = mdl;
@@ -804,6 +802,4 @@ let process_cfg cgdebug module_name program opt_level =
   symtab_iter (declare_globals data symbols program.initializers)
               program.global_decls;
   List.iter (process_fcn cgdebug data symbols) program.fcnlist;
-  ignore (PassManager.run_module mdl opt_pm);
-  ignore (PassManager.run_module mdl cilk_pm);
   mdl

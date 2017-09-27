@@ -22,19 +22,22 @@ open Llvm_passmgr_builder
 open Llvmext (* add_unify_function_exit_nodes,
                 add_lower_tapir_to_cilk *)
 
-(** Create optimization pass managers. *)
-let create_pm () = (* FIXME: Verify opt_level input. *)
-  let bldr = Llvm_passmgr_builder.create () in
-  let opt_pass = PassManager.create () in
-  let cilk_pass = PassManager.create () in
+let bldr = Llvm_passmgr_builder.create ()
 
+(** Optimize an LLVM module. *)
+let optimize mdl =
+  let optimizer = PassManager.create () in
+  (* FIXME: Verify !Config.opt_level input. *)
   Llvm_passmgr_builder.set_opt_level !Config.opt_level bldr;
-  Llvm_passmgr_builder.populate_module_pass_manager opt_pass bldr;
+  Llvm_passmgr_builder.populate_module_pass_manager optimizer bldr;
+  ignore(PassManager.run_module mdl optimizer)
 
+(** Convert LLVM Tapir primitives to function calls, etc. *)
+let parallelize mdl =
+  let parallelizer = PassManager.create () in
   if not (!Config.no_cilk) then
     begin
-      add_unify_function_exit_nodes cilk_pass;
-      add_lower_tapir_to_cilk cilk_pass
+      add_unify_function_exit_nodes parallelizer;
+      add_lower_tapir_to_cilk parallelizer
     end;
-
-  opt_pass, cilk_pass
+  ignore(PassManager.run_module mdl parallelizer)

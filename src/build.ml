@@ -141,7 +141,9 @@ let llmodule_of_ast infile ast =
   let expanded_ast = Templates.expand ast in
   let stmts = scrub (add_builtin_fcns expanded_ast) in
   let prog = lower_cfg (Cfg.of_ast stmts) in
-  process_cfg !codegen_debug infile prog !opt_level
+  let mdl = process_cfg !codegen_debug infile prog in
+  let () = Iropt.optimize mdl in
+  mdl
 
 let generate_header file =
   match extension file with
@@ -187,10 +189,17 @@ let generate_asm file =
      if !compile_llvm then
        let outfile = outfile_name file ".ll" in
        (Llvm.print_module outfile mdl; outfile)
-     else dump_machine_asm file mdl
+     else
+       (Iropt.parallelize mdl;
+        Iropt.optimize mdl;
+        dump_machine_asm file mdl)
   | ".ll" ->
      if !compile_llvm then file
-     else dump_machine_asm file (read_ll file)
+     else
+       let mdl = read_ll file in
+       let () = Iropt.parallelize mdl in
+       let () = Iropt.optimize mdl in
+       dump_machine_asm file mdl
   | ".s" ->
      if !compile_llvm then Report.err_cant_convert_s_to_ll file
      else file
@@ -201,12 +210,18 @@ let generate_obj tmp_obj file =
   | ".def" ->
      let ast = Ast.of_parsetree (recursive_parse_def_file file) in
      let mdl = llmodule_of_ast file ast in
+     let () = Iropt.parallelize mdl in
+     let () = Iropt.optimize mdl in
      if !compile_llvm then
        let outfile = outfile_name file ".bc" in
        (* FIXME: Don't ignore bitwriter output. *)
        (ignore(Llvm_bitwriter.write_bitcode_file mdl outfile); outfile)
      else dump_machine_obj tmp_obj file mdl
-  | ".ll" -> dump_machine_obj tmp_obj file (read_ll file)
+  | ".ll" ->
+     let mdl = read_ll file in
+     let () = Iropt.parallelize mdl in
+     let () = Iropt.optimize mdl in
+     dump_machine_obj tmp_obj file mdl
   | ".s" -> Report.err_cant_generate_obj_from file
   | ".bc" ->
      if !compile_llvm then file

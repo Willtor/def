@@ -1,2 +1,2 @@
-val create_pm : unit ->
-                [ `Module ] Llvm.PassManager.t * [ `Module ] Llvm.PassManager.t
+val optimize : Llvm.llmodule -> unit
+val parallelize : Llvm.llmodule -> unit
