@@ -182,6 +182,13 @@ let err_wrong_number_of_atomic_args pos name n_args =
     ^ (show_source pos) ^ "\n"
   in fatal_error err
 
+(** Tried to perform an atomic operation on a non-integer, non-pointer type. *)
+let err_atomic_non_integer pos typename =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Cannot perform an atomic operation on type " ^ typename ^ ".\n"
+    ^ (show_source pos) ^ "\n"
+  in fatal_error err
+
 (** Called an atomic function, and the dest was not a pointer. *)
 let err_atomic_dest_not_ptr pos name =
   let err = "At " ^ (format_position pos) ^ ":\n"
