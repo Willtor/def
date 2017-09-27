@@ -215,12 +215,15 @@ let process_expr data llvals varmap pos_n_expr =
       let rhs = expr_gen true right in
       let left_addr = expr_gen false left in
       if is_atomic then
-        build_atomicrmw atomic_op left_addr rhs
-                        AtomicOrdering.AcqiureRelease
-                        (* FIXME: misspelling of Acquire.  Contact LLVM. *)
-                        false
-                        name
-                        bldr
+        let atomic_val =
+          build_atomicrmw atomic_op left_addr rhs
+                          AtomicOrdering.AcqiureRelease
+                          (* FIXME: misspelling of Acquire.  Contact LLVM. *)
+                          false
+                          name
+                          bldr
+        in
+        nonatomic_fcn atomic_val rhs (name ^ ".val") bldr
       else
         let lhs = build_load_wrapper left_addr tp "deref" bldr in
         let res = nonatomic_fcn lhs rhs name bldr in
