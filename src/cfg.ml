@@ -692,6 +692,8 @@ let convert_expr typemap scope =
          binary_reconcile typemap op.op_pos op.op_op
            (convert op.op_left) (convert (the op.op_right))
        in
+       (* FIXME: Should we make non-integers work using transactions?  We
+          _could_.  Do users want that? *)
        if op.op_atomic && not ((is_integer_type tp) || (is_pointer_type tp))
        then Report.err_atomic_non_integer op.op_pos (string_of_type tp)
        else rettp, Expr_Binary (op.op_op, op.op_atomic, tp, lhs, rhs)
