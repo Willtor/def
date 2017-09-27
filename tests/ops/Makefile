@@ -1,6 +1,6 @@
 include ../common.mk
 
-UNIT = neg plus minus lshift
+UNIT = neg plus minus lshift atomic
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 

@@ -1,0 +1,5 @@
+signed 1 atomic += 2 => 3
+signed 3 atomic -= 2 => 1
+unsigned 1 atomic += 2 => 3
+unsigned 3 atomic -= 2 => 1
+done.

@@ -1,0 +1,27 @@
+// Unit test for atomic operations.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var a_i, b_i i32;
+    var a_u, b_u u32;
+
+    // Signed atomics.
+    a_i = 1;
+    b_i = 2;
+    printf("signed %d atomic += %d => %d\n", a_i, b_i, a_i atomic += b_i);
+    printf("signed %d atomic -= %d => %d\n", a_i, b_i, a_i atomic -= b_i);
+
+    // Unsigned atomics.
+    a_u = 1;
+    b_u = 2;
+    printf("unsigned %u atomic += %u => %u\n", a_u, b_u, a_u atomic += b_u);
+    printf("unsigned %u atomic -= %u => %u\n", a_u, b_u, a_u atomic -= b_u);
+
+    // Done.
+    printf("done.\n");
+
+    return 0;
+end
