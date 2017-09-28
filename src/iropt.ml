@@ -22,6 +22,28 @@ open Llvm_passmgr_builder
 open Llvmext (* add_unify_function_exit_nodes,
                 add_lower_tapir_to_cilk *)
 
+(** Return true iff llfcn contains attach/reattach/sync instructions. *)
+let is_parallel llfcn =
+  true
+(*
+  let cilky_block bb =
+    match instr_end bb with
+    | At_start _ -> false (* Should never see this.  Empty block. *)
+    | After (*insn=*)_ -> true (* FIXME: Need to add Opcodes. *)
+  in
+  (* Are you serious?!  Array.exists didn't exist before OCaml 4.03?! *)
+  let exists f array =
+    let size = Array.length array in
+    let rec iter n =
+      if n >= size then false
+      else if not (f array.(n)) then false
+      else iter (n + 1)
+    in
+    iter 0
+  in
+  exists cilky_block (basic_blocks llfcn)
+ *)
+
 let bldr = Llvm_passmgr_builder.create ()
 
 (** Optimize an LLVM module. *)
@@ -34,10 +56,16 @@ let optimize mdl =
 
 (** Convert LLVM Tapir primitives to function calls, etc. *)
 let parallelize mdl =
+  let unifier = PassManager.create_function mdl in
   let parallelizer = PassManager.create () in
   if not (!Config.no_cilk) then
     begin
-      add_unify_function_exit_nodes parallelizer;
+      add_unify_function_exit_nodes unifier;
       add_lower_tapir_to_cilk parallelizer
     end;
+  let iter llfcn = match is_parallel llfcn with
+    | true -> ignore(PassManager.run_function llfcn unifier)
+    | false -> ()
+  in
+  iter_functions iter mdl;
   ignore(PassManager.run_module mdl parallelizer)
