@@ -18,7 +18,6 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 * Menhir package: `opam install menhir`
 
 **Forkscan:**
-* Forkscan library requires JE Malloc: `sudo apt-get install libjemalloc-dev`
 * Clone the repository and build:
 ```
 % git clone git@githubmit.edu:willtor/forkgc.git
