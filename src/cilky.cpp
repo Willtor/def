@@ -108,3 +108,30 @@ CAMLprim LLVMTypeRef llvm_token_type(LLVMContextRef Context) {
  */
 extern "C"
 void LLVMDumpType(LLVMTypeRef Ty) { return; }
+
+#include <iostream>
+
+/* llvalue -> bool
+ */
+extern "C"
+CAMLprim value llvm_is_parallel(LLVMValueRef fcn) {
+    llvm::Function *f = (llvm::Function*)unwrap(fcn);
+
+    // Iterate over the basic blocks and look for parallel instructions.
+    // We don't actually need to look at every instruction -- detach,
+    // reattach, and sync all appear only at the end of the basic block.
+    for (llvm::BasicBlock &bb : *f) {
+        llvm::Instruction &i = bb.back();
+        switch (i.getOpcode()) {
+        case Instruction::Detach:
+        case Instruction::Reattach:
+        case Instruction::Sync:
+            return Val_bool(true);
+        default:
+            break;
+        }
+    }
+
+    // No parallel instructions.
+    return Val_bool(false);
+}

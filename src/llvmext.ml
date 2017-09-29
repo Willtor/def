@@ -53,3 +53,8 @@ external add_unify_function_exit_nodes :
 external add_lower_tapir_to_cilk :
   [ `Module ] Llvm.PassManager.t -> unit
   = "llvm_add_lower_tapir_to_cilk"
+
+(** Read a function and determine whether it has detach/sync instructions. *)
+external is_parallel :
+  llvalue -> bool
+  = "llvm_is_parallel"

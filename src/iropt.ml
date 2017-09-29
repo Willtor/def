@@ -20,29 +20,8 @@ open Config
 open Llvm
 open Llvm_passmgr_builder
 open Llvmext (* add_unify_function_exit_nodes,
-                add_lower_tapir_to_cilk *)
-
-(** Return true iff llfcn contains attach/reattach/sync instructions. *)
-let is_parallel llfcn =
-  true
-(*
-  let cilky_block bb =
-    match instr_end bb with
-    | At_start _ -> false (* Should never see this.  Empty block. *)
-    | After (*insn=*)_ -> true (* FIXME: Need to add Opcodes. *)
-  in
-  (* Are you serious?!  Array.exists didn't exist before OCaml 4.03?! *)
-  let exists f array =
-    let size = Array.length array in
-    let rec iter n =
-      if n >= size then false
-      else if not (f array.(n)) then false
-      else iter (n + 1)
-    in
-    iter 0
-  in
-  exists cilky_block (basic_blocks llfcn)
- *)
+                add_lower_tapir_to_cilk,
+                is_parallel *)
 
 let bldr = Llvm_passmgr_builder.create ()
 
@@ -63,9 +42,13 @@ let parallelize mdl =
       add_unify_function_exit_nodes unifier;
       add_lower_tapir_to_cilk parallelizer
     end;
-  let iter llfcn = match is_parallel llfcn with
+  (* Re: is_parallel: Why do we do it this way?  Why not make a note when
+     parsing the DEF file.  This input may not have come from a DEF source
+     file, but from a .ll (or .bc) file.  Therefore, we have to look at the
+     actual LLVM instructions. *)
+  let maybe_unify llfcn = match is_parallel llfcn with
     | true -> ignore(PassManager.run_function llfcn unifier)
     | false -> ()
   in
-  iter_functions iter mdl;
+  iter_functions maybe_unify mdl;
   ignore(PassManager.run_module mdl parallelizer)
