@@ -2,7 +2,9 @@
 
 ## Overview
 
-DEF is a low-level programming language designed for transparent compatibility with C for integration with existing C projects, as well as being good at the things C is good at.  DEF, however, has a number of language features missing from C (tuples, parallel and concurrency constructs, array slices, and more), and a syntax that exposes features that are difficult to use in C, such as function pointers.
+DEF is a low-level programming language designed for transparent compatibility with C for integration with existing C projects, as well as being good at the things C is good at.  DEF, however, has a number of language features missing from C, related to concurrency.  It includes Cilk-style parallel constructs, native support for transactions, and includes integrated memory reclamation for concurrent data structures.
+
+Additionally, DEF contains modern language features that C is missing (tuples, parallel and concurrency constructs, array slices, and more), and a syntax that exposes features that are difficult to use in C, such as function pointers.  A description of the language can be found at the [DEF wiki](http://projects.csail.mit.edu/def/wiki/index.php?title=Main_Page).
 
 This repository contains the source for the `def` compiler, a suite of unit and regression tests, and additional tools for language support.
 
