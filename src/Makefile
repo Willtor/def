@@ -15,6 +15,7 @@ endif
 OCAMLC = OCAMLPATH=$(TAPIROCAML) ocamlfind ocamlopt -g
 PACKAGE = -package llvm,llvm.analysis,llvm.scalar_opts,llvm.ipo,llvm.target,llvm.irreader,llvm.bitreader,llvm.bitwriter,llvm.passmgr_builder,llvm.all_backends,str,unix
 LINKPKG = -linkpkg $(PACKAGE) -cclib -lz
+APPENDLINK = -cclib -lLLVMTransformUtils
 CLANGPP = clang++-$(LLVM_VER)
 CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRC) -I$(TAPIRCPP)
 
@@ -28,7 +29,7 @@ OBJ = cmpxchg.o cilky.o $(FILES2:.ml=.cmx)
 INTERFACE_OBJ = $(FILES2:.ml=.cmi)
 
 $(TARGET): $(INTERFACE_OBJ) $(OBJ)
-	$(OCAMLC) -o $@ $(LINKPKG) $(OBJ)
+	$(OCAMLC) -o $@ $(LINKPKG) $(OBJ) $(APPENDLINK)
 
 clean:
 	rm -f $(TARGET) $(OBJ) $(GENERATED) *.cmx *.cmi *.o
