@@ -420,7 +420,13 @@ let rec maybe_cast typemap orig cast_as expr =
         else Expr_Cast (orig, cast_as, expr)
      | _ -> Expr_Cast (orig, cast_as, expr)
      end
-  | _ -> Expr_Cast (orig, cast_as, expr)
+  | _ ->
+     if expr = Expr_Nil then
+       let zero = Expr_Literal (LitU64 (Int64.of_int 0)) in
+       let tp = DefTypePrimitive (PrimU64, []) in
+       if tp = cast_as then zero
+       else Expr_Cast (tp, cast_as, zero)
+     else Expr_Cast (orig, cast_as, expr)
 
 (** Determine whether one type can be cast as another.  This function returns
     unit, as it only reports an error if it fails. *)
@@ -551,17 +557,41 @@ let binary_reconcile typemap =
 let build_fcn_call scope typemap pos name args =
   match lookup_symbol scope name with
   | None ->
+     let ptr2int tp = match tp with
+       | DefTypePtr _ -> DefTypePrimitive (PrimU64, [])
+       | _ -> tp
+     in
      let create_atomicrmw op = match args with
        | [(DefTypePtr (t1, q), dexpr); (t2, vexpr)] ->
           (* FIXME: Do more checking on the type of the destination arg. *)
-          let revised = [ (DefTypePtr (t1, q), dexpr);
-                          (t1, maybe_cast typemap t2 t1 vexpr) ]
+          let castptrs = ptr2int t1 in
+          let ptr2t1 = DefTypePtr (t1, q) in
+          let ptr2castptrs = DefTypePtr (castptrs, []) in
+          let revised = [ (DefTypePtr (castptrs, []),
+                           maybe_cast typemap ptr2t1 ptr2castptrs dexpr);
+                          (castptrs, maybe_cast typemap t2 castptrs vexpr) ]
           in
-          t1, Expr_Atomic (op, revised)
+          let fcn = Expr_Atomic (op, revised) in
+          t1, maybe_cast typemap castptrs t1 fcn
        | [_; _] ->
           Report.err_atomic_dest_not_ptr pos name
        | _ ->
           Report.err_wrong_number_of_atomic_args pos name (List.length args)
+     in
+     let create_atomic_cas () = match args with
+       | [(DefTypePtr (t1, q), dexpr); (t2, cmpexpr); (t3, valexpr)] ->
+          let rettp = DefTypePrimitive (PrimBool, []) in
+          let castptrs = ptr2int t1 in
+          let ptr2t1 = DefTypePtr (t1, q) in
+          let ptr2castptrs = DefTypePtr (castptrs, []) in
+          let revised = [ (DefTypePtr (castptrs, []),
+                           maybe_cast typemap ptr2t1 ptr2castptrs dexpr);
+                          (castptrs, maybe_cast typemap t2 castptrs cmpexpr);
+                          (castptrs, maybe_cast typemap t3 castptrs valexpr) ]
+          in
+          rettp, Expr_Atomic (AtomicCAS, revised)
+       | _ ->
+          Report.err_internal __FILE__ __LINE__ "Need an error message for CAS"
      in
      (* Check if the function is an atomic. *)
      begin match name with
@@ -569,7 +599,7 @@ let build_fcn_call scope typemap pos name args =
         if (List.length args) <> 3 then
           Report.err_wrong_number_of_atomic_args pos name (List.length args)
         else
-          DefTypePrimitive (PrimBool, []), Expr_Atomic (AtomicCAS, args)
+          create_atomic_cas ()
      | "__builtin_swap" ->
         create_atomicrmw AtomicSwap
      | _ -> Report.err_unknown_fcn_call pos name
