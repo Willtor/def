@@ -1,0 +1,23 @@
+// Unit test for global variables.
+
+decl printf (*char, ...) -> i32;
+
+var g_i32_no_init i32;
+var g_i32_init i32 = 10;
+var g_i32_implicit = 20;
+
+export
+def main () -> i32
+begin
+    // i32 variables.
+    printf("i32 no init: %d\n", g_i32_no_init);
+    printf("i32 init: %d\n", g_i32_init);
+    printf("i32 implicit: %d\n", g_i32_implicit);
+
+    /* FIXME: Not fully implemented. */
+
+    // Done.
+    printf("done.\n");
+
+    return 0;
+end

@@ -1,0 +1,4 @@
+i32 no init: 0
+i32 init: 10
+i32 implicit: 20
+done.
