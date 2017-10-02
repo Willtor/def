@@ -118,6 +118,13 @@ let err_var_decl_list_length_mismatch pos vars inits =
     ^ (show_source pos)
   in fatal_error err
 
+(** User specified a variable with no type and no intializer. *)
+let err_no_init_on_inferred_type pos =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Cannot infer variable type without an initializer.\n"
+    ^ (show_source pos)
+  in fatal_error err
+
 let err_multiple_volatile_keywords pos =
   let err = "At " ^ (format_position pos) ^ ":\n"
     ^ "  Keyword 'volatile' cannot be specified multiple times.  "
