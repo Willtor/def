@@ -2,4 +2,12 @@ signed 1 atomic += 2 => 3
 signed 3 atomic -= 2 => 1
 unsigned 1 atomic += 2 => 3
 unsigned 3 atomic -= 2 => 1
+swap(0, 1) = 0
+swap(1, 0) = 1
+swap(0, 1) = 0
+swap(1, 0) = 1
+cas(0, 0, 1) = 1
+cas(1, 0, 1) = 0
+cas(0, 0, 1) = 1
+cas(1, 0, 1) = 0
 done.

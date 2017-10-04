@@ -563,7 +563,7 @@ let process_expr data llvals varmap pos_n_expr =
     | Expr_Atomic (AtomicCAS, [(_, dexpr);
                                (_, cexpr);
                                (_, vexpr)]) ->
-       let dest = expr_gen false dexpr in
+       let dest = expr_gen true dexpr in
        let cmp = expr_gen true cexpr in
        let v = expr_gen true vexpr in
        let cmpxchg = build_cmpxchg dest cmp v
@@ -576,7 +576,7 @@ let process_expr data llvals varmap pos_n_expr =
        Report.err_internal __FILE__ __LINE__ "CAS on != 3 parameters"
     | Expr_Atomic (AtomicSwap, [(_, dexpr);
                                 (_, vexpr)]) ->
-       let dest = expr_gen false dexpr in
+       let dest = expr_gen true dexpr in
        let v = expr_gen true vexpr in
        build_atomicrmw AtomicRMWBinOp.Xchg dest v
                        AtomicOrdering.Acquire
