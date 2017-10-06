@@ -252,11 +252,11 @@ let rec string_of_type = function
   | DefTypeNullPtr -> "nil"
   | DefTypeNamedStruct nm -> "struct " ^ nm
   | DefTypeLiteralStruct (members, _) ->
-     "<literal>{ "
+     "{ "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
   | DefTypeStaticStruct members ->
-     "{ "
+     "<static>{ "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
   | _ -> "other"

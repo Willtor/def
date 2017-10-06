@@ -7,9 +7,11 @@ def main () -> i32
 begin
     var ai32 = 42;
     var au64 = 42U64;
+    var atuple = { 42, 84 };
 
     printf("type: %s\n", typestr(ai32));
     printf("type: %s\n", typestr(au64));
+    printf("type: %s\n", typestr(atuple));
 
     return 0;
 end

@@ -407,7 +407,8 @@ let rec infer_type_from_expr typemap scope = function
        List.map
          (fun (_, e) -> infer_type_from_expr typemap scope e) fields
      in
-     DefTypeStaticStruct ftypes
+     (* Becomes a literal struct since variables are never static structs. *)
+     DefTypeLiteralStruct (ftypes, [])
   | ExprType _ ->
      Report.err_internal __FILE__ __LINE__ "Type of type?"
   | ExprTypeString _ -> DefTypePtr (DefTypePrimitive (PrimI8, []), [])
