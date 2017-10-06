@@ -88,6 +88,7 @@ and expr =
   | ExprSelectField of position * position * expr * field_id
   | ExprStaticStruct of position * (position * expr) list
   | ExprType of position * vartype
+  | ExprTypeString of position * expr
   | ExprNil of position
 
 and vartype =
@@ -520,6 +521,7 @@ let rec pos_of_astexpr = function
   | ExprSelectField (pos, _, _, _)
   | ExprStaticStruct (pos, _)
   | ExprType (pos, _)
+  | ExprTypeString (pos, _)
   | ExprNil pos ->
      pos
   | ExprBinary { op_left = operand } ->
@@ -559,6 +561,7 @@ let visit_expr f =
     | ExprStaticStruct (_, members) ->
        List.iter (fun (_, e) -> visit e) members
     | ExprType _ -> ()
+    | ExprTypeString (_, e) -> visit e
     | ExprNil _ -> ()
   in
   visit

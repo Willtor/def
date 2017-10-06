@@ -410,6 +410,7 @@ let rec infer_type_from_expr typemap scope = function
      DefTypeStaticStruct ftypes
   | ExprType _ ->
      Report.err_internal __FILE__ __LINE__ "Type of type?"
+  | ExprTypeString _ -> DefTypePtr (DefTypePrimitive (PrimI8, []), [])
   | ExprNil _ ->
      Report.err_internal __FILE__ __LINE__ "Type of nil?"
 
@@ -901,6 +902,11 @@ let convert_expr typemap scope =
          (t :: taccum)) [] cmembers) in
        DefTypeStaticStruct tlist, Expr_StaticStruct (None, cmembers)
     | ExprType (pos, _) -> Report.err_unexpected_type_expr pos
+    | ExprTypeString (pos, subexpr) ->
+       let nm = (label_of_pos pos) ^ ".type_str" in
+       let expr_tp = infer_type_from_expr typemap scope subexpr in
+       DefTypePtr (DefTypePrimitive (PrimI8, []), []),
+       Expr_String (nm, string_of_type expr_tp)
     | ExprNil _ -> DefTypeNullPtr, Expr_Nil
     | _ -> Report.err_internal __FILE__ __LINE__
        "FIXME: Cfg.convert_expr not fully implemented."
@@ -1575,8 +1581,12 @@ let resolve_builtins stmts typemap =
             begin match f.fc_args with
             | [ ExprType (p, tp); e ] ->
                ExprCast (p, tp, process_expr e)
-            | _ ->
-               Report.err_bad_args_for_builtin f.fc_pos "cast"
+            | _ -> Report.err_bad_args_for_builtin f.fc_pos "cast"
+            end
+         | "typestr" ->
+            begin match f.fc_args with
+            | [ expr ] -> ExprTypeString (f.fc_pos, expr)
+            | _ -> Report.err_bad_args_for_builtin f.fc_pos "typestr"
             end
          | _ ->
             ExprFcnCall
