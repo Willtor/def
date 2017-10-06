@@ -331,7 +331,8 @@ let resolve_type typemap typename oldtp =
   in Some (v oldtp)
 
 let rec infer_type_from_expr typemap scope = function
-  | ExprNew (_, vt, _) -> convert_type false false typemap vt
+  | ExprNew (_, vt, _) ->
+     DefTypePtr (convert_type false false typemap vt, [])
   | ExprFcnCall f ->
      let fdecl = Util.the (lookup_symbol scope f.fc_name) in
      begin match fdecl.tp with

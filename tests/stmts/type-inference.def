@@ -2,16 +2,36 @@
 
 decl printf (*char, ...) -> i32;
 
+typedef foostruct_t =
+  { a i32,
+    b i32,
+    c *char
+  };
+
 export
 def main () -> i32
 begin
     var ai32 = 42;
     var au64 = 42U64;
-    var atuple = { 42, 84 };
+    var atuple = { 42.0, 84 };
+
+    var pi32 = &ai32;
+    var pu64 = &au64;
+    var ptuple = &atuple;
+
+    var ni32 = new i32;
+    var nfoostruct = new foostruct_t { a: 10, b: 20, c: "hello" };
 
     printf("type: %s\n", typestr(ai32));
     printf("type: %s\n", typestr(au64));
     printf("type: %s\n", typestr(atuple));
+
+    printf("type: %s\n", typestr(pi32));
+    printf("type: %s\n", typestr(pu64));
+    printf("type: %s\n", typestr(ptuple));
+
+    printf("type: %s\n", typestr(ni32));
+    printf("type: %s\n", typestr(nfoostruct));
 
     return 0;
 end
