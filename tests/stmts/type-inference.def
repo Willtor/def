@@ -1,0 +1,15 @@
+// Unit test for type inference.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var ai32 = 42;
+    var au64 = 42U64;
+
+    printf("type: %s\n", typestr(ai32));
+    printf("type: %s\n", typestr(au64));
+
+    return 0;
+end
