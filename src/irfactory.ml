@@ -547,7 +547,7 @@ let process_expr data llvals varmap pos_n_expr =
        let addr = build_struct_gep base n "maddr" data.bldr in
        if rvalue_p then
          let instr = build_load addr "mval" data.bldr in
-         let () = set_volatile true instr in
+         let () = if is_volatile then set_volatile true instr else () in
          instr
        else addr
     | Expr_StaticStruct (None, members) ->
