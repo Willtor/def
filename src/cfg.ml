@@ -611,15 +611,14 @@ let binary_reconcile typemap =
          tp, tp,
          (maybe_cast typemap ltype tp lexpr),
          (maybe_cast typemap rtype tp rexpr)
-    | OperLT ->
+    | OperLT | OperLTE
+    | OperGT | OperGTE
+    | OperEquals | OperNEquals ->
        let tp = more_general_of pos op ltype rtype in
        DefTypePrimitive (PrimBool, []),
        tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
-    | OperLTE
-    | OperGT | OperGTE
-    | OperEquals | OperNEquals
     | OperBitwiseAnd | OperBitwiseOr ->
        let tp = more_general_of pos op ltype rtype in
        tp,
