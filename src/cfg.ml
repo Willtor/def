@@ -1165,8 +1165,10 @@ let rec build_bbs name decltable typemap body =
        process_bb scope decls bb cont_bb sync_label rest
     | DeclFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DeclFcn not expected."
-    | DefFcn _ :: _ ->
-       Report.err_internal __FILE__ __LINE__ "DefFcn not supported."
+    | DefFcn (pos, _, _, _, _, _) :: _ ->
+       Report.err_internal __FILE__ __LINE__
+                           ("At " ^ (format_position pos)
+                            ^ ": local functions not yet implemented.")
     | DefTemplateFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DefTemplateFcn not supported."
     | VarDecl (vars, inits, tp) :: rest ->

@@ -571,8 +571,8 @@ let rec visit_expr_in_stmt f = function
   | Import _ -> ()
   | StmtExpr (_, expr) -> visit_expr f expr
   | Block (_, block) -> List.iter (visit_expr_in_stmt f) block
+  | DefFcn (_, _, _, _, _, body) -> List.iter (visit_expr_in_stmt f) body
   | DeclFcn _
-  | DefFcn _
   | DefTemplateFcn _ ->
      Report.err_internal __FILE__ __LINE__ "not implemented."
   | VarDecl (_, exprs, _) -> List.iter (visit_expr f) exprs
