@@ -69,7 +69,8 @@ and conditional_block =
     mutable cond_next : cfg_basic_block;
     mutable cond_else : cfg_basic_block;
     cond_branch       : (Lexing.position * cfg_expr);
-    mutable cond_mark_bit : bool
+    mutable cond_mark_bit : bool;
+    mutable cond_parallel : bool
   }
 
 and terminal_block =
@@ -942,8 +943,15 @@ let make_conditional_bb label cond =
                     cond_next = BB_Error;
                     cond_else = BB_Error;
                     cond_branch = cond;
-                    cond_mark_bit = false
+                    cond_mark_bit = false;
+                    cond_parallel = false
                   })
+
+let set_cond_parallel = function
+  | BB_Cond (_, cond) ->
+     cond.cond_parallel <- true
+  | _ -> Report.err_internal __FILE__ __LINE__
+                             "Tried to parallelize a non BB_Cond"
 
 let make_terminal_bb label rexpr =
   BB_Term (label, { term_prev = [];
@@ -1328,6 +1336,7 @@ let rec build_bbs name decltable typemap body =
        let _, cexpr = convert_expr typemap body_scope cond in
        let cond_bb = generate_conditional ("parfor." ^ (label_of_pos pos))
                                           pos cexpr succ_bb fail_bb in
+       let () = set_cond_parallel cond_bb in
        let iter_bb = match iter with
          | None -> Report.err_parfor_needs_iter pos
          | Some (pos, e) ->

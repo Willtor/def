@@ -42,7 +42,8 @@ and conditional_block =
     mutable cond_next : cfg_basic_block;
     mutable cond_else : cfg_basic_block;
     cond_branch       : (Lexing.position * cfg_expr);
-    mutable cond_mark_bit : bool
+    mutable cond_mark_bit : bool;
+    mutable cond_parallel : bool
   }
 
 and terminal_block =

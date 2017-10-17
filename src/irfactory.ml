@@ -635,6 +635,14 @@ let process_fcn cgdebug data symbols fcn =
     | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected block type."
   in
 
+  let add_parallel_loop_metadata bb =
+    let kind = mdkind_id data.ctx "llvm.loop" in
+    let tapir_str = mdstring data.ctx "tapir.loop.spawn.strategy" in
+    let strategy = data.one_i32 in
+    let tapirmd = mdnode data.ctx [| tapir_str; strategy |] in
+    set_metadata bb kind tapirmd
+  in
+
   let populate_blocks () = function
     | BB_Seq (label, block) ->
        let bb = get_bb label in
@@ -651,8 +659,9 @@ let process_fcn cgdebug data symbols fcn =
        let cond = process_expr data llvals varmap block.cond_branch
        and then_bb = get_bb (get_label block.cond_next)
        and else_bb = get_bb (get_label block.cond_else) in
-       let _ = build_cond_br cond then_bb else_bb data.bldr in
-       ()
+       let cond_bb = build_cond_br cond then_bb else_bb data.bldr in
+       if block.cond_parallel then
+         add_parallel_loop_metadata cond_bb
     | BB_Term (label, block) ->
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
