@@ -121,8 +121,6 @@ CAMLprim LLVMTypeRef llvm_token_type(LLVMContextRef Context) {
 extern "C"
 void LLVMDumpType(LLVMTypeRef Ty) { return; }
 
-#include <iostream>
-
 /* llvalue -> bool
  */
 extern "C"
