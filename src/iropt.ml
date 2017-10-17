@@ -20,6 +20,7 @@ open Config
 open Llvm
 open Llvm_passmgr_builder
 open Llvmext (* add_unify_function_exit_nodes,
+                add_loop_spawning,
                 add_lower_tapir_to_cilk,
                 is_parallel *)
 
@@ -40,6 +41,7 @@ let parallelize mdl =
   if not (!Config.no_cilk) then
     begin
       add_unify_function_exit_nodes unifier;
+      add_loop_spawning parallelizer;
       add_lower_tapir_to_cilk parallelizer
     end;
   (* Re: is_parallel: Why do we do it this way?  Why not make a note when

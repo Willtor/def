@@ -48,6 +48,10 @@ void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM) {
     unwrap(PM)->add(createLowerTapirToCilkPass(true, false));
 }
 
+void LLVMAddLoopSpawning(LLVMPassManagerRef PM) {
+    unwrap(PM)->add(createLoopSpawningPass());
+}
+
 extern LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C);
 
 /* llbasicblock -> llbasicblock -> llvalue -> llbuilder -> llvalue
@@ -94,6 +98,14 @@ CAMLprim value llvm_add_unify_function_exit_nodes(LLVMPassManagerRef PM) {
 extern "C"
 CAMLprim value llvm_add_lower_tapir_to_cilk(LLVMPassManagerRef PM) {
     LLVMAddLowerTapirToCilk(PM);
+    return Val_unit;
+}
+
+/* [`Module] Llvm.PassManager.t -> unit
+ */
+extern "C"
+CAMLprim value llvm_add_loop_spawning(LLVMPassManagerRef PM) {
+    LLVMAddLoopSpawning(PM);
     return Val_unit;
 }
 

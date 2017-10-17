@@ -54,6 +54,11 @@ external add_lower_tapir_to_cilk :
   [ `Module ] Llvm.PassManager.t -> unit
   = "llvm_add_lower_tapir_to_cilk"
 
+(** Tapir pass to spawn loops with recursive divide-and-conquer. *)
+external add_loop_spawning :
+  [ `Module ] Llvm.PassManager.t -> unit
+  = "llvm_add_loop_spawning"
+
 (** Read a function and determine whether it has detach/sync instructions. *)
 external is_parallel :
   llvalue -> bool
