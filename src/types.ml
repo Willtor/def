@@ -242,6 +242,7 @@ let rec size_of typemap = function
   | DefTypeLLVMToken ->
      Report.err_internal __FILE__ __LINE__ "Shouldn't need size of LLVM token."
 
+(** Convert the type into its string representation. *)
 let rec string_of_type = function
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
@@ -266,3 +267,122 @@ let dt_is_volatile = function
   | DefTypePrimitive (_, qualifiers) ->
      List.exists (fun q -> q = Volatile) qualifiers
   | _ -> false (* FIXME: Implement. *)
+
+(** Return the most general of the list of types. *)
+let most_general_type pos typemap =
+  let rec get_literal_struct nm =
+    match lookup_symbol typemap nm with
+    | Some (DefTypeLiteralStruct _ as t) -> t
+    | Some (DefTypeNamedStruct nm2) -> get_literal_struct nm2
+    | None -> Report.err_internal __FILE__ __LINE__
+                                  ("struct " ^ nm ^ "undefined.")
+    | _ -> Report.err_internal __FILE__ __LINE__
+                               ("struct " ^ nm ^ " was not a literal struct.")
+  in
+  let generalize_qualifiers q1 q2 =
+    (* FIXME: Needs to be more sophisticated. *)
+    if q1 = [] then q2
+    else if q2 = [] then q1
+    else q1
+  in
+  let rec generalize t1 t2 =
+    let generalizing_error () =
+      Report.err_generalizing_types pos (string_of_type t1) (string_of_type t2)
+    in
+    let reconcile_member_types rtype tplist1 tplist2 =
+      try
+        let r = List.fold_left2 (fun accum t1 t2 -> accum && t1 = t2)
+                                true tplist1 tplist2
+        in
+        if r then rtype
+        else generalizing_error ()
+      with _ -> generalizing_error ()
+    in
+    match t1, t2 with
+    | DefTypeUnresolved _, _ -> t2
+    | _, DefTypeUnresolved _ -> t1
+    | DefTypeVoid, _
+    | _, DefTypeVoid ->
+       Report.err_internal __FILE__ __LINE__ "Don't know what to do with void"
+    | DefTypePrimitive (p1, q1), DefTypePrimitive (p2, q2) ->
+       DefTypePrimitive (generalize_primitives p1 p2,
+                         generalize_qualifiers q1 q2)
+    | DefTypePrimitive _, _
+    | _, DefTypePrimitive _ ->
+       generalizing_error ()
+    | DefTypeFcn (params1, ret1, var1), DefTypeFcn (params2, ret2, var2) ->
+       if params1 = params2 && ret1 = ret2 && var1 = var2 then
+         DefTypeFcn(params1, ret1, var1)
+       else
+         generalizing_error ()
+    | DefTypeFcn _, _
+    | _, DefTypeFcn _ ->
+       generalizing_error ()
+    | DefTypePtr _, DefTypePtr (DefTypeVoid, _) -> t1
+    | DefTypePtr (DefTypeVoid, _), DefTypePtr _ -> t2
+    | DefTypePtr (st1, q1), DefTypeArray (st2, _) ->
+       DefTypePtr (generalize st1 st2, q1)
+    | DefTypePtr (st1, q1), DefTypePtr (st2, q2) ->
+       DefTypePtr (generalize st1 st2, generalize_qualifiers q1 q2)
+    | DefTypeArray (st1, _), DefTypePtr (st2, q2) ->
+       DefTypePtr (generalize st1 st2, q2)
+    | DefTypePtr _, DefTypeNullPtr -> t1
+    | DefTypeNullPtr, DefTypePtr _ -> t2
+    | DefTypePtr _, _
+    | _, DefTypePtr _ ->
+       generalizing_error ()
+    | DefTypeArray (st1, n), DefTypeArray (st2, m) ->
+       let subtype = generalize st1 st2 in
+       if n = m then DefTypeArray (subtype, n)
+       else DefTypePtr (subtype, [])
+    | DefTypeArray (st1, _), DefTypeNullPtr -> DefTypePtr (st1, [])
+    | DefTypeNullPtr, DefTypeArray (st2, _) -> DefTypePtr (st2, [])
+    | DefTypeArray _, _
+    | _, DefTypeArray _ ->
+       generalizing_error ()
+    | DefTypeNullPtr, DefTypeNullPtr -> DefTypeNullPtr
+    | DefTypeNullPtr, _
+    | _, DefTypeNullPtr ->
+       generalizing_error ()
+    | DefTypeNamedStruct s1, DefTypeNamedStruct s2 ->
+       if s1 = s2 then t1
+       else generalizing_error ()
+    | DefTypeNamedStruct s, DefTypeLiteralStruct (tplist1, _)
+    | DefTypeLiteralStruct (tplist1, _), DefTypeNamedStruct s
+    | DefTypeNamedStruct s, DefTypeStaticStruct tplist1
+    | DefTypeStaticStruct tplist1, DefTypeNamedStruct s ->
+       begin match get_literal_struct s with
+       | DefTypeLiteralStruct (tplist2, _) ->
+          reconcile_member_types (DefTypeNamedStruct s) tplist1 tplist2
+       | _ ->
+          Report.err_internal __FILE__ __LINE__
+                              "Named struct was actually not a struct."
+       end
+    | DefTypeNamedStruct _, _
+    | _, DefTypeNamedStruct _ ->
+       generalizing_error ()
+    | DefTypeLiteralStruct (tplist1, _), DefTypeLiteralStruct (tplist2, _) ->
+       reconcile_member_types t1 tplist1 tplist2
+    | DefTypeLiteralStruct (tplist1, _), DefTypeStaticStruct tplist2 ->
+       reconcile_member_types t1 tplist1 tplist2
+    | DefTypeStaticStruct tplist1, DefTypeLiteralStruct (tplist2, _) ->
+       reconcile_member_types t2 tplist1 tplist2
+    | DefTypeLiteralStruct _, _
+    | _, DefTypeLiteralStruct _ ->
+       generalizing_error ()
+    | DefTypeStaticStruct tplist1, DefTypeStaticStruct tplist2 ->
+       reconcile_member_types t1 tplist1 tplist2
+    | DefTypeStaticStruct _, _
+    | _, DefTypeStaticStruct _ ->
+       generalizing_error ()
+    | DefTypeLLVMToken, DefTypeLLVMToken ->
+       (* Shouldn't happen, but won't catch it here. *)
+       t1
+  in
+  let rec most_general = function
+    | [] -> DefTypeUnresolved (Util.faux_pos, "<unknown array>")
+    | [ t ] -> t
+    | t1 :: t2 :: rest ->
+       most_general ((generalize t1 t2) :: rest)
+  in
+  most_general

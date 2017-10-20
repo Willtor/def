@@ -76,6 +76,7 @@ let lift_lhs_static_structs program =
          (pos, Expr_Binary (OperAssign, is_atomic,
                             DefTypeLiteralStruct (mtypes, mnames),
                             Expr_Variable "__defstatic", rhs)) :: exprs
+      (* FIXME: Need something for static arrays, I think. *)
       | _ -> [], [ (pos, expr) ]
     in
     let visit vars = function

@@ -374,3 +374,16 @@ let err_no_such_template pos name =
     ^ (show_source pos)
   in fatal_error err
 
+(** Error trying to find the more general of two types. *)
+let err_generalizing_types pos t1 t2 =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Unable to reconcile types " ^ t1 ^ " and " ^ t2 ^ ".\n"
+    ^ (show_source pos)
+  in fatal_error err
+
+(** Invalid cast. *)
+let err_cant_cast pos t1 t2 =
+  let err = "At " ^ (format_position pos) ^ ":\n"
+    ^ "  Can't cast " ^ t1 ^ " to " ^ t2 ^ ".\n"
+    ^ (show_source pos)
+  in fatal_error err

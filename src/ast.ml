@@ -87,6 +87,7 @@ and expr =
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * field_id
   | ExprStaticStruct of position * (position * expr) list
+  | ExprStaticArray of position * (position * expr) list
   | ExprType of position * vartype
   | ExprTypeString of position * expr
   | ExprNil of position
@@ -466,6 +467,9 @@ let of_parsetree =
     | PTE_StaticStruct (lcurly, fields, _) ->
        ExprStaticStruct (lcurly.td_pos,
                          List.map (fun e -> pt_expr_pos e, expr_of e) fields)
+    | PTE_StaticArray (lsquare, elements, _) ->
+       ExprStaticArray (lsquare.td_pos,
+                        List.map (fun e -> pt_expr_pos e, expr_of e) elements)
     | PTE_Index (base, _, idx, _) ->
        ExprIndex (pt_expr_pos base,
                   expr_of base,
@@ -520,6 +524,7 @@ let rec pos_of_astexpr = function
   | ExprIndex (pos, _, _, _)
   | ExprSelectField (pos, _, _, _)
   | ExprStaticStruct (pos, _)
+  | ExprStaticArray (pos, _)
   | ExprType (pos, _)
   | ExprTypeString (pos, _)
   | ExprNil pos ->
@@ -560,6 +565,8 @@ let visit_expr f =
     | ExprSelectField (_, _, e, _) -> visit e
     | ExprStaticStruct (_, members) ->
        List.iter (fun (_, e) -> visit e) members
+    | ExprStaticArray (_, elements) ->
+       List.iter (fun (_, e) -> visit e) elements
     | ExprType _ -> ()
     | ExprTypeString (_, e) -> visit e
     | ExprNil _ -> ()

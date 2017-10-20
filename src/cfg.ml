@@ -39,6 +39,7 @@ type cfg_expr =
                   * (*deref_base=*)bool * (*array=*)bool
   | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
+  | Expr_StaticArray of cfg_expr list
   | Expr_Nil
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
   | Expr_Val_Ref of string
@@ -411,6 +412,13 @@ let rec infer_type_from_expr typemap scope = function
      in
      (* Becomes a literal struct since variables are never static structs. *)
      DefTypeLiteralStruct (ftypes, [])
+  | ExprStaticArray (pos, elements) ->
+     let atypes =
+       List.map
+         (fun (_, e) -> infer_type_from_expr typemap scope e) elements
+     in
+     let tp = most_general_type pos typemap atypes in
+     DefTypeArray (tp, List.length elements)
   | ExprType _ ->
      Report.err_internal __FILE__ __LINE__ "Type of type?"
   | ExprTypeString _ -> DefTypePtr (DefTypePrimitive (PrimI8, []), [])
@@ -561,8 +569,15 @@ let check_castability pos typemap ltype rtype =
     | DefTypePtr _, DefTypeNullPtr
     | DefTypeNullPtr, DefTypePtr _ -> () (* FIXME: Qualifier comparison? *)
     | DefTypeArray _, DefTypePtr _ -> () (* FIXME: Qualifier comparison? *)
-    | _ -> Report.err_internal __FILE__ __LINE__
-       ("incomplete cast implementation for " ^ (Util.format_position pos))
+    | DefTypeArray (t1, n), DefTypeArray (t2, m) when m = n && t1 = t2 ->
+       ()
+    | (DefTypeArray _ as t1), (DefTypeArray _ as t2) ->
+       Report.err_cant_cast pos (string_of_type t1) (string_of_type t2)
+    | t1, t2 ->
+       Report.err_internal __FILE__ __LINE__
+                           ("incomplete cast for " ^ (string_of_type t1)
+                            ^ " to " ^ (string_of_type t2) ^ ": "
+                            ^ (Util.format_position pos))
   and identical (ltype, rtype) =
     if ltype = rtype then ()
     else
@@ -901,8 +916,15 @@ let convert_expr typemap scope =
     | ExprStaticStruct (_, members) ->
        let cmembers = List.map (fun (_, e) -> convert e) members in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
-         (t :: taccum)) [] cmembers) in
+                                 (t :: taccum)) [] cmembers) in
        DefTypeStaticStruct tlist, Expr_StaticStruct (None, cmembers)
+    | ExprStaticArray (pos, elements) ->
+       let ce = List.map (fun (_, e) -> convert e) elements in
+       let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
+                                 (t :: taccum)) [] ce) in
+       let tp = most_general_type pos typemap tlist in
+       let cast_ce = List.map (fun (t, e) -> maybe_cast typemap t tp e) ce in
+       DefTypeArray (tp, List.length tlist), Expr_StaticArray cast_ce
     | ExprType (pos, _) -> Report.err_unexpected_type_expr pos
     | ExprTypeString (pos, subexpr) ->
        let nm = (label_of_pos pos) ^ ".type_str" in
@@ -1644,6 +1666,8 @@ let resolve_builtins stmts typemap =
        ExprSelectField (p1, p2, process_expr e, field)
     | ExprStaticStruct (p, elist) ->
        ExprStaticStruct (p, List.map (fun (p, e) -> p, process_expr e) elist)
+    | ExprStaticArray (p, elements) ->
+       ExprStaticArray (p, List.map (fun (p, e) -> p, process_expr e) elements)
     | e -> e
   in
   let rec process_stmt = function

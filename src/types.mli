@@ -64,3 +64,7 @@ val string_of_type : deftype -> string
 
 (** Return true iff the type is volatile. *)
 val dt_is_volatile : deftype -> bool
+
+(** Return the most general of the list of types. *)
+val most_general_type : Lexing.position -> deftype Util.symtab
+                        -> deftype list -> deftype

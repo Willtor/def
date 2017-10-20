@@ -260,6 +260,7 @@ expr:
 | IDENT { PTE_Var $1 }
 | LPAREN expr RPAREN { $2 }
 | LCURLY exprlist RCURLY { PTE_StaticStruct ($1, $2, $3) }
+| LSQUARE exprlist RSQUARE { PTE_StaticArray ($1, $2, $3) }
 | expr LSQUARE expr RSQUARE { PTE_Index ($1, $2, $3, $4) }
 | expr DOT IDENT { PTE_SelectField ($1, $2, $3) }
 | expr INCREMENT { PTE_PostUni ($1, $2) }

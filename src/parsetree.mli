@@ -123,6 +123,7 @@ and pt_expr =
   | PTE_FcnCall of pt_fcn_call
   | PTE_Var of tokendata
   | PTE_StaticStruct of tokendata * pt_expr list * tokendata
+  | PTE_StaticArray of tokendata * pt_expr list * tokendata
   | PTE_Index of pt_expr * tokendata * pt_expr * tokendata
   | PTE_SelectField of pt_expr * tokendata * tokendata
   | PTE_PostUni of pt_expr * tokendata

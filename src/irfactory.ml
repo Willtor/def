@@ -152,6 +152,8 @@ let bytes = function
      Report.err_internal __FILE__ __LINE__ "Non primitive type."
 
 let process_expr data llvals varmap pos_n_expr =
+  let i32type = the (lookup_symbol data.typemap "i32") in
+  let constval = const_int i32type in
   let build_load_wrapper addr tp name bldr =
     let deref = build_load addr name bldr in
     if dt_is_volatile tp then set_volatile true deref;
@@ -275,6 +277,19 @@ let process_expr data llvals varmap pos_n_expr =
                   to fix this, now.
                   This returns an address rather than a proper rvalue.  It
                   needs a dereference, somehow, but without recalculating. *)
+       | _, Expr_StaticArray exprs ->
+          let base = expr_gen false left in
+          let assign n expr =
+            let v = expr_gen true expr in
+            let loc =
+              build_in_bounds_gep base [| data.zero_i32; (constval n) |]
+                                  ("off" ^ (string_of_int n))
+                                  bldr
+            in
+            ignore(build_store v loc bldr)
+          in
+          let () = List.iteri assign exprs in
+          base (* FIXME: Same as above. *)
        | _ ->
           let rhs = expr_gen true right in
           let _ = build_store rhs (expr_gen false left) bldr in
@@ -587,6 +602,8 @@ let process_expr data llvals varmap pos_n_expr =
        Report.err_internal __FILE__ __LINE__ "Swap on != 2 parameters"
     | Expr_Val_Ref str ->
        Util.the (lookup_symbol llvals str)
+    | Expr_StaticArray _ ->
+       Report.err_internal __FILE__ __LINE__ "static array."
   in
   let _, expr = pos_n_expr in
   expr_gen true expr

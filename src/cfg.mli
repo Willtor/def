@@ -12,6 +12,7 @@ type cfg_expr =
                   * (*deref_base=*)bool * (*array=*)bool
   | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
+  | Expr_StaticArray of cfg_expr list
   | Expr_Nil
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
   | Expr_Val_Ref of string
