@@ -1,0 +1,17 @@
+// Unit test for static array initializers.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var a [4]i32 = [10, 20, 30, 40];
+    var b [4]i64 = [10I64, 20, 30, 40];
+    var f [2]f64 = [10.0, 20.0];
+
+    printf("a: [%d, %d, %d, %d]\n", a[0], a[1], a[2], a[3]);
+    printf("b: [%lld, %lld, %lld, %lld]\n", b[0], b[1], b[2], b[3]);
+    printf("f: [%.4f, %.4f]\n", f[0], f[1]);
+
+    return 0;
+end
