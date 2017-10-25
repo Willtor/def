@@ -43,7 +43,7 @@ Build the `def` compiler binary with:
 % sudo make install
 ```
 
-If you choose not to install it, the built binary is in the repo at `bin/def`.
+If you choose not to install it, the built binary is in the repo at `build/bin/def`.
 
 ## Contributions
 
