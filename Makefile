@@ -49,7 +49,7 @@ SRCFILES = 		\
 
 BUILDSRC = $(addprefix $(DEFDIR)/,$(SRCFILES))
 
-all: $(BINDIR)/$(DEF)
+all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF)
 
 install: $(INSTALL_DIR)/bin/$(DEF)
 
@@ -57,6 +57,12 @@ $(INSTALL_DIR)/bin/$(DEF): $(BINDIR)/$(DEF)
 	cp $< $(INSTALL_DIR)/bin/`bash version_info.sh patch`
 	ln -f -s `bash version_info.sh patch` $(INSTALL_DIR)/bin/`bash version_info.sh minor`
 	ln -f -s `bash version_info.sh minor` $@
+
+$(BUILDDIR):
+	mkdir -p $@
+
+$(BUILDDIR)/version.t:
+	bash version_info.sh patch $(LLVM_VER) > $@
 
 $(BINDIR):
 	mkdir -p $@
