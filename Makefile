@@ -1,10 +1,11 @@
 LLVM_VER ?= 4.0
 
-BINDIR = bin
 INSTALL_DIR = /usr/local
 BUILDDIR = build
+DEFDIR = $(BUILDDIR)/def
+BINDIR = $(BUILDDIR)/bin
 DEF = def
-BUILDDEF = $(BUILDDIR)/$(DEF)
+BUILDDEF = $(DEFDIR)/$(DEF)
 SRCDIR = src/def
 SRCFILES = 		\
 	ast.ml		\
@@ -46,7 +47,7 @@ SRCFILES = 		\
 	util.mli	\
 	version.ml
 
-BUILDSRC = $(addprefix $(BUILDDIR)/,$(SRCFILES))
+BUILDSRC = $(addprefix $(DEFDIR)/,$(SRCFILES))
 
 all: $(BINDIR)/$(DEF)
 
@@ -60,24 +61,24 @@ $(INSTALL_DIR)/bin/$(DEF): $(BINDIR)/$(DEF)
 $(BINDIR):
 	mkdir -p $@
 
-$(BUILDDIR):
+$(DEFDIR):
 	mkdir -p $@
 
 $(BINDIR)/$(DEF): $(BUILDDEF) $(BINDIR)
 	cp $< $@
 
-$(BUILDDEF): $(BUILDDIR) $(BUILDSRC)
+$(BUILDDEF): $(DEFDIR) $(BUILDSRC)
 	make -C $<
 
 clean:
 	rm -rf $(BINDIR) $(BUILDDIR)
 
-$(BUILDDIR)/Makefile: $(SRCDIR)/Makefile
+$(DEFDIR)/Makefile: $(SRCDIR)/Makefile
 	cp $< $@
-	(cd $(BUILDDIR); ocamldep *.ml *.mli >> Makefile)
+	(cd $(DEFDIR); ocamldep *.ml *.mli >> Makefile)
 
-$(BUILDDIR)/version.ml:
+$(DEFDIR)/version.ml:
 	bash version_info.sh ocaml $(LLVM_VER) > $@
 
-$(BUILDDIR)/%: $(SRCDIR)/%
+$(DEFDIR)/%: $(SRCDIR)/%
 	cp $< $@
