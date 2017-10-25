@@ -5,7 +5,7 @@ INSTALL_DIR = /usr/local
 BUILDDIR = build
 DEF = def
 BUILDDEF = $(BUILDDIR)/$(DEF)
-SRCDIR = src
+SRCDIR = src/def
 SRCFILES = 		\
 	ast.ml		\
 	build.ml	\
