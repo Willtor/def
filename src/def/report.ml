@@ -102,47 +102,32 @@ let err_vararg_not_last pos =
 (** Initializing variables: There was a mismatch between the count of
     variables being declared and initializers. *)
 let err_var_decl_list_length_mismatch pos vars inits =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Mismatch between count of variables (" ^ (string_of_int vars)
-    ^ ") and initializers (" ^ (string_of_int inits) ^ ").\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Mismatch between count of variables (" ^ (string_of_int vars)
+           ^ ") and initializers (" ^ (string_of_int inits) ^ ").")
+          pos
 
 (** User specified a variable with no type and no intializer. *)
 let err_no_init_on_inferred_type pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Cannot infer variable type without an initializer.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Cannot infer variable type without an initializer." pos
 
 let err_multiple_volatile_keywords pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Keyword 'volatile' cannot be specified multiple times.  "
-    ^ "This is probably a typo.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Keyword 'volatile' cannot be specified multiple times.  "
+           ^ "This is probably a typo.")
+          pos
 
 (** Function has no return statement. *)
 let err_no_return pos fcn =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Function " ^ fcn ^ " needs a return statement.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Function " ^ fcn ^ " needs a return statement.") pos
 
 (** Local function was declared "export" which is not allowed. *)
 let err_local_fcn_with_nonlocal_vis pos fcn =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Function " ^ fcn ^ " has non-global scope, and must have local "
-    ^ "visibility.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Function " ^ fcn ^ " has non-global scope, and must have local "
+           ^ "visibility.")
+          pos
 
 (** Used an undefined variable. *)
 let err_undefined_var pos name =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Variable " ^ name ^ " is undefined.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Variable " ^ name ^ " is undefined.") pos
 
 (** Redefined a variable. *)
 let err_redefined_var pos orig_pos name =
@@ -155,10 +140,7 @@ let err_redefined_var pos orig_pos name =
 
 (** Error: Tried to call an unknown function. *)
 let err_unknown_fcn_call pos name =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Unknown function \"" ^ name ^ "\".\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Unknown function \"" ^ name ^ "\".") pos
 
 (** Tried to call a function with the wrong number of arguments. *)
 let err_wrong_number_of_args use_pos decl_pos name n_params n_args =
@@ -173,33 +155,24 @@ let err_wrong_number_of_args use_pos decl_pos name n_params n_args =
 
 (** Called an atomic (builtin) function with the wrong number of args. *)
 let err_wrong_number_of_atomic_args pos name n_args =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Atomic function " ^ name ^ " called with " ^ (string_of_int n_args)
-    ^ " arguments.\n"
-    ^ (show_source pos) ^ "\n"
-  in fatal_error err
+  err_pos ("Atomic function " ^ name ^ " called with " ^ (string_of_int n_args)
+           ^ " arguments.")
+          pos
 
 (** Tried to perform an atomic operation on a non-integer, non-pointer type. *)
 let err_atomic_non_integer pos typename =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Cannot perform an atomic operation on type " ^ typename ^ ".\n"
-    ^ (show_source pos) ^ "\n"
-  in fatal_error err
+  err_pos ("Cannot perform an atomic operation on type " ^ typename ^ ".") pos
 
 (** Called an atomic function, and the dest was not a pointer. *)
 let err_atomic_dest_not_ptr pos name =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Atomic function " ^ name ^ " takes a pointer as its first argument.\n"
-    ^ (show_source pos) ^ "\n"
-  in fatal_error err
+  err_pos ("Atomic function " ^ name
+           ^ " takes a pointer as its first argument.")
+          pos
 
 (** parfor was written without an iteration expression.  It requires this since
     this is the only thing that happens outside the parallel region. *)
 let err_parfor_needs_iter pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  A parfor requires an iteration expression.\n"
-    ^ (show_source pos) ^ "\n"
-  in fatal_error err
+  err_pos "A parfor requires an iteration expression." pos
 
 (** Tried to call a variable that was not a function. *)
 let err_called_non_fcn use_pos decl_pos name =
@@ -212,11 +185,9 @@ let err_called_non_fcn use_pos decl_pos name =
 
 (** An operator was used on objects of incompatible types. *)
 let err_not_same_type pos op ltype rtype =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Operator " ^ op ^ " applied to different types:\n"
-    ^ "  " ^ ltype ^ " and " ^ rtype ^ "\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Operator " ^ op ^ " applied to different types: "
+           ^ ltype ^ " and " ^ rtype)
+          pos
 
 (** Declared a new variable with the same name as another one in the same
     scope. *)
@@ -230,32 +201,20 @@ let err_redeclared_variable pos orig_pos var =
 
 (** User specified an unknown or undeclared type. *)
 let err_unknown_typename pos name =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Unknown type name: " ^ name ^ ".\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Unknown type name: " ^ name ^ ".") pos
 
 (** Returned void in a non-void function.
     FIXME: This msg could be better. *)
 let err_returned_void pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Returned void in a non-void function.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Returned void in a non-void function." pos
 
 (** Arrays can only have dimensions expressed in integers. *)
 let err_float_array_dim pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Array has dimension of type float.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Array has dimension of type float." pos
 
 (** Couldn't resolve the array dimension. *)
 let err_cant_resolve_array_dim pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Unable to statically resolve the dimension of the array.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Unable to statically resolve the dimension of the array." pos
 
 (** Tried to dereference a void pointer. *)
 let err_deref_void_ptr bpos ipos =
@@ -268,112 +227,70 @@ let err_deref_void_ptr bpos ipos =
 
 (** Tried to perform a modulo (%) on a non-integer type. *)
 let err_modulo_on_non_integer pos ltype rtype =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Modulo operator (%) can only be performed on integer types,\n"
-    ^ "  but the type here is " ^ ltype ^ " % " ^ rtype ^ ".\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Modulo operator (%) can only be performed on integer types,"
+           ^ " but the type here is " ^ ltype ^ " % " ^ rtype ^ ".")
+          pos
 
 (** Tried to index a pointer with a non-integer index.
     FIXME: Error message should include type of the index. *)
 let err_non_integer_index pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  The index is not an integer.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "The index is not an integer." pos
 
 (** Indexed a non-pointer.
     FIXME: Error message should include type of base. *)
 let err_index_non_ptr pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Can't index into something that isn't a pointer.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Can't index into something that isn't a pointer." pos
 
 (** Type contains itself -- not as a pointer, but as the raw type. *)
 let err_recursive_type_defn pos name =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Recursive defintion of type " ^ name ^ ".\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Recursive defintion of type " ^ name ^ ".") pos
 
 let err_struct_not_enough_fields pos n =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Field number " ^ (string_of_int n) ^ " is too high.\n"
-    ^ "  Note: Field numbers are zero-indexed.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Field number " ^ (string_of_int n) ^ " is too high."
+           ^ "  Note: Field numbers are zero-indexed.")
+          pos
 
 (** Tried to access a struct member that doesn't exist in the struct. *)
 let err_struct_no_such_member pos mname =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Struct has no such member: " ^ mname ^ ".\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Struct has no such member: " ^ mname ^ ".") pos
 
 (** Tried to access a member of an object that was not a struct.
     FIXME: Should name the type. *)
 let err_non_struct_member_access pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Object is not a struct and has no members to access.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Object is not a struct and has no members to access." pos
 
 (** Expression's type doesn't match the expected type.
     FIXME: Should identify the two types. *)
 let err_type_mismatch pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Type mismatch.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Type mismatch." pos
 
 (** Type expression in unexpected (disallowed) location. *)
 let err_unexpected_type_expr pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Unexpected type expression.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Unexpected type expression." pos
 
 (** Builtin function doesn't allow the given format. *)
 let err_bad_args_for_builtin pos builtin_fcn =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Format not allowed for builtin function: " ^ builtin_fcn ^ "\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Format not allowed for builtin function: " ^ builtin_fcn) pos
 
 (** Tried to spawn internally in an expression or in a condition or some
     such disallowed place. *)
 let err_bad_spawn_loc pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Can't spawn this function call.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Can't spawn this function call." pos
 
 (** Found an "import" statement inside a function. *)
 let err_import_in_function pos fname =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Import inside a the function: " ^ fname ^ "\n"
-    ^ "  Importing should be done in the global scope-only.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Import inside a the function: " ^ fname ^ ".  "
+           ^ "Importing should be done in the global scope-only.")
+          pos
 
 (** Tried to instantiate a template that didn't exist. *)
 let err_no_such_template pos name =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  No such template: " ^ name ^ "\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("No such template: " ^ name) pos
 
 (** Error trying to find the more general of two types. *)
 let err_generalizing_types pos t1 t2 =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Unable to reconcile types " ^ t1 ^ " and " ^ t2 ^ ".\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Unable to reconcile types " ^ t1 ^ " and " ^ t2 ^ ".") pos
 
 (** Invalid cast. *)
 let err_cant_cast pos t1 t2 =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Can't cast " ^ t1 ^ " to " ^ t2 ^ ".\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Can't cast " ^ t1 ^ " to " ^ t2 ^ ".") pos
