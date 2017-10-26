@@ -268,7 +268,7 @@ let rec convert_type defining_p array2ptr typemap = function
          | Some (LitBool b) -> if b then 1 else 0
          | Some (LitI8 c) | Some (LitU8 c) -> int_of_char c
          | Some (LitI16 n) | Some (LitU16 n)
-           | Some (LitI32 n) | Some (LitU32 n) -> Int32.to_int n
+         | Some (LitI32 n) | Some (LitU32 n) -> Int32.to_int n
          | Some (LitI64 n) | Some (LitU64 n) ->
             Int64.to_int n (* FIXME: Possible loss of
                             precision. *)
@@ -933,8 +933,10 @@ let convert_expr typemap scope =
        DefTypePtr (DefTypePrimitive (PrimI8, []), []),
        Expr_String (nm, string_of_type expr_tp)
     | ExprNil _ -> DefTypeNullPtr, Expr_Nil
-    | _ -> Report.err_internal __FILE__ __LINE__
-       "FIXME: Cfg.convert_expr not fully implemented."
+    | e ->
+       Report.err_internal __FILE__ __LINE__
+                           ("Cfg.convert_expr not fully implemented.\n"
+                            ^ (format_position (pos_of_astexpr e)))
   in convert
 
 let nonconflicting_name pos scope name =
