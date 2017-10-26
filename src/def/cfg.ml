@@ -614,7 +614,7 @@ let binary_reconcile typemap =
   let reconcile pos op (ltype, lexpr) (rtype, rexpr) =
     match op with
     | OperPlus | OperMinus | OperMult | OperDiv
-      | OperLShift ->
+    | OperLShift | OperRShift ->
        let tp = more_general_of pos op ltype rtype in
        tp, tp,
        (maybe_cast typemap ltype tp lexpr),
