@@ -17,6 +17,7 @@
  *)
 
 open Ast
+open Error
 open Lexing
 open Parsetree
 open Str
@@ -565,7 +566,7 @@ let check_castability pos typemap ltype rtype =
     | DefTypeLiteralStruct (lhs, _), DefTypeLiteralStruct (rhs, _) ->
        List.iter similar (List.combine lhs rhs)
     | DefTypePrimitive _, _ ->
-       Report.err_internal __FILE__ __LINE__ (Util.format_position pos)
+       Report.err_internal __FILE__ __LINE__ (format_position pos)
     | DefTypePtr _, DefTypeNullPtr
     | DefTypeNullPtr, DefTypePtr _ -> () (* FIXME: Qualifier comparison? *)
     | DefTypeArray _, DefTypePtr _ -> () (* FIXME: Qualifier comparison? *)
@@ -577,7 +578,7 @@ let check_castability pos typemap ltype rtype =
        Report.err_internal __FILE__ __LINE__
                            ("incomplete cast for " ^ (string_of_type t1)
                             ^ " to " ^ (string_of_type t2) ^ ": "
-                            ^ (Util.format_position pos))
+                            ^ (format_position pos))
   and identical (ltype, rtype) =
     if ltype = rtype then ()
     else

@@ -19,6 +19,7 @@
 open Build
 open Cmdline
 open Config
+open Error
 open Util
 
 let main () =

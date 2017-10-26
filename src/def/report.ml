@@ -16,7 +16,7 @@
    02110-1301, USA.
  *)
 
-open Util
+open Error
 
 (** Report an internal error. *)
 let err_internal file line msg =

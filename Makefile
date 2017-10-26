@@ -20,6 +20,8 @@ SRCFILES = 		\
 	config.ml	\
 	deflex.mll	\
 	defparse.mly	\
+	error.ml	\
+	error.mli	\
 	header.ml	\
 	header.mli	\
 	irfactory.ml	\

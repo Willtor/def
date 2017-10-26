@@ -17,6 +17,7 @@
  *)
 
 open Ast
+open Error
 open Lexing
 open Parsetree
 open Util
