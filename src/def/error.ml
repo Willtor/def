@@ -53,3 +53,11 @@ let fatal_error err =
 
 (** Report a non-fatal warning. *)
 let warning warn = prerr_endline ("Warning:\n" ^ warn)
+
+(** Common pattern for error messages.  Make them uniform. *)
+let err_pos msg pos =
+  (* FIXME: Format msg to line break at 80 characters. *)
+  let err = "At " ^ (format_position pos) ^ ":\n"
+            ^ "  " ^ msg ^ "\n"
+            ^ (show_source pos)
+  in fatal_error err

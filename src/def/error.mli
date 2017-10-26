@@ -12,3 +12,6 @@ val fatal_error : string -> 'a
 
 (** Report a non-fatal warning. *)
 val warning : string -> unit
+
+(** Common pattern for error messages.  Make them uniform. *)
+val err_pos : string -> Lexing.position -> 'a

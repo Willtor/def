@@ -50,10 +50,7 @@ let err_unable_to_open_file filename =
 
 (** Couldn't find the file to open. *)
 let err_unable_to_locate_imported_file pos filename =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Unable to locate file to import: " ^ filename ^ "\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Unable to locate file to import: " ^ filename) pos
 
 (** Tried to generate a header file from a non-def source file. *)
 let err_cant_generate_header_from filename =
@@ -88,26 +85,19 @@ let err_lexing pos character =
 
 (** Syntax error. *)
 let err_syntax pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Syntax error:\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos "Syntax error:" pos
 
 (** Escaped character was unknown. *)
 let err_bad_escaped_char pos c =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Escaped (backslash'd) the char, " ^ (Char.escaped c)
-    ^ ", which is not recognized.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("Escaped (backslash'd) the char, " ^ (Char.escaped c)
+           ^ ", which is not recognized")
+          pos
 
 (** The ... in a parameter list did not appear last. *)
 let err_vararg_not_last pos =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  The ellipsis denoting a variadic function must appear at the end\n"
-    ^ "  of the parameter list.\n"
-    ^ (show_source pos)
-  in fatal_error err
+  err_pos ("The ellipsis denoting a variadic function must appear at the end"
+           ^ " of the parameter list.")
+          pos
 
 (** Initializing variables: There was a mismatch between the count of
     variables being declared and initializers. *)
