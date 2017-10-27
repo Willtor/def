@@ -21,6 +21,16 @@
   open Lexing
   open Parsetree
 
+  (** Escaped character was unknown. *)
+  let err_bad_escaped_char pos c =
+    Error.err_pos ("Escaped (backslash'd) the char, " ^ (Char.escaped c)
+                   ^ ", which is not recognized")
+                  pos
+
+  (** Lexing error. *)
+  let err_lexing pos character =
+    Error.err_pos ("Unexpected character: " ^ character) pos
+
   let proc_newlines lexbuf =
     String.iter (fun c -> if c = '\n' then new_line lexbuf)
 
@@ -37,7 +47,7 @@
       | 't' -> '\t'   (* Tab *)
       | '\\' -> '\\'  (* Backslash *)
       | '\'' -> '\''  (* Single-quote *)
-      | _ -> Report.err_bad_escaped_char pos c
+      | _ -> err_bad_escaped_char pos c
     else c
 
   let remove_quotes s = String.sub s 1 ((String.length s) - 2)
@@ -227,4 +237,4 @@ rule deflex = parse
 | ';' as tok { SEMICOLON (get_token_data (strify tok) lexbuf) }
 | eof { EOF }
 | _
-    { Report.err_lexing (lexeme_start_p lexbuf) (lexeme lexbuf) }
+    { err_lexing (lexeme_start_p lexbuf) (lexeme lexbuf) }

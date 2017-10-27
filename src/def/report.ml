@@ -76,22 +76,9 @@ let err_cant_generate_obj_from filename =
             ^ "\" down to a .o object file."
   in fatal_error err
 
-(** Lexing error. *)
-let err_lexing pos character =
-  let err = "At " ^ (format_position pos) ^ ":\n"
-    ^ "  Unexpected character: " ^ character ^ "\n"
-    ^ (show_source pos)
-  in fatal_error err
-
 (** Syntax error. *)
 let err_syntax pos =
   err_pos "Syntax error:" pos
-
-(** Escaped character was unknown. *)
-let err_bad_escaped_char pos c =
-  err_pos ("Escaped (backslash'd) the char, " ^ (Char.escaped c)
-           ^ ", which is not recognized")
-          pos
 
 (** The ... in a parameter list did not appear last. *)
 let err_vararg_not_last pos =
