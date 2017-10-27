@@ -1,12 +1,12 @@
 INSTALL_DIR = /usr/local
 BUILDDIR = build
-COMMONDIR = $(BUILDDIR)/common
-DEFDIR = $(BUILDDIR)/def
+COMMON_BUILD_DIR = $(BUILDDIR)/common
+DEF_BUILD_DIR = $(BUILDDIR)/def
 BINDIR = $(BUILDDIR)/bin
-DEF = def
-BUILDDEF = $(DEFDIR)/$(DEF)
 
-COMMONSRCDIR = src/common
+DEF = def
+
+COMMON_SRC_DIR = src/common
 COMMONFILES =		\
 	deflex.mll	\
 	defparse.mly	\
@@ -17,7 +17,7 @@ COMMONFILES =		\
 	parsetree.mli	\
 	version.ml
 
-DEFSRCDIR = src/def
+DEF_SRC_DIR = src/def
 DEFFILES = 		\
 	ast.ml		\
 	build.ml	\
@@ -53,8 +53,8 @@ DEFFILES = 		\
 	util.ml		\
 	util.mli
 
-COMMONSRC = $(addprefix $(COMMONDIR)/,$(COMMONFILES))
-BUILDSRC = $(addprefix $(DEFDIR)/,$(DEFFILES))
+COMMON_SRC = $(addprefix $(COMMON_BUILD_DIR)/,$(COMMONFILES))
+BUILDSRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
 
 all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF)
 
@@ -74,31 +74,31 @@ $(BUILDDIR)/version.t:
 $(BINDIR):
 	mkdir -p $@
 
-$(COMMONDIR):
+$(COMMON_BUILD_DIR):
 	mkdir -p $@
 
-$(DEFDIR):
+$(DEF_BUILD_DIR):
 	mkdir -p $@
 
-$(BINDIR)/$(DEF): $(BUILDDEF) $(BINDIR)
+$(BINDIR)/$(DEF): $(DEF_BUILD_DIR)/$(DEF) $(BINDIR)
 	cp $< $@
 
-$(BUILDDEF): $(COMMONDIR) $(DEFDIR) $(COMMONSRC) $(BUILDSRC)
-	make -C $(COMMONDIR)
-	make -C $(DEFDIR)
+$(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(DEF_BUILD_DIR) $(COMMON_SRC) $(BUILDSRC)
+	make -C $(COMMON_BUILD_DIR)
+	make -C $(DEF_BUILD_DIR)
 
 clean:
 	rm -rf $(BUILDDIR)
 
-$(DEFDIR)/Makefile: $(DEFSRCDIR)/Makefile
+$(DEF_BUILD_DIR)/Makefile: $(DEF_SRC_DIR)/Makefile
 	cp $< $@
-	(cd $(DEFDIR); ocamldep *.ml *.mli >> Makefile)
+	(cd $(DEF_BUILD_DIR); ocamldep *.ml *.mli >> Makefile)
 
-$(COMMONDIR)/version.ml:
+$(COMMON_BUILD_DIR)/version.ml:
 	bash version_info.sh ocaml > $@
 
-$(COMMONDIR)/%: $(COMMONSRCDIR)/%
+$(COMMON_BUILD_DIR)/%: $(COMMON_SRC_DIR)/%
 	cp $< $@
 
-$(DEFDIR)/%: $(DEFSRCDIR)/%
+$(DEF_BUILD_DIR)/%: $(DEF_SRC_DIR)/%
 	cp $< $@
