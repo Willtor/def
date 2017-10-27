@@ -16,7 +16,8 @@ COMMONFILES =		\
 	error.mli	\
 	Makefile	\
 	parsetree.ml	\
-	parsetree.mli
+	parsetree.mli	\
+	version.ml
 
 DEFSRCDIR = src/def
 DEFFILES = 		\
@@ -52,8 +53,7 @@ DEFFILES = 		\
 	types.ml	\
 	types.mli	\
 	util.ml		\
-	util.mli	\
-	version.ml
+	util.mli
 
 COMMONSRC = $(addprefix $(COMMONDIR)/,$(COMMONFILES))
 BUILDSRC = $(addprefix $(DEFDIR)/,$(DEFFILES))
@@ -96,7 +96,7 @@ $(DEFDIR)/Makefile: $(DEFSRCDIR)/Makefile
 	cp $< $@
 	(cd $(DEFDIR); ocamldep *.ml *.mli >> Makefile)
 
-$(DEFDIR)/version.ml:
+$(COMMONDIR)/version.ml:
 	bash version_info.sh ocaml $(LLVM_VER) > $@
 
 $(COMMONDIR)/%: $(COMMONSRCDIR)/%

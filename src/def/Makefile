@@ -19,10 +19,10 @@ APPENDLINK = -cclib -lLLVMTransformUtils
 CLANGPP = clang++-$(LLVM_VER)
 CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRC) -I$(TAPIRCPP)
 
-SRC = version.ml llvmext.ml config.ml util.ml report.ml cmdline.ml link.ml types.ml ast.ml header.ml templates.ml cfg.ml lower.ml scrubber.ml iropt.ml irfactory.ml build.ml main.ml
+SRC = llvmext.ml config.ml util.ml report.ml cmdline.ml link.ml types.ml ast.ml header.ml templates.ml cfg.ml lower.ml scrubber.ml iropt.ml irfactory.ml build.ml main.ml
 
 COMMONDIR = ../common
-COMMONOBJ = error.cmx parsetree.cmx deflex.cmx defparse.cmx
+COMMONOBJ = version.cmx error.cmx parsetree.cmx deflex.cmx defparse.cmx
 OBJ = cmpxchg.o cilky.o $(COMMONOBJ) $(SRC:.ml=.cmx)
 INTERFACE_OBJ = $(COMMONOBJ:.cmx=.cmi) $(SRC:.ml=.cmi)
 
@@ -56,6 +56,3 @@ config.mli: config.ml
 
 llvmext.mli: llvmext.ml
 	$(OCAMLC) $(PACKAGE) -i $< > $@
-
-version.mli: version.ml
-	$(OCAMLC) -i $< > $@
