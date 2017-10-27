@@ -2,9 +2,11 @@ INSTALL_DIR = /usr/local
 BUILDDIR = build
 COMMON_BUILD_DIR = $(BUILDDIR)/common
 DEF_BUILD_DIR = $(BUILDDIR)/def
+DEFGHI_BUILD_DIR = $(BUILDDIR)/defghi
 BINDIR = $(BUILDDIR)/bin
 
 DEF = def
+DEFGHI = defghi
 
 COMMON_SRC_DIR = src/common
 COMMONFILES =		\
@@ -53,8 +55,15 @@ DEFFILES = 		\
 	util.ml		\
 	util.mli
 
+DEFGHI_SRC_DIR = src/defghi
+DEFGHIFILES =		\
+	main.ml		\
+	main.mli	\
+	Makefile
+
 COMMON_SRC = $(addprefix $(COMMON_BUILD_DIR)/,$(COMMONFILES))
-BUILDSRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
+DEF_SRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
+DEFGHI_SRC = $(addprefix $(DEFGHI_BUILD_DIR)/,$(DEFGHIFILES))
 
 all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF)
 
@@ -80,12 +89,16 @@ $(COMMON_BUILD_DIR):
 $(DEF_BUILD_DIR):
 	mkdir -p $@
 
+$(DEFGHI_BUILD_DIR):
+	mkdir -p $@
+
 $(BINDIR)/$(DEF): $(DEF_BUILD_DIR)/$(DEF) $(BINDIR)
 	cp $< $@
 
-$(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(DEF_BUILD_DIR) $(COMMON_SRC) $(BUILDSRC)
+$(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(DEF_BUILD_DIR) $(DEFGHI_BUILD_DIR) $(COMMON_SRC) $(DEF_SRC) $(DEFGHI_SRC)
 	make -C $(COMMON_BUILD_DIR)
 	make -C $(DEF_BUILD_DIR)
+	make -C $(DEFGHI_BUILD_DIR)
 
 clean:
 	rm -rf $(BUILDDIR)
@@ -101,4 +114,7 @@ $(COMMON_BUILD_DIR)/%: $(COMMON_SRC_DIR)/%
 	cp $< $@
 
 $(DEF_BUILD_DIR)/%: $(DEF_SRC_DIR)/%
+	cp $< $@
+
+$(DEFGHI_BUILD_DIR)/%: $(DEFGHI_SRC_DIR)/%
 	cp $< $@
