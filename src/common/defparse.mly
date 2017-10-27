@@ -52,7 +52,7 @@
 %token <Parsetree.tokendata> SEMICOLON
 %token EOF
 
-%start <pt_stmt list> defparse
+%start <Parsetree.pt_stmt list> defparse
 
 (* Operator precedence. *)
 (*%left COMMA*)

@@ -2,12 +2,24 @@ LLVM_VER ?= 4.0
 
 INSTALL_DIR = /usr/local
 BUILDDIR = build
+COMMONDIR = $(BUILDDIR)/common
 DEFDIR = $(BUILDDIR)/def
 BINDIR = $(BUILDDIR)/bin
 DEF = def
 BUILDDEF = $(DEFDIR)/$(DEF)
-SRCDIR = src/def
-SRCFILES = 		\
+
+COMMONSRCDIR = src/common
+COMMONFILES =		\
+	deflex.mll	\
+	defparse.mly	\
+	error.ml	\
+	error.mli	\
+	Makefile	\
+	parsetree.ml	\
+	parsetree.mli
+
+DEFSRCDIR = src/def
+DEFFILES = 		\
 	ast.ml		\
 	build.ml	\
 	build.mli	\
@@ -18,10 +30,6 @@ SRCFILES = 		\
 	cfg.ml		\
 	cfg.mli		\
 	config.ml	\
-	deflex.mll	\
-	defparse.mly	\
-	error.ml	\
-	error.mli	\
 	header.ml	\
 	header.mli	\
 	irfactory.ml	\
@@ -36,8 +44,6 @@ SRCFILES = 		\
 	main.ml		\
 	main.mli	\
 	Makefile	\
-	parsetree.ml	\
-	parsetree.mli	\
 	report.ml	\
 	scrubber.ml	\
 	scrubber.mli	\
@@ -49,7 +55,8 @@ SRCFILES = 		\
 	util.mli	\
 	version.ml
 
-BUILDSRC = $(addprefix $(DEFDIR)/,$(SRCFILES))
+COMMONSRC = $(addprefix $(COMMONDIR)/,$(COMMONFILES))
+BUILDSRC = $(addprefix $(DEFDIR)/,$(DEFFILES))
 
 all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF)
 
@@ -69,24 +76,31 @@ $(BUILDDIR)/version.t:
 $(BINDIR):
 	mkdir -p $@
 
+$(COMMONDIR):
+	mkdir -p $@
+
 $(DEFDIR):
 	mkdir -p $@
 
 $(BINDIR)/$(DEF): $(BUILDDEF) $(BINDIR)
 	cp $< $@
 
-$(BUILDDEF): $(DEFDIR) $(BUILDSRC)
-	make -C $<
+$(BUILDDEF): $(COMMONDIR) $(DEFDIR) $(COMMONSRC) $(BUILDSRC)
+	make -C $(COMMONDIR)
+	make -C $(DEFDIR)
 
 clean:
-	rm -rf $(BINDIR) $(BUILDDIR)
+	rm -rf $(BUILDDIR)
 
-$(DEFDIR)/Makefile: $(SRCDIR)/Makefile
+$(DEFDIR)/Makefile: $(DEFSRCDIR)/Makefile
 	cp $< $@
 	(cd $(DEFDIR); ocamldep *.ml *.mli >> Makefile)
 
 $(DEFDIR)/version.ml:
 	bash version_info.sh ocaml $(LLVM_VER) > $@
 
-$(DEFDIR)/%: $(SRCDIR)/%
+$(COMMONDIR)/%: $(COMMONSRCDIR)/%
+	cp $< $@
+
+$(DEFDIR)/%: $(DEFSRCDIR)/%
 	cp $< $@
