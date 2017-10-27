@@ -20,7 +20,6 @@
   open Defparse
   open Lexing
   open Parsetree
-  open Util
 
   let proc_newlines lexbuf =
     String.iter (fun c -> if c = '\n' then new_line lexbuf)

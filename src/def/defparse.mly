@@ -17,7 +17,6 @@
  *)
 
 %{
-  open Types
   open Lexing
   open Parsetree
 %}
