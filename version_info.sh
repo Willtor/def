@@ -17,7 +17,6 @@ if [ "$1" = "ocaml" ]; then
     echo "let version_suffix = \"$VERSION_SUFFIX\""
     echo "let version_build = \"$VERSION_BUILD\""
     echo "let build_date = \"$BUILD_DATE\""
-    echo "let llvm_compat = \"$2\""
 elif [ "$1" = "major" ]; then
     echo "def-$VERSION_MAJOR$VERSION_SUFFIX"
 elif [ "$1" = "minor" ]; then

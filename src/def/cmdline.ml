@@ -65,7 +65,7 @@ let print_version () =
     ("def version " ^ (string_of_int version_maj) ^ "."
      ^ (string_of_int version_min) ^ "."
      ^ (string_of_int version_patch) ^ version_suffix
-     ^ " (build #" ^ version_build ^ " for LLVM-" ^ llvm_compat
+     ^ " (build #" ^ version_build
      ^ " on " ^ build_date ^ ")");
   print_endline "Copyright (C) 2017 DEF Authors.";
   print_endline "This is free software; see the source for copying conditions.  There is NO";

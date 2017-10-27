@@ -1,5 +1,3 @@
-LLVM_VER ?= 4.0
-
 INSTALL_DIR = /usr/local
 BUILDDIR = build
 COMMONDIR = $(BUILDDIR)/common
@@ -71,7 +69,7 @@ $(BUILDDIR):
 	mkdir -p $@
 
 $(BUILDDIR)/version.t:
-	bash version_info.sh patch $(LLVM_VER) > $@
+	bash version_info.sh patch > $@
 
 $(BINDIR):
 	mkdir -p $@
@@ -97,7 +95,7 @@ $(DEFDIR)/Makefile: $(DEFSRCDIR)/Makefile
 	(cd $(DEFDIR); ocamldep *.ml *.mli >> Makefile)
 
 $(COMMONDIR)/version.ml:
-	bash version_info.sh ocaml $(LLVM_VER) > $@
+	bash version_info.sh ocaml > $@
 
 $(COMMONDIR)/%: $(COMMONSRCDIR)/%
 	cp $< $@
