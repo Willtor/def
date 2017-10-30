@@ -57,6 +57,10 @@ DEFFILES = 		\
 
 DEFGHI_SRC_DIR = src/defghi
 DEFGHIFILES =		\
+	defi.ml		\
+	defi.mli	\
+	header.ml	\
+	header.mli	\
 	main.ml		\
 	main.mli	\
 	Makefile

@@ -4,7 +4,7 @@ OCAMLC = OCAMLPATH=$(TAPIROCAML) ocamlfind ocamlopt -g
 PACKAGE = -package cmdliner,str,unix
 LINKPKG = -linkpkg $(PACKAGE)
 
-SRC = main.ml
+SRC = defi.ml header.ml main.ml
 
 COMMONDIR = ../common
 COMMONOBJ = version.cmx error.cmx parsetree.cmx deflex.cmx defparse.cmx
