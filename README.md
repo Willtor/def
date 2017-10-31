@@ -21,13 +21,8 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 * Cmdliner package (for defghi): `opam install cmdliner`
 
 **Forkscan:**
-* Clone the repository and build:
-```
-% git clone git@githubmit.edu:willtor/forkgc.git
-% cd forkgc
-% make
-% sudo make install
-```
+* Clone the repository and build: https://github.com/Willtor/forkscan
+* Instructions are in README.md (or visit the Github site).
 
 **LLVM:**
 * DEF requires the TAPIR extension to LLVM, which you have to build yourself.  The meta-package can be found at: https://github.com/wsmoses/Tapir-Meta
