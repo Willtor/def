@@ -18,6 +18,7 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 * The OCaml compiler can be acquired with: `sudo apt-get install ocaml ocaml-nox`
 * OPAM (OCaml package manager): `sudo apt-get install opam`
 * Menhir package: `opam install menhir`
+* Cmdliner package (for defghi): `opam install cmdliner`
 
 **Forkscan:**
 * Clone the repository and build:

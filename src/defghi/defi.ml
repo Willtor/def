@@ -16,4 +16,41 @@
    02110-1301, USA.
  *)
 
-let make_defi stmts outfile = ()
+open Parsetree
+open Lexing
+
+let autogen =
+  "THIS FILE WAS AUTOMATICALLY GENERATED.  DO NOT MODIFY IT OR YOUR\n"
+  ^ " * CHANGES MAY GET CLOBBERED."
+
+let dump_doc oc tok =
+  output_string oc "/** DEFGHI FIXME: Some doc. */\n"
+
+let output_deftype oc width = function
+  | _ -> output_string oc "some type"
+
+let output_type oc = function
+  | PTS_Type (Some (export, opacity),
+              _,
+              typename,
+              _,
+              deftype,
+              _) ->
+     begin
+       dump_doc oc export;
+       output_string oc ("typedef " ^ typename.td_text);
+       if opacity = None then
+         begin
+           output_string oc " = ";
+           (* FIXME: WORKING HERE! *)
+           output_deftype oc "  " deftype;
+         end;
+       output_string oc ";\n"
+     end
+  | _ -> ()
+
+let make_defi stmts outfile =
+  let oc = open_out outfile in
+  output_string oc ("/* " ^ outfile ^ ": " ^ autogen ^ "\n */\n");
+  List.iter (output_type oc) stmts;
+  close_out oc
