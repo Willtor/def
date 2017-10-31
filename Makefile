@@ -69,7 +69,7 @@ COMMON_SRC = $(addprefix $(COMMON_BUILD_DIR)/,$(COMMONFILES))
 DEF_SRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
 DEFGHI_SRC = $(addprefix $(DEFGHI_BUILD_DIR)/,$(DEFGHIFILES))
 
-all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF)
+all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF) $(BINDIR)/$(DEFGHI)
 
 install: $(INSTALL_DIR)/bin/$(DEF)
 
@@ -97,6 +97,9 @@ $(DEFGHI_BUILD_DIR):
 	mkdir -p $@
 
 $(BINDIR)/$(DEF): $(DEF_BUILD_DIR)/$(DEF) $(BINDIR)
+	cp $< $@
+
+$(BINDIR)/$(DEFGHI): $(DEFGHI_BUILD_DIR)/$(DEFGHI) $(BINDIR)
 	cp $< $@
 
 $(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(DEF_BUILD_DIR) $(DEFGHI_BUILD_DIR) $(COMMON_SRC) $(DEF_SRC) $(DEFGHI_SRC)
