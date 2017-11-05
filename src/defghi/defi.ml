@@ -19,17 +19,97 @@
 open Parsetree
 open Lexing
 
+let the = function
+  | Some a -> a
+  | None -> Error.fatal_error "the"
+
 let autogen =
   "THIS FILE WAS AUTOMATICALLY GENERATED.  DO NOT MODIFY IT OR YOUR\n"
   ^ " * CHANGES MAY GET CLOBBERED."
 
 let dump_doc oc tok =
-  output_string oc "/** DEFGHI FIXME: Some doc. */\n"
+  let re = Str.regexp "^/\\*\\*" in
+  try
+    output_string
+      oc
+     (List.find (fun s -> Str.string_match re s 0) tok.td_noncode);
+    output_string oc "\n"
+  with _ -> ()
 
-let output_deftype oc width = function
-  | _ -> output_string oc "some type"
+let rec output_deftype oc =
+  let rec print_type width = function
+    | PTT_Fcn (_, params, _, _, ret) ->
+       let print_params init = function
+         | PTP_Var (name, tp) ->
+            (output_string oc (init ^ name.td_text ^ " ");
+             print_type width tp;
+             ", ")
+         | PTP_Type tp ->
+            (output_string oc init;
+             print_type width tp;
+             ", ")
+         | PTP_Ellipsis _ ->
+            (output_string oc (init ^ "...");
+             "ERROR - SHOULD NEVER SEE THIS IN OUTPUT")
+       in
+       begin
+         output_string oc "(";
+         ignore(List.fold_left print_params "" params);
+         output_string oc ") -> ";
+         print_type width ret;
+         output_string oc ";\n\n"
+       end
+    | PTT_Volatile (_, tp) ->
+       begin
+         output_string oc "volatile ";
+         print_type width tp
+       end
+    | PTT_Name name ->
+       output_string oc name.td_text
+    | PTT_Ptr (_, tp) ->
+       begin
+         output_string oc "*";
+         print_type width tp
+       end
+    | PTT_Array (_, expr_maybe, _, tp) ->
+       begin
+         output_string oc "[";
+         if expr_maybe <> None then
+           output_expr oc width (the expr_maybe);
+         output_string oc "]";
+         print_type width tp
+       end
+    | PTT_Struct (_, members, _) ->
+       begin
+         output_string oc "{";
+         ignore(List.fold_left
+                  (fun init (nm, tp) ->
+                    output_string oc (init ^ nm.td_text ^ " ");
+                    print_type width tp;
+                    ", ")
+                  ""
+                  members);
+         output_string oc "}"
+       end
+    | PTT_StructUnnamed (_, members, _) ->
+       begin
+         output_string oc "{";
+         ignore(List.fold_left
+                  (fun init tp ->
+                    output_string oc init;
+                    print_type width tp;
+                    ", ")
+                  ""
+                  members);
+         output_string oc "}"
+       end
+  in
+  print_type
 
-let output_type oc = function
+and output_expr oc width = function
+  | _ -> Error.fatal_error "don't support expressions, yet."
+
+let output_exported_type oc = function
   | PTS_Type (Some (export, opacity),
               _,
               typename,
@@ -42,15 +122,14 @@ let output_type oc = function
        if opacity = None then
          begin
            output_string oc " = ";
-           (* FIXME: WORKING HERE! *)
            output_deftype oc "  " deftype;
          end;
-       output_string oc ";\n"
+       output_string oc ";\n\n"
      end
   | _ -> ()
 
 let make_defi stmts outfile =
   let oc = open_out outfile in
-  output_string oc ("/* " ^ outfile ^ ": " ^ autogen ^ "\n */\n");
-  List.iter (output_type oc) stmts;
+  output_string oc ("/* " ^ outfile ^ ": " ^ autogen ^ "\n */\n\n");
+  List.iter (output_exported_type oc) stmts;
   close_out oc

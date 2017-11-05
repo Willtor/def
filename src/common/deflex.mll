@@ -59,7 +59,7 @@
   let push_noncode s = noncode := s :: !noncode
 
   let get_token_data text lexbuf =
-    let nc = List.rev !noncode in
+    let nc = !noncode in
     noncode := [];
     { td_pos     = lexeme_start_p lexbuf;
       td_text    = text;

@@ -3,7 +3,9 @@ type tokendata =
   { td_pos : Lexing.position;  (* Where the token was read. *)
     td_text : string;          (* Plain text of the token. *)
     td_noncode : string list   (* Comments, whitespace, etc. between the
-                                  previous token and this one. *)
+                                  previous token and this one.  This list
+                                  is reversed from the order in which it
+                                  was read. *)
   }
 
 type pt_template =
