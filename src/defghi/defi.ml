@@ -57,7 +57,6 @@ let rec output_deftype oc =
          ignore(List.fold_left print_params "" params);
          output_string oc ") -> ";
          print_type width ret;
-         output_string oc ";\n\n"
        end
     | PTT_Volatile (_, tp) ->
        begin
@@ -128,8 +127,20 @@ let output_exported_type oc = function
      end
   | _ -> ()
 
+let output_exported_func oc = function
+  | PTS_FcnDefExpr ((Some export, _, name, _, tp), _, _, _)
+  | PTS_FcnDefBlock ((Some export, _, name, _, tp), _) ->
+     begin
+       dump_doc oc export;
+       output_string oc ("decl " ^ name.td_text ^ " ");
+       output_deftype oc "  " tp;
+       output_string oc ";\n\n"
+     end
+  | _ -> ()
+
 let make_defi stmts outfile =
   let oc = open_out outfile in
   output_string oc ("/* " ^ outfile ^ ": " ^ autogen ^ "\n */\n\n");
   List.iter (output_exported_type oc) stmts;
+  List.iter (output_exported_func oc) stmts;
   close_out oc
