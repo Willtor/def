@@ -68,13 +68,13 @@ let defghi output_kind files =
 (* Input FILE name(s) *)
 let files = Arg.(non_empty & pos_all file [] & info [] ~docv:"FILE")
 
-(* -i and -h *)
+(* -i and -c *)
 let output_kind =
   let doc = "Generate DEF interface files (.defi).  This is the default." in
   let defi = OUT_DEFI, Arg.info ["i"] ~doc in
 
   let doc = "Generate C header files (.h)." in
-  let c_header = OUT_C_HEADER, Arg.info ["h"] ~doc in
+  let c_header = OUT_C_HEADER, Arg.info ["c"] ~doc in
 
   Arg.(value & vflag OUT_DEFI [defi; c_header])
 
