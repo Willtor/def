@@ -18,23 +18,7 @@
 
 open Parsetree
 open Lexing
-
-let the = function
-  | Some a -> a
-  | None -> Error.fatal_error "the"
-
-let autogen =
-  "THIS FILE WAS AUTOMATICALLY GENERATED.  DO NOT MODIFY IT OR YOUR\n"
-  ^ " * CHANGES MAY GET CLOBBERED."
-
-let dump_doc oc tok =
-  let re = Str.regexp "^/\\*\\*" in
-  try
-    output_string
-      oc
-     (List.find (fun s -> Str.string_match re s 0) tok.td_noncode);
-    output_string oc "\n"
-  with _ -> ()
+open Util
 
 let rec output_deftype oc =
   let rec print_type width = function
@@ -140,7 +124,7 @@ let output_exported_func oc = function
 
 let make_defi stmts outfile =
   let oc = open_out outfile in
-  output_string oc ("/* " ^ outfile ^ ": " ^ autogen ^ "\n */\n\n");
+  output_autogen oc outfile;
   List.iter (output_exported_type oc) stmts;
   List.iter (output_exported_func oc) stmts;
   close_out oc

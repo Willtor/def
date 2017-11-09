@@ -17,10 +17,27 @@
  *)
 
 open Parsetree
-open Lexing
-open Util
 
-let make_header stmts outfile =
-  let oc = open_out outfile in
-  output_autogen oc outfile;
-  close_out oc
+(** Output an autogen comment alerting programmers that the file was generated
+    automatically. *)
+let output_autogen oc filename =
+  output_string
+    oc
+    ("/* " ^ filename ^ ":\n"
+     ^ " * THIS FILE WAS AUTOMATICALLY GENERATED.  DO NOT MODIFY IT OR YOUR\n"
+     ^ " * CHANGES MAY GET CLOBBERED.\n"
+     ^ " */\n\n")
+
+let the = function
+  | Some a -> a
+  | None -> Error.fatal_error "the"
+
+(** Dump doxygen-style documentation from the given token, if any exists. *)
+let dump_doc oc tok =
+  let re = Str.regexp "^/\\*\\*" in
+  try
+    output_string
+      oc
+      (List.find (fun s -> Str.string_match re s 0) tok.td_noncode);
+    output_string oc "\n"
+  with _ -> ()

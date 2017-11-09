@@ -63,7 +63,8 @@ DEFGHIFILES =		\
 	header.mli	\
 	main.ml		\
 	main.mli	\
-	Makefile
+	Makefile	\
+	util.ml
 
 COMMON_SRC = $(addprefix $(COMMON_BUILD_DIR)/,$(COMMONFILES))
 DEF_SRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
