@@ -46,8 +46,15 @@ let builtin_map =
 
 let rec output_deftype oc name depth tp =
   let rec build_string accum depth = function
-    | PTT_Fcn _ ->
-       Error.fatal_error "No function pointers, yet."
+    | PTT_Fcn (_, params, _, _, ret) ->
+       let param2string = function
+         | PTP_Var (name, tp) -> build_string name.td_text "" tp
+         | PTP_Type tp -> build_string "" "" tp
+         | PTP_Ellipsis _ -> "..."
+       in
+       let pstrings = List.map param2string params in
+       let non_ret = accum ^ " " ^ "(" ^ (String.concat ", " pstrings) ^ ")" in
+       build_string non_ret depth ret
     | PTT_Volatile (_, tp) ->
        build_string ("volatile " ^ accum) depth tp
     | PTT_Name nm ->
@@ -120,6 +127,16 @@ let output_exported_type oc = function
      end
   | _ -> ()
 
+let output_exported_function oc = function
+  | PTS_FcnDefExpr ((Some export, _, name, _, deftype), _, _, _)
+  | PTS_FcnDefBlock ((Some export, _, name, _ , deftype), _) ->
+     begin
+       dump_doc oc export;
+       output_deftype oc name.td_text "" deftype;
+       output_string oc ";\n\n"
+     end
+  | _ -> ()
+
 let make_header stmts outfile =
   let oc = open_out outfile in
   output_autogen oc outfile;
@@ -129,6 +146,7 @@ let make_header stmts outfile =
   output_string oc "#endif\n\n";
   List.iter (output_exported_typedef oc) stmts;
   List.iter (output_exported_type oc) stmts;
+  List.iter (output_exported_function oc) stmts;
   output_string oc "#ifdef __cplusplus\n";
   output_string oc "} // extern \"C\"\n";
   output_string oc "#endif\n\n";
