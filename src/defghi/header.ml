@@ -56,6 +56,7 @@ let rec output_deftype oc name depth tp =
        let non_ret = accum ^ " " ^ "(" ^ (String.concat ", " pstrings) ^ ")" in
        build_string non_ret depth ret
     | PTT_Volatile (_, tp) ->
+       (* FIXME: Pretty sure this is wrong.  Fix it later.  Other stuff to do. *)
        build_string ("volatile " ^ accum) depth tp
     | PTT_Name nm ->
        let converted_name = try Hashtbl.find builtin_map nm.td_text
