@@ -13,7 +13,7 @@ else
 endif
 
 OCAMLC = OCAMLPATH=$(TAPIROCAML) ocamlfind ocamlopt -g
-PACKAGE = -package llvm,llvm.analysis,llvm.scalar_opts,llvm.ipo,llvm.target,llvm.irreader,llvm.bitreader,llvm.bitwriter,llvm.passmgr_builder,llvm.all_backends,str,unix
+PACKAGE = -package cmdliner,llvm,llvm.analysis,llvm.scalar_opts,llvm.ipo,llvm.target,llvm.irreader,llvm.bitreader,llvm.bitwriter,llvm.passmgr_builder,llvm.all_backends,str,unix
 LINKPKG = -linkpkg $(PACKAGE) -cclib -lz
 APPENDLINK = -cclib -lLLVMTransformUtils
 CLANGPP = clang++-$(LLVM_VER)
