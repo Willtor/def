@@ -24,8 +24,6 @@ DEFFILES = 		\
 	ast.ml		\
 	build.ml	\
 	build.mli	\
-	cmdline.ml	\
-	cmdline.mli	\
 	cilky.cpp	\
 	cmpxchg.cpp	\
 	cfg.ml		\
