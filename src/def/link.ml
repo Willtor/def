@@ -16,6 +16,8 @@
    02110-1301, USA.
  *)
 
+open Config
+
 (* Copied from "clang -v".  Need to figure out how it generates all these
    paths. *)
 let ld_cmd = "/usr/bin/ld -z relro --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2"
@@ -100,6 +102,7 @@ let build_paths base_path gcc_ver =
                "--no-as-needed";
                gcc_libpath ^ "/crtend.o";
                opath ^ "/crtn.o" ]
+             @ (List.map (fun l -> "-l" ^ l) !linked_libs)
   in
   String.concat " " (pathset @ (List.map (fun s -> "-L" ^ s) libpaths)),
   String.concat " " libs

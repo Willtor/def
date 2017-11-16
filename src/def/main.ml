@@ -43,7 +43,8 @@ let version_helper = function
   | `Version -> (print_version (); `Version)
   | a -> a
 
-let def compile_depth llvm cgdebug opt output files =
+let def compile_depth llvm cgdebug opt output libs files =
+  (* FIXME: Use libs. *)
   if opt < 0 || opt > 3 then
     fatal_error "Specify an optimization level [0-3].  Use --help.";
   comp_depth := compile_depth;
@@ -52,6 +53,7 @@ let def compile_depth llvm cgdebug opt output files =
   opt_level := opt;
   if output <> "" then
     output_file := Some output;
+  linked_libs := libs;
   input_files := files;
   try
     Build.pipeline ()
@@ -113,6 +115,14 @@ let ver =
   let verarg = Arg.info ["v"; "version"] ~doc in
   Arg.(value & flag verarg)
 
+(* Link libraries. *)
+let libraries =
+  let doc = "Link the specified library.  E.g., if you have libm.so in your
+             library path, use -lm to link it."
+  in
+  let lib = Arg.info ["l"] ~doc in
+  Arg.(value & opt_all string [] lib)
+
 let cmd =
   let doc = "compiler for the DEF programming language." in
   let man =
@@ -126,7 +136,8 @@ let cmd =
     ]
   in
   let version = "v" ^ version_string in
-  Term.(const def $ compile_depth $ llvm $ cgdebug $ opt $ output $ files),
+  Term.(const def $ compile_depth $ llvm $ cgdebug $ opt $ output
+        $ libraries $ files),
   Term.info "def" ~version ~doc ~exits:Term.default_exits ~man
 
 let () = Term.(exit @@ version_helper @@ eval cmd)

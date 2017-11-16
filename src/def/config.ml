@@ -30,6 +30,8 @@ let input_files : string list ref = ref []
 
 let output_file : string option ref = ref None
 
+let linked_libs : string list ref = ref []
+
 let comp_depth = ref COMPILE_BINARY
 
 let compile_llvm = ref false
