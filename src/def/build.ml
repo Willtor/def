@@ -21,7 +21,6 @@ open Cfg
 open Config
 open Defparse
 open Deflex
-open Header
 open Irfactory
 open Lexing
 open Link
@@ -145,17 +144,6 @@ let llmodule_of_ast infile ast =
   let () = Iropt.optimize mdl in
   mdl
 
-let generate_header file =
-  match extension file with
-  | ".def" ->
-     let outfile = (outfile_name file ".h") in
-     let ast = Ast.of_parsetree (parse_def_file file) in
-     begin
-       header_of outfile ast;
-       outfile
-     end
-  | _ -> Report.err_cant_generate_header_from file
-
 let dump_machine_asm file mdl =
   let outfile = outfile_name file ".s" in
   TargetMachine.emit_to_file mdl CodeGenFileType.AssemblyFile outfile tm;
@@ -232,7 +220,6 @@ let generate_obj tmp_obj file =
 let compile_input filename =
   (* Need OCaml 4.04 for Filename.extension. *)
   match !comp_depth with
-  | COMPILE_GENERATE_HEADER -> generate_header filename
   | COMPILE_ASM -> generate_asm filename
   | COMPILE_OBJ -> generate_obj (*tmp-obj=*)false filename
   | COMPILE_BINARY -> generate_obj (*tmp-obj=*)true filename

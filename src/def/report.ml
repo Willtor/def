@@ -52,12 +52,6 @@ let err_unable_to_open_file filename =
 let err_unable_to_locate_imported_file pos filename =
   err_pos ("Unable to locate file to import: " ^ filename) pos
 
-(** Tried to generate a header file from a non-def source file. *)
-let err_cant_generate_header_from filename =
-  let err = "Unable to generate a header from non-def source file \""
-            ^ filename ^ "\""
-  in fatal_error err
-
 (** Tried to generate an LLVM .ll file from .s assembly. *)
 let err_cant_convert_s_to_ll filename =
   let err = "Unable to convert assembly file \"" ^ filename

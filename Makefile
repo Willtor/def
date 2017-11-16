@@ -29,8 +29,6 @@ DEFFILES = 		\
 	cfg.ml		\
 	cfg.mli		\
 	config.ml	\
-	header.ml	\
-	header.mli	\
 	irfactory.ml	\
 	irfactory.mli	\
 	iropt.ml	\
