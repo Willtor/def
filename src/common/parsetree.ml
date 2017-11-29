@@ -145,6 +145,7 @@ and pt_expr =
   | PTE_F64 of (tokendata * float)
   | PTE_F32 of (tokendata * float)
   | PTE_String of (tokendata * string)
+  | PTE_Wildcard of tokendata
   | PTE_FcnCall of pt_fcn_call
   | PTE_Var of tokendata
   | PTE_StaticStruct of tokendata * pt_expr list * tokendata
@@ -181,6 +182,7 @@ let rec pt_expr_pos = function
   | PTE_F64 (tok, _)
   | PTE_F32 (tok, _)
   | PTE_String (tok, _)
+  | PTE_Wildcard tok
   | PTE_FcnCall { ptfc_name = tok }
   | PTE_Var tok
   | PTE_StaticStruct (tok, _, _)

@@ -34,7 +34,7 @@
 %token <Parsetree.tokendata> ELIF ELSE FI FOR PARFOR WHILE DO OD SWITCH
 %token <Parsetree.tokendata> WITH CASE ESAC GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
-%token <Parsetree.tokendata> NIL VOLATILE ATOMIC SPAWN SYNC
+%token <Parsetree.tokendata> NIL VOLATILE ATOMIC SPAWN SYNC WILDCARD
 
 %token <Parsetree.tokendata> EXPORT
 
@@ -243,6 +243,7 @@ expr:
 | LITERALF64 { PTE_F64 $1 }
 | LITERALF32 { PTE_F32 $1 }
 | STRING { PTE_String $1 }
+| WILDCARD { PTE_Wildcard $1 }
 | SPAWN IDENT template_inst? LPAREN separated_list(COMMA, expr) RPAREN
   { PTE_FcnCall
       { ptfc_spawn = Some $1;

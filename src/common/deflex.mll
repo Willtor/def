@@ -122,6 +122,7 @@ rule deflex = parse
 | "false" as tok { LITERALBOOL (get_token_data tok lexbuf, false) }
 | ['"'][^'"']*['"'] as str { STRING (get_token_data str lexbuf,
                                      remove_quotes str) }
+| "_" as tok { WILDCARD (get_token_data (String.make 1 tok) lexbuf) }
 
 (* Integers. *)
 
@@ -187,7 +188,6 @@ rule deflex = parse
 | ['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)? as fstr
     { LITERALF64 (get_token_data fstr lexbuf,
                   float_of_string fstr) }
-
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
     { IDENT (get_token_data ident lexbuf) }
 

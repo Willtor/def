@@ -1425,6 +1425,8 @@ let rec build_bbs name decltable typemap body =
          let () = add_next body_end cond_bb in
          let () = add_next succ_bb body_begin in
          process_bb scope decls fail_bb cont_bb sync_label rest
+    | SwitchStmt _ :: _ ->
+       Report.err_internal __FILE__ __LINE__ "Switch statement."
     | Return (pos, expr) :: rest ->
        let tp, expr = convert_expr typemap scope expr in
        begin
@@ -1701,6 +1703,11 @@ let resolve_builtins stmts typemap =
                 List.map process_stmt stmts)
     | WhileLoop (p, pre, cond, stmts) ->
        WhileLoop (p, pre, process_expr cond, List.map process_stmt stmts)
+    | SwitchStmt (p, expr, cases) ->
+       let process_case (ctor, stmts) =
+         process_expr ctor, List.map process_stmt stmts
+       in
+       SwitchStmt (p, process_expr expr, List.map process_case cases)
     | Return (p, e) -> Return (p, process_expr e)
     | stmt -> stmt
   in

@@ -121,6 +121,7 @@ type stmt =
     * (position * expr) option * stmt list
   (* WhileLoop: start-pos * pre-check * cond * body *)
   | WhileLoop of position * bool * expr * stmt list
+  | SwitchStmt of position * expr * (expr * stmt list) list
   | Return of position * expr
   | ReturnVoid of position
   | TypeDecl of position * string * vartype * Types.visibility * bool
@@ -354,8 +355,12 @@ let of_parsetree =
     | PTS_DoWhileLoop (dotok, stmts, _, _, cond, _) ->
        WhileLoop (dotok.td_pos, false, expr_of cond,
                   List.map stmt_of stmts)
-    | PTS_SwitchStmt _ ->
-       Report.err_internal __FILE__ __LINE__ "Switch not supported."
+    | PTS_SwitchStmt (switchtok, expr, _, cases, _) ->
+       let convert_case = function
+         | PTCase (_, ctor, _, stmts) ->
+            expr_of ctor, List.map stmt_of stmts
+       in
+       SwitchStmt (switchtok.td_pos, expr_of expr, List.map convert_case cases)
     | PTS_ReturnExpr (ret, e, _) ->
        Return (pt_expr_pos e, expr_of e)
     | PTS_Return (ret, _) ->
@@ -448,6 +453,7 @@ let of_parsetree =
     | PTE_F64 (tok, value) -> ExprLit (tok.td_pos, LitF64 value)
     | PTE_F32 (tok, value) -> ExprLit (tok.td_pos, LitF32 value)
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
+    | PTE_Wildcard _ -> Report.err_internal __FILE__ __LINE__ "No wildcards!"
     | PTE_FcnCall fcn ->
        let template = match fcn.ptfc_template with
          | None -> []
@@ -613,6 +619,15 @@ let rec visit_expr_in_stmt f = function
      begin
        visit_expr f cond;
        List.iter (visit_expr_in_stmt f) body
+     end
+  | SwitchStmt (_, expr, cases) ->
+     begin
+       visit_expr f expr;
+       List.iter
+         (fun (e, stmts) ->
+           visit_expr f e;
+           List.iter (visit_expr_in_stmt f) stmts)
+         cases
      end
   | Return (_, e) -> visit_expr f e
   | ReturnVoid _ -> ()

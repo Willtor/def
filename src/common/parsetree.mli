@@ -128,6 +128,7 @@ and pt_expr =
   | PTE_F64 of (tokendata * float)
   | PTE_F32 of (tokendata * float)
   | PTE_String of (tokendata * string)
+  | PTE_Wildcard of tokendata
   | PTE_FcnCall of pt_fcn_call
   | PTE_Var of tokendata
   | PTE_StaticStruct of tokendata * pt_expr list * tokendata

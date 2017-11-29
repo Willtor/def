@@ -40,6 +40,7 @@ let position_of_stmt = function
   | IfStmt (pos, _, _, _)
   | ForLoop (pos, _, _, _, _, _)
   | WhileLoop (pos, _, _, _)
+  | SwitchStmt (pos, _, _)
   | Return (pos, _)
   | ReturnVoid pos
   | TypeDecl (pos, _, _, _, _)
@@ -93,6 +94,10 @@ let kill_dead_code =
       | WhileLoop (pos, precheck, cond, body) :: rest ->
          let stmt = WhileLoop (pos, precheck, cond, proc [] body)
          in proc (stmt :: accum) rest
+      | SwitchStmt (pos, expr, cases) :: rest ->
+         let f (ctor, stmts) = ctor, proc [] stmts in
+         let stmt = SwitchStmt (pos, expr, List.map f cases) in
+         proc (stmt :: accum) rest
       | TypeDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
       | Label _ as stmt :: rest ->
@@ -143,6 +148,13 @@ let return_all_paths =
       | WhileLoop (_, _, _, body) :: rest ->
          if contains_return body then true
          else contains_return rest
+      | SwitchStmt (_, _, cases) :: rest ->
+         let do_case res (_, stmts) =
+           if true = res then true
+           else contains_return stmts
+         in
+         if List.fold_left do_case false cases then true
+         else contains_return rest
       | DefFcn _ :: rest (* Returns from nested functions don't count. *)
       | _ :: rest -> contains_return rest
     in
@@ -176,6 +188,8 @@ let return_all_paths =
       | WhileLoop (_, _, cond, body) :: rest ->
          if expr_must_be_true cond then contains_return body
          else returns_p rest
+      | SwitchStmt _ :: rest ->
+         returns_p rest
       | Import _ :: _ ->
          Report.err_internal __FILE__ __LINE__ "import in function."
       | DefTemplateFcn _ :: _ ->
