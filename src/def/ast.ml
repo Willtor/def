@@ -323,7 +323,7 @@ let of_parsetree =
       ->
        let init = match init_p with
          | None -> None
-         | Some (PTForInit_Var (_, id, tp, eq, e)) ->
+         | Some (PTForInit_Var (_, id, tp_opt, eq, e)) ->
             let init =
               ExprBinary { op_pos = eq.td_pos;
                            op_op = OperAssign;
@@ -332,7 +332,11 @@ let of_parsetree =
                            op_atomic = false;
                          }
             in
-            Some (VarDecl ([id], [init], type_of tp))
+            let tp = match tp_opt with
+              | Some t -> type_of t
+              | None -> InferredType
+            in
+            Some (VarDecl ([id], [init], tp))
          | Some (PTForInit_Expr e) ->
             Some (StmtExpr (pt_expr_pos e, expr_of e))
        in

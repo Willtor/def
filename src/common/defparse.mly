@@ -125,7 +125,9 @@ statement:
 
 for_init:
 | VAR IDENT deftype EQUALS expr
-    { PTForInit_Var ($1, $2, $3, $4, $5) }
+    { PTForInit_Var ($1, $2, Some $3, $4, $5) }
+| VAR IDENT EQUALS expr
+    { PTForInit_Var ($2, $2, None, $3, $4) }
 | expr { PTForInit_Expr $1 }
 
 elifclause:

@@ -65,7 +65,8 @@ type pt_stmt =
   | PTS_Sync of tokendata * tokendata
 
 and pt_forinit =
-  | PTForInit_Var of tokendata * tokendata * pt_type * tokendata * pt_expr
+  | PTForInit_Var of tokendata * tokendata * pt_type option
+                     * tokendata * pt_expr
   | PTForInit_Expr of pt_expr
 
 and pt_type =
