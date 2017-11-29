@@ -4,9 +4,9 @@
 
 ;; Keywords.
 (setq def-keywords-open
-      (regexp-opt '("begin" "then" "do") 'words))
+      (regexp-opt '("begin" "then" "do" "with") 'words))
 (setq def-keywords-close
-      (regexp-opt '("end" "fi" "od") 'words))
+      (regexp-opt '("end" "fi" "od" "esac") 'words))
 
 ;; Font coloring.
 (setq def-font-lock-keywords
@@ -20,7 +20,8 @@
         (,(regexp-opt '("def" "decl" "begin" "end" "do" "od" "while" "for"
                         "parfor"
                         "if" "then" "elif" "else" "fi" "return" "var" "export"
-                        "continue" "typedef" "goto" "type")
+                        "continue" "typedef" "goto" "type"
+                        "switch" "with" "esac")
                       'words)
          . font-lock-keyword-face)
         ; Constants.
@@ -30,7 +31,7 @@
         ; Builtins
         (,(regexp-opt '("import" "sizeof" "new" "delete" "retire"
                         "builtin_cas" "builtin_swap" "spawn" "sync" "cast"
-                        "atomic")
+                        "atomic" "case")
                       'words)
          . font-lock-builtin-face)
         ))
