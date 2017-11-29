@@ -70,6 +70,8 @@ type pt_stmt =
       tokendata * pt_expr * tokendata * pt_stmt list * tokendata
   | PTS_DoWhileLoop of
       tokendata * pt_stmt list * tokendata * tokendata * pt_expr * tokendata
+  | PTS_SwitchStmt of
+      tokendata * pt_expr * tokendata * pt_case list * tokendata
   | PTS_ReturnExpr of tokendata * pt_expr * tokendata
   | PTS_Return of tokendata * tokendata
   | PTS_Type of
@@ -80,6 +82,9 @@ type pt_stmt =
   | PTS_Label of tokendata * tokendata
   | PTS_Continue of tokendata * tokendata
   | PTS_Sync of tokendata * tokendata
+
+and pt_case =
+  | PTCase of tokendata * pt_expr * tokendata * pt_stmt list
 
 and pt_forinit =
   | PTForInit_Var of tokendata * tokendata * pt_type option

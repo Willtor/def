@@ -31,7 +31,8 @@
 %token <Parsetree.tokendata * string> STRING
 %token <Parsetree.tokendata> IMPORT TYPE TYPEDEF
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
-%token <Parsetree.tokendata> ELIF ELSE FI FOR PARFOR WHILE DO OD GOTO BREAK
+%token <Parsetree.tokendata> ELIF ELSE FI FOR PARFOR WHILE DO OD SWITCH
+%token <Parsetree.tokendata> WITH CASE ESAC GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
 %token <Parsetree.tokendata> NIL VOLATILE ATOMIC SPAWN SYNC
 
@@ -113,6 +114,7 @@ statement:
 | WHILE expr DO statement* OD { PTS_WhileLoop ($1, $2, $3, $4, $5) }
 | DO statement* OD WHILE expr SEMICOLON
     { PTS_DoWhileLoop ($1, $2, $3, $4, $5, $6) }
+| SWITCH expr WITH case+ ESAC { PTS_SwitchStmt ($1, $2, $3, $4, $5) }
 | RETURN expr SEMICOLON { PTS_ReturnExpr ($1, $2, $3) }
 | RETURN SEMICOLON { PTS_Return ($1, $2) }
 | pair(EXPORT, option(OPAQUE))? TYPEDEF IDENT EQUALS deftype SEMICOLON
@@ -122,6 +124,9 @@ statement:
 | IDENT COLON { PTS_Label ($1, $2) }
 | CONTINUE SEMICOLON { PTS_Continue ($1, $2) }
 | SYNC SEMICOLON { PTS_Sync ($1, $2) }
+
+case:
+| CASE expr COLON statement* { PTCase ($1, $2, $3, $4) }
 
 for_init:
 | VAR IDENT deftype EQUALS expr

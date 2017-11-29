@@ -354,6 +354,8 @@ let of_parsetree =
     | PTS_DoWhileLoop (dotok, stmts, _, _, cond, _) ->
        WhileLoop (dotok.td_pos, false, expr_of cond,
                   List.map stmt_of stmts)
+    | PTS_SwitchStmt _ ->
+       Report.err_internal __FILE__ __LINE__ "Switch not supported."
     | PTS_ReturnExpr (ret, e, _) ->
        Return (pt_expr_pos e, expr_of e)
     | PTS_Return (ret, _) ->
