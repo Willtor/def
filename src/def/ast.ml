@@ -91,6 +91,7 @@ and expr =
   | ExprType of position * vartype
   | ExprTypeString of position * expr
   | ExprNil of position
+  | ExprWildcard of position
 
 and vartype =
   | VarType of position * string * Types.qualifier list
@@ -121,7 +122,7 @@ type stmt =
     * (position * expr) option * stmt list
   (* WhileLoop: start-pos * pre-check * cond * body *)
   | WhileLoop of position * bool * expr * stmt list
-  | SwitchStmt of position * expr * (expr * stmt list) list
+  | SwitchStmt of position * expr * (position * expr * stmt list) list
   | Return of position * expr
   | ReturnVoid of position
   | TypeDecl of position * string * vartype * Types.visibility * bool
@@ -358,7 +359,7 @@ let of_parsetree =
     | PTS_SwitchStmt (switchtok, expr, _, cases, _) ->
        let convert_case = function
          | PTCase (_, ctor, _, stmts) ->
-            expr_of ctor, List.map stmt_of stmts
+            pt_expr_pos ctor, expr_of ctor, List.map stmt_of stmts
        in
        SwitchStmt (switchtok.td_pos, expr_of expr, List.map convert_case cases)
     | PTS_ReturnExpr (ret, e, _) ->
@@ -453,7 +454,7 @@ let of_parsetree =
     | PTE_F64 (tok, value) -> ExprLit (tok.td_pos, LitF64 value)
     | PTE_F32 (tok, value) -> ExprLit (tok.td_pos, LitF32 value)
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
-    | PTE_Wildcard _ -> Report.err_internal __FILE__ __LINE__ "No wildcards!"
+    | PTE_Wildcard tok -> ExprWildcard tok.td_pos
     | PTE_FcnCall fcn ->
        let template = match fcn.ptfc_template with
          | None -> []
@@ -539,7 +540,8 @@ let rec pos_of_astexpr = function
   | ExprStaticArray (pos, _)
   | ExprType (pos, _)
   | ExprTypeString (pos, _)
-  | ExprNil pos ->
+  | ExprNil pos
+  | ExprWildcard pos ->
      pos
   | ExprBinary { op_left = operand } ->
      pos_of_astexpr operand
@@ -582,6 +584,7 @@ let visit_expr f =
     | ExprType _ -> ()
     | ExprTypeString (_, e) -> visit e
     | ExprNil _ -> ()
+    | ExprWildcard _ -> ()
   in
   visit
 
@@ -624,7 +627,7 @@ let rec visit_expr_in_stmt f = function
      begin
        visit_expr f expr;
        List.iter
-         (fun (e, stmts) ->
+         (fun (_, e, stmts) ->
            visit_expr f e;
            List.iter (visit_expr_in_stmt f) stmts)
          cases

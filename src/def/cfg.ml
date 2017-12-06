@@ -42,6 +42,7 @@ type cfg_expr =
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_StaticArray of cfg_expr list
   | Expr_Nil
+  | Expr_Wildcard
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
   | Expr_Val_Ref of string
 
@@ -330,6 +331,7 @@ let resolve_type typemap typename oldtp =
        DefTypeLiteralStruct (List.map v fields, names)
     | DefTypeStaticStruct members ->
        DefTypeStaticStruct (List.map v members)
+    | DefTypeWildcard -> DefTypeWildcard
     | DefTypeLLVMToken -> DefTypeLLVMToken
   in Some (v oldtp)
 
@@ -425,6 +427,8 @@ let rec infer_type_from_expr typemap scope = function
   | ExprTypeString _ -> DefTypePtr (DefTypePrimitive (PrimI8, []), [])
   | ExprNil _ ->
      Report.err_internal __FILE__ __LINE__ "Type of nil?"
+  | ExprWildcard _ ->
+     Report.err_internal __FILE__ __LINE__ "Type of wildcard?"
 
 let global_decls decltable typemap = function
   | DeclFcn (pos, vis, name, tp)
@@ -500,7 +504,7 @@ let rec make_size_expr typemap p = function
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
 let rec maybe_cast typemap orig cast_as expr =
-  if orig = cast_as then expr
+  if orig = cast_as || orig = DefTypeWildcard then expr
   else match cast_as with
   | DefTypeNamedStruct nm ->
      begin match the (lookup_symbol typemap nm) with
@@ -607,6 +611,8 @@ let binary_reconcile typemap =
          if s1 = s2 then DefTypeNamedStruct s1
          else Report.err_not_same_type pos (operator2string op)
            (string_of_type ltype) (string_of_type rtype)
+      | DefTypeWildcard, t2 -> t2
+      | t1, DefTypeWildcard -> t1
       | _ -> failwith "FIXME: more_general_of incomplete."
     in
     tp_cmp (ltype, rtype)
@@ -758,6 +764,8 @@ let build_fcn_call scope typemap pos name args =
      | DefTypeLiteralStruct _
      | DefTypeStaticStruct _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call a struct."
+     | DefTypeWildcard ->
+        Report.err_internal __FILE__ __LINE__ "Tried to call a wildcard."
      | DefTypeLLVMToken ->
         Report.err_internal __FILE__ __LINE__
                             "Tried to call an LLVM Token."
@@ -933,6 +941,7 @@ let convert_expr typemap scope =
        DefTypePtr (DefTypePrimitive (PrimI8, []), []),
        Expr_String (nm, string_of_type expr_tp)
     | ExprNil _ -> DefTypeNullPtr, Expr_Nil
+    | ExprWildcard _ -> DefTypeWildcard, Expr_Wildcard
     | e ->
        Report.err_internal __FILE__ __LINE__
                            ("Cfg.convert_expr not fully implemented.\n"
@@ -1399,6 +1408,7 @@ let rec build_bbs name decltable typemap body =
             let fail = make_sequential_bb ("fail_" ^ (label_of_pos pos)) [] in
             let cond = generate_conditional ("while_" ^ (label_of_pos pos))
               pos cexpr succ_bb fail in
+            (* FIXME: Are the next two lines redundant? *)
             let () = add_next cond succ_bb in
             let () = add_next cond fail in
             cond, fail
@@ -1425,8 +1435,63 @@ let rec build_bbs name decltable typemap body =
          let () = add_next body_end cond_bb in
          let () = add_next succ_bb body_begin in
          process_bb scope decls fail_bb cont_bb sync_label rest
-    | SwitchStmt _ :: _ ->
-       Report.err_internal __FILE__ __LINE__ "Switch statement."
+    | SwitchStmt (pos, expr, cases) :: rest ->
+       (* FIXME: Treating this as an if-statement, but it should be special-
+          cased for traditional, C-like switch statements. *)
+       let label = label_of_pos pos in
+       let switch_tp, switch_expr = convert_expr typemap scope expr in
+       let switch_bb = make_sequential_bb ("switch." ^ label)
+                                          [pos, switch_expr] in
+       let exit_bb = make_sequential_bb ("switch_exit." ^ label) [] in
+       let make_case (decls, last_bb, fallthrough_bb)
+                     (case_pos, case_expr, stmts) =
+         let case_label = "case." ^ (label_of_pos case_pos) in
+         let case_tp, case_conv = convert_expr typemap scope case_expr in
+         let _, reconciled_tp, left, right =
+           binary_reconcile typemap case_pos OperEquals
+                            (switch_tp, switch_expr)
+                            (case_tp, case_conv)
+         in
+         let case_cmp = Expr_Binary (OperEquals,
+                                     false,
+                                     reconciled_tp,
+                                     left,
+                                     right)
+         in
+         let succ_bb = make_sequential_bb (case_label ^ ".succ") [] in
+         let fail_bb = make_sequential_bb (case_label ^ ".fail") [] in
+         let cond_bb = generate_conditional case_label case_pos case_cmp
+                                            succ_bb fail_bb
+         in
+         let decls, case_end =
+           process_bb (push_symtab_scope scope) decls succ_bb
+                      (Some exit_bb) sync_label stmts
+         in
+         begin
+           add_next last_bb cond_bb;
+           if fallthrough_bb <> None then
+             add_next (Util.the fallthrough_bb) succ_bb;
+           match List.hd (List.rev stmts) with
+           | Return _
+           | ReturnVoid _
+           | Goto _
+           | Break _
+           | Continue _ ->
+              decls, fail_bb, None
+           | _ ->
+              decls, fail_bb, Some case_end
+         end
+       in
+       let decls, last_bb, fallthrough =
+         List.fold_left make_case (decls, switch_bb, None) cases
+       in
+       begin
+         add_next prev_bb switch_bb;
+         add_next last_bb exit_bb;
+         if fallthrough <> None then
+           add_next (Util.the fallthrough) exit_bb;
+         process_bb scope decls exit_bb cont_bb sync_label rest
+       end
     | Return (pos, expr) :: rest ->
        let tp, expr = convert_expr typemap scope expr in
        begin
@@ -1484,6 +1549,7 @@ let rec build_bbs name decltable typemap body =
        let () = add_next prev_bb bb in
        process_bb scope decls bb cont_bb sync_label rest
     | Break pos :: rest ->
+       (* FIXME: Don't think this match works anymore. *)
        begin match cont_bb with
        | None ->
           Report.err_internal __FILE__ __LINE__
@@ -1496,8 +1562,9 @@ let rec build_bbs name decltable typemap body =
           let () = add_next prev_bb bb in
           let () = add_next bb follow_bb in
           process_bb scope decls bb cont_bb sync_label rest
-       | _ ->
-          Report.err_internal __FILE__ __LINE__ "No follow block."
+       | Some bb ->
+          let () = add_next prev_bb bb in
+          decls, prev_bb
        end
     | Continue pos :: rest ->
        begin match cont_bb with
@@ -1704,8 +1771,8 @@ let resolve_builtins stmts typemap =
     | WhileLoop (p, pre, cond, stmts) ->
        WhileLoop (p, pre, process_expr cond, List.map process_stmt stmts)
     | SwitchStmt (p, expr, cases) ->
-       let process_case (ctor, stmts) =
-         process_expr ctor, List.map process_stmt stmts
+       let process_case (pos, ctor, stmts) =
+         pos, process_expr ctor, List.map process_stmt stmts
        in
        SwitchStmt (p, process_expr expr, List.map process_case cases)
     | Return (p, e) -> Return (p, process_expr e)

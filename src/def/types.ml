@@ -47,6 +47,7 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
+  | DefTypeWildcard
   | DefTypeLLVMToken
 
 type primitive_kind =
@@ -123,6 +124,8 @@ let compare t1 t2 =
   | DefTypePrimitive (p1, _), DefTypePrimitive (p2, _) ->
      (* FIXME: Need to resolve qualifiers (volatile, const, etc.). *)
      compare_primitives p1 p2
+  | DefTypeWildcard, _
+  | _, DefTypeWildcard -> 0
   | _ -> failwith "Types.compare not fully implemented."
 
 (** name, type, llvm type constructor, C type *)
@@ -239,6 +242,8 @@ let rec size_of typemap = function
      (* FIXME: Take aligment into account. *)
      List.fold_left (fun accum t -> accum + (size_of typemap t))
        0 members
+  | DefTypeWildcard ->
+     Report.err_internal __FILE__ __LINE__ "Can't get the size of a wildcard."
   | DefTypeLLVMToken ->
      Report.err_internal __FILE__ __LINE__ "Shouldn't need size of LLVM token."
 
@@ -260,6 +265,7 @@ let rec string_of_type = function
      "<static>{ "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
+  | DefTypeWildcard -> "_"
   | _ -> "other"
 
 (** Return true iff the type is volatile. *)
@@ -299,6 +305,8 @@ let most_general_type pos typemap =
       with _ -> generalizing_error ()
     in
     match t1, t2 with
+    | DefTypeWildcard, _ -> t2
+    | _, DefTypeWildcard -> t1
     | DefTypeUnresolved _, _ -> t2
     | _, DefTypeUnresolved _ -> t1
     | DefTypeVoid, _

@@ -25,6 +25,7 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
+  | DefTypeWildcard
   | DefTypeLLVMToken
 
 (** Return whether the given integer type is signed. *)

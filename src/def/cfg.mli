@@ -14,6 +14,7 @@ type cfg_expr =
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_StaticArray of cfg_expr list
   | Expr_Nil
+  | Expr_Wildcard
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
   | Expr_Val_Ref of string
 

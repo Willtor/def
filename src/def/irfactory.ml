@@ -32,7 +32,7 @@ type llvm_data =
     prog : program;
     fattrs : llattribute list;
     zero_i32 : llvalue;
-    one_i8 : llvalue;
+    one_i8  : llvalue;
     one_i16 : llvalue;
     one_i32 : llvalue;
     one_i64 : llvalue;
@@ -231,6 +231,7 @@ let process_expr data llvals varmap pos_n_expr =
         let _ = build_store res left_addr bldr in
         res
     in
+    let is_wildcard v = if v = Expr_Wildcard then true else false in
 
     let integer_math = (is_integer_type tp) || (is_pointer_type tp) in
     match op, integer_math with
@@ -255,8 +256,12 @@ let process_expr data llvals varmap pos_n_expr =
     | OperGT, false -> standard_op (build_fcmp Fcmp.Ogt) "def_gt_f"
     | OperGTE, true -> standard_op (build_icmp Icmp.Sge) "def_ge"
     | OperGTE, false -> standard_op (build_fcmp Fcmp.Oge) "def_ge_f"
-    | OperEquals, true -> standard_op (build_icmp Icmp.Eq) "def_eq"
-    | OperEquals, false -> standard_op (build_fcmp Fcmp.Oeq) "def_eq_f"
+    | OperEquals, true ->
+       if is_wildcard left || is_wildcard right then data.one_i8
+       else standard_op (build_icmp Icmp.Eq) "def_eq"
+    | OperEquals, false ->
+       if is_wildcard left || is_wildcard right then data.one_i8
+       else standard_op (build_fcmp Fcmp.Oeq) "def_eq_f"
     | OperNEquals, true -> standard_op (build_icmp Icmp.Ne) "def_neq"
     | OperNEquals, false -> standard_op (build_fcmp Fcmp.One) "def_neq_f"
     | OperBitwiseAnd, true -> standard_op build_and "def_band"
@@ -604,6 +609,8 @@ let process_expr data llvals varmap pos_n_expr =
        Util.the (lookup_symbol llvals str)
     | Expr_StaticArray _ ->
        Report.err_internal __FILE__ __LINE__ "static array."
+    | Expr_Wildcard ->
+       Report.err_internal __FILE__ __LINE__ "wildcard."
   in
   let _, expr = pos_n_expr in
   expr_gen true expr

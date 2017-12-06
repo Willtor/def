@@ -95,7 +95,7 @@ let kill_dead_code =
          let stmt = WhileLoop (pos, precheck, cond, proc [] body)
          in proc (stmt :: accum) rest
       | SwitchStmt (pos, expr, cases) :: rest ->
-         let f (ctor, stmts) = ctor, proc [] stmts in
+         let f (cpos, ctor, stmts) = cpos, ctor, proc [] stmts in
          let stmt = SwitchStmt (pos, expr, List.map f cases) in
          proc (stmt :: accum) rest
       | TypeDecl _ as stmt :: rest ->
@@ -149,7 +149,7 @@ let return_all_paths =
          if contains_return body then true
          else contains_return rest
       | SwitchStmt (_, _, cases) :: rest ->
-         let do_case res (_, stmts) =
+         let do_case res (_, _, stmts) =
            if true = res then true
            else contains_return stmts
          in
