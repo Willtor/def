@@ -1,0 +1,36 @@
+// Unit test for simple switch statements.
+
+decl printf (*char, ...) -> i32;
+
+def simple_switch (n i32) -> void
+begin
+    switch n with
+    case 0:
+        printf("Zero.\n");
+        break;
+    case 1:
+        printf("One.\n");
+        break;
+    case 2:
+        printf("2a.\n");
+    case 3:
+        printf("2b/3.\n");
+        break;
+    case _:
+        printf("The rest.\n");
+        break;
+    esac
+end
+
+export
+def main () -> i32
+begin
+    simple_switch(0);
+    simple_switch(1);
+    simple_switch(2);
+    simple_switch(3);
+    simple_switch(4);
+
+    printf("done.\n");
+    return 0;
+end
