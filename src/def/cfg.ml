@@ -1456,26 +1456,23 @@ let rec build_bbs name decltable typemap body =
        let wildcard_match pos switch_expr case_expr =
          let rec wildcards = function
            | _, (_, Expr_Wildcard) -> Expr_Literal (LitBool true)
-           | (ltype, lexpr) as left,
-             ((rtype, Expr_StaticStruct (_, rmembers)) as right) ->
-              if not (contains_wildcard rtype) then
-                reconcile pos left right
-              else
-                let mtypes = get_member_types ltype in
-                let vtypes, vexprs = List.split rmembers in
-                let equals =
-                  List.mapi
-                    (fun n (mtype, vtype, vexpr) ->
-                      let member = Expr_SelectField (lexpr, n, false) in
-                      wildcards ((mtype, member), (vtype, vexpr)))
-                    (combine3 mtypes vtypes vexprs)
-                in
-                List.fold_left
-                  (fun accum expr ->
-                    Expr_Binary (OperLogicalAnd, false,
-                                 DefTypePrimitive (PrimBool, []),
-                                 accum, expr))
-                  (List.hd equals) (List.tl equals)
+           | (ltype, lexpr),
+             (rtype, Expr_StaticStruct (_, rmembers)) ->
+              let mtypes = get_member_types ltype in
+              let vtypes, vexprs = List.split rmembers in
+              let equals =
+                List.mapi
+                  (fun n (mtype, vtype, vexpr) ->
+                    let member = Expr_SelectField (lexpr, n, false) in
+                    wildcards ((mtype, member), (vtype, vexpr)))
+                  (combine3 mtypes vtypes vexprs)
+              in
+              List.fold_left
+                (fun accum expr ->
+                  Expr_Binary (OperLogicalAnd, false,
+                               DefTypePrimitive (PrimBool, []),
+                               accum, expr))
+                (List.hd equals) (List.tl equals)
            | (ltype, lexpr), (rtype, rexpr) ->
               reconcile pos (ltype, lexpr) (rtype, rexpr)
          in
