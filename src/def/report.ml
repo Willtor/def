@@ -164,12 +164,6 @@ let err_called_non_fcn use_pos decl_pos name =
     ^ (show_source decl_pos)
   in fatal_error err
 
-(** An operator was used on objects of incompatible types. *)
-let err_not_same_type pos op ltype rtype =
-  err_pos ("Operator " ^ op ^ " applied to different types: "
-           ^ ltype ^ " and " ^ rtype)
-          pos
-
 (** Declared a new variable with the same name as another one in the same
     scope. *)
 let err_redeclared_variable pos orig_pos var =

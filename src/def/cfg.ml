@@ -115,6 +115,16 @@ type program =
     deftypemap : Types.deftype Util.symtab
   }
 
+let combine3 a b c =
+  let rec combine accum = function
+    | [], [], [] -> List.rev accum
+    | a1 :: arest, b1 :: brest, c1 :: crest ->
+       combine ((a1, b1, c1) :: accum) (arest, brest, crest)
+    | _ ->
+       Report.err_internal __FILE__ __LINE__ "Inconsistent list lengths"
+  in
+  combine [] (a, b, c)
+
 (* FIXME: Fill out the list of regular expressions. *)
 let re_set = [(regexp "\\\\n", "\n")   (* newline *)
              ]
@@ -597,31 +607,11 @@ let check_castability pos typemap ltype rtype =
 (** Reconcile the types of two subexpressions connected by a binary operator
     and return the result.  The result may include implicit casts. *)
 let binary_reconcile typemap =
-  let more_general_of pos op ltype rtype =
-    let rec tp_cmp = function
-      | (DefTypePrimitive (lprim, _), DefTypePrimitive (rprim, _)) ->
-         (* FIXME: qualifiers. *)
-         DefTypePrimitive (generalize_primitives lprim rprim, [])
-      | (DefTypeNullPtr, DefTypePtr (p, _))
-      | (DefTypePtr (p, _), DefTypeNullPtr) ->
-         DefTypePtr (p, []) (* FIXME: qualifiers. *)
-      | (DefTypePtr (p, _), DefTypePtr (q, _)) ->
-         DefTypePtr (tp_cmp (p, q), []) (* FIXME: qualifiers. *)
-      | (DefTypeNamedStruct s1, DefTypeNamedStruct s2) ->
-         if s1 = s2 then DefTypeNamedStruct s1
-         else Report.err_not_same_type pos (operator2string op)
-           (string_of_type ltype) (string_of_type rtype)
-      | DefTypeWildcard, t2 -> t2
-      | t1, DefTypeWildcard -> t1
-      | _ -> failwith "FIXME: more_general_of incomplete."
-    in
-    tp_cmp (ltype, rtype)
-  in
   let reconcile pos op (ltype, lexpr) (rtype, rexpr) =
     match op with
     | OperPlus | OperMinus | OperMult | OperDiv
     | OperLShift | OperRShift ->
-       let tp = more_general_of pos op ltype rtype in
+       let tp = most_general_type pos typemap [ltype; rtype] in
        tp, tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
@@ -630,20 +620,20 @@ let binary_reconcile typemap =
          Report.err_modulo_on_non_integer
            pos (string_of_type ltype) (string_of_type rtype)
        else
-         let tp = more_general_of pos op ltype rtype in
+         let tp = most_general_type pos typemap [ltype; rtype] in
          tp, tp,
          (maybe_cast typemap ltype tp lexpr),
          (maybe_cast typemap rtype tp rexpr)
     | OperLT | OperLTE
     | OperGT | OperGTE
     | OperEquals | OperNEquals ->
-       let tp = more_general_of pos op ltype rtype in
+       let tp = most_general_type pos typemap [ltype; rtype] in
        DefTypePrimitive (PrimBool, []),
        tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
     | OperBitwiseAnd | OperBitwiseOr ->
-       let tp = more_general_of pos op ltype rtype in
+       let tp = most_general_type pos typemap [ltype; rtype] in
        tp,
        tp,
        maybe_cast typemap ltype tp lexpr,
@@ -1440,23 +1430,65 @@ let rec build_bbs name decltable typemap body =
           cased for traditional, C-like switch statements. *)
        let label = label_of_pos pos in
        let switch_tp, switch_expr = convert_expr typemap scope expr in
+       let switch_var_nm = "switch_var." ^ (Util.unique_id ()) in
+       let switch_decl = make_decl pos scope switch_var_nm switch_tp in
+       let decls = (switch_var_nm, switch_decl) :: decls in
+       let switch_assign = Expr_Binary (OperAssign, false, switch_tp,
+                                        Expr_Variable (switch_var_nm),
+                                        switch_expr) in
+       let switch_var = Expr_Variable switch_var_nm in
        let switch_bb = make_sequential_bb ("switch." ^ label)
-                                          [pos, switch_expr] in
+                                          [pos, switch_assign] in
        let exit_bb = make_sequential_bb ("switch_exit." ^ label) [] in
+       let reconcile pos l r =
+         let _, reconciled_tp, left, right =
+           binary_reconcile typemap pos OperEquals l r
+         in
+         Expr_Binary (OperEquals, false, reconciled_tp, left, right)
+       in
+       let rec get_member_types = function
+         | DefTypeNamedStruct nm ->
+            get_member_types (Util.the @@ lookup_symbol typemap nm)
+         | DefTypeLiteralStruct (mtypes, _) -> mtypes
+         | DefTypeStaticStruct mtypes -> mtypes
+         | _ -> Report.err_internal __FILE__ __LINE__ "No members"
+       in
+       let wildcard_match pos switch_expr case_expr =
+         let rec wildcards = function
+           | _, (_, Expr_Wildcard) -> Expr_Literal (LitBool true)
+           | (ltype, lexpr) as left,
+             ((rtype, Expr_StaticStruct (_, rmembers)) as right) ->
+              if not (contains_wildcard rtype) then
+                reconcile pos left right
+              else
+                let mtypes = get_member_types ltype in
+                let vtypes, vexprs = List.split rmembers in
+                let equals =
+                  List.mapi
+                    (fun n (mtype, vtype, vexpr) ->
+                      let member = Expr_SelectField (lexpr, n, false) in
+                      wildcards ((mtype, member), (vtype, vexpr)))
+                    (combine3 mtypes vtypes vexprs)
+                in
+                List.fold_left
+                  (fun accum expr ->
+                    Expr_Binary (OperLogicalAnd, false,
+                                 DefTypePrimitive (PrimBool, []),
+                                 accum, expr))
+                  (List.hd equals) (List.tl equals)
+           | (ltype, lexpr), (rtype, rexpr) ->
+              reconcile pos (ltype, lexpr) (rtype, rexpr)
+         in
+         wildcards (switch_expr, case_expr)
+       in
+
        let make_case (decls, last_bb, fallthrough_bb)
                      (case_pos, case_expr, stmts) =
          let case_label = "case." ^ (label_of_pos case_pos) in
          let case_tp, case_conv = convert_expr typemap scope case_expr in
-         let _, reconciled_tp, left, right =
-           binary_reconcile typemap case_pos OperEquals
-                            (switch_tp, switch_expr)
-                            (case_tp, case_conv)
-         in
-         let case_cmp = Expr_Binary (OperEquals,
-                                     false,
-                                     reconciled_tp,
-                                     left,
-                                     right)
+         let case_cmp = wildcard_match case_pos
+                                       (switch_tp, switch_var)
+                                       (case_tp, case_conv)
          in
          let succ_bb = make_sequential_bb (case_label ^ ".succ") [] in
          let fail_bb = make_sequential_bb (case_label ^ ".fail") [] in
@@ -1600,6 +1632,44 @@ let rec build_bbs name decltable typemap body =
        block.seq_next <- next
     | _ -> ()
   in
+(*
+  let fixup_wildcards _ =
+    let dewild (pos, expr) =
+      let rec contains_wildcard = function
+        | Expr_Wildcard -> true
+        | Expr_Cast (_, _, e) -> contains_wildcard e
+        | Expr_StaticStruct (_, members) ->
+           begin try List.find (fun (_, e) -> contains_wildcard e) members
+                 with _ -> false
+           end
+        | _ -> false
+      let rec search = function
+        | Expr_Binary (op, is_atomic, tp, left, right) ->
+           if op = OperEquals then
+             if contains_wildcard left || contains_wildcard right then
+
+
+
+             else
+               Expr_Binary (op, is_atomic, tp, left, right)
+           else
+             Expr_Binary (op, is_atomic, tp, search left, search right)
+        | Expr_Unary (op, tp, e, pre) ->
+           Expr_Unary (op, tp, search e, pre)
+        | e -> e
+      in
+      pos, search expr
+    in
+    let fixup = function
+      | BB_Seq (_, block) ->
+         block.seq_expr := List.map dewild_expr block.seq_expr
+      | BB_Cond (_, block) ->
+         block.cond_branch := dewild_expr block.cond_branch
+      | _ -> ()
+    in
+    fixup
+  in
+ *)
   let entry_bb = make_sequential_bb "entry" [] in
   let decls, bb = process_bb fcnscope [] entry_bb None "bodysync" body in
   let bb_table = Hashtbl.create 32 in
@@ -1613,6 +1683,7 @@ let rec build_bbs name decltable typemap body =
     entry_bb
   in
   let () = visit_df (replace_gotos bb_table) false () entry_bb in
+  (*let () = Hashtbl.iter fixup_wildcards bb_table in *)
   unique_regions (), List.rev decls, entry_bb
 
 let verify_cfg name =

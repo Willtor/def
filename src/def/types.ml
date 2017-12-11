@@ -295,13 +295,8 @@ let most_general_type pos typemap =
     let generalizing_error () =
       Report.err_generalizing_types pos (string_of_type t1) (string_of_type t2)
     in
-    let reconcile_member_types rtype tplist1 tplist2 =
-      try
-        let r = List.fold_left2 (fun accum t1 t2 -> accum && t1 = t2)
-                                true tplist1 tplist2
-        in
-        if r then rtype
-        else generalizing_error ()
+    let reconcile_member_types tplist1 tplist2 =
+      try List.map2 generalize tplist1 tplist2
       with _ -> generalizing_error ()
     in
     match t1, t2 with
@@ -361,7 +356,8 @@ let most_general_type pos typemap =
     | DefTypeStaticStruct tplist1, DefTypeNamedStruct s ->
        begin match get_literal_struct s with
        | DefTypeLiteralStruct (tplist2, _) ->
-          reconcile_member_types (DefTypeNamedStruct s) tplist1 tplist2
+          let _ = reconcile_member_types tplist1 tplist2 in
+          DefTypeNamedStruct s
        | _ ->
           Report.err_internal __FILE__ __LINE__
                               "Named struct was actually not a struct."
@@ -369,17 +365,20 @@ let most_general_type pos typemap =
     | DefTypeNamedStruct _, _
     | _, DefTypeNamedStruct _ ->
        generalizing_error ()
-    | DefTypeLiteralStruct (tplist1, _), DefTypeLiteralStruct (tplist2, _) ->
-       reconcile_member_types t1 tplist1 tplist2
+    | DefTypeLiteralStruct _, DefTypeLiteralStruct _ ->
+       if t1 = t2 then t1
+       else generalizing_error ()
     | DefTypeLiteralStruct (tplist1, _), DefTypeStaticStruct tplist2 ->
-       reconcile_member_types t1 tplist1 tplist2
+       let reconciled = reconcile_member_types tplist1 tplist2 in
+       DefTypeStaticStruct reconciled
     | DefTypeStaticStruct tplist1, DefTypeLiteralStruct (tplist2, _) ->
-       reconcile_member_types t2 tplist1 tplist2
+       let reconciled = reconcile_member_types tplist1 tplist2 in
+       DefTypeStaticStruct reconciled
     | DefTypeLiteralStruct _, _
     | _, DefTypeLiteralStruct _ ->
        generalizing_error ()
     | DefTypeStaticStruct tplist1, DefTypeStaticStruct tplist2 ->
-       reconcile_member_types t1 tplist1 tplist2
+       DefTypeStaticStruct (reconcile_member_types tplist1 tplist2)
     | DefTypeStaticStruct _, _
     | _, DefTypeStaticStruct _ ->
        generalizing_error ()
@@ -394,3 +393,10 @@ let most_general_type pos typemap =
        most_general ((generalize t1 t2) :: rest)
   in
   most_general
+
+(** Return true iff the given type contains a wildcard. *)
+let rec contains_wildcard = function
+  | DefTypeWildcard -> true
+  | DefTypeLiteralStruct (tps, _)
+  | DefTypeStaticStruct tps -> List.exists contains_wildcard tps
+  | _ -> false

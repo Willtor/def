@@ -69,3 +69,6 @@ val dt_is_volatile : deftype -> bool
 (** Return the most general of the list of types. *)
 val most_general_type : Lexing.position -> deftype Util.symtab
                         -> deftype list -> deftype
+
+(** Return true iff the given type contains a wildcard. *)
+val contains_wildcard : deftype -> bool
