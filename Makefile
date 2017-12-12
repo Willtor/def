@@ -68,12 +68,15 @@ DEFGHI_SRC = $(addprefix $(DEFGHI_BUILD_DIR)/,$(DEFGHIFILES))
 
 all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF) $(BINDIR)/$(DEFGHI)
 
-install: $(INSTALL_DIR)/bin/$(DEF)
+install: $(INSTALL_DIR)/bin/$(DEF) $(INSTALL_DIR)/bin/$(DEFGHI)
 
 $(INSTALL_DIR)/bin/$(DEF): $(BINDIR)/$(DEF)
 	cp $< $(INSTALL_DIR)/bin/`bash version_info.sh patch`
 	ln -f -s `bash version_info.sh patch` $(INSTALL_DIR)/bin/`bash version_info.sh minor`
 	ln -f -s `bash version_info.sh minor` $@
+
+$(INSTALL_DIR)/bin/$(DEFGHI): $(BINDIR)/$(DEFGHI)
+	cp $< $@
 
 $(BUILDDIR):
 	mkdir -p $@
