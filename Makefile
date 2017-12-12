@@ -4,6 +4,7 @@ COMMON_BUILD_DIR = $(BUILDDIR)/common
 DEF_BUILD_DIR = $(BUILDDIR)/def
 DEFGHI_BUILD_DIR = $(BUILDDIR)/defghi
 BINDIR = $(BUILDDIR)/bin
+TESTDIR = tests
 
 DEF = def
 DEFGHI = defghi
@@ -69,6 +70,12 @@ DEFGHI_SRC = $(addprefix $(DEFGHI_BUILD_DIR)/,$(DEFGHIFILES))
 all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF) $(BINDIR)/$(DEFGHI)
 
 install: $(INSTALL_DIR)/bin/$(DEF) $(INSTALL_DIR)/bin/$(DEFGHI)
+
+test: $(BUILDDIR)/bin/$(DEF)
+	make -C $(TESTDIR)
+
+testclean:
+	make -C $(TESTDIR) clean
 
 $(INSTALL_DIR)/bin/$(DEF): $(BINDIR)/$(DEF)
 	cp $< $(INSTALL_DIR)/bin/`bash version_info.sh patch`
