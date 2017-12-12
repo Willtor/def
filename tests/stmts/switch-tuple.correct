@@ -1,0 +1,27 @@
+i = 0
+  Zero, zero.
+i = 1
+  Sadly, no zeroes.
+i = 2
+  Sadly, no zeroes.
+i = 3
+  Zero, wildcard.
+i = 4
+  Wildcard, zero.
+i = 5
+  Sadly, no zeroes.
+i = 6
+  Zero, wildcard.
+i = 7
+  Sadly, no zeroes.
+i = 8
+  Wildcard, zero.
+i = 9
+  Zero, wildcard.
+i = 10
+  Sadly, no zeroes.
+i = 11
+  Sadly, no zeroes.
+i = 12
+  Zero, zero.
+done.

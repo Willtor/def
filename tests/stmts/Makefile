@@ -1,6 +1,7 @@
 include ../common.mk
 
-UNIT = type-inference for-generic while-generic global_vars static-array switch-basic
+UNIT = type-inference for-generic while-generic global_vars static-array switch-basic \
+	switch-tuple
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 
