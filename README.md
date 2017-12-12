@@ -32,14 +32,14 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 
 ### Compiler Binary
 
-Build the `def` compiler binary with:
+Build the `def` compiler binary and `defghi` utility with:
 
 ```
 % make
 % sudo make install
 ```
 
-If you choose not to install it, the built binary is in the repo at `build/bin/def`.
+If you choose not to install it, the built binaries are in the repo at `build/bin/`.
 
 ## Contributions
 
