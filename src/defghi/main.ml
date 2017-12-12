@@ -23,8 +23,30 @@ open Defparse
 open Header
 open Error
 open Lexing
+open Version
 
 type output = OUT_DEFI | OUT_C_HEADER
+
+let support_email = "willtor@mit.edu"
+
+let version_string =
+  (string_of_int version_maj)
+  ^ "." ^ (string_of_int version_min)
+  ^ "." ^ (string_of_int version_patch)
+  ^ version_suffix
+
+let print_version () =
+  print_endline
+    ("defghi version " ^ version_string
+     ^ " (build #" ^ version_build
+     ^ " on " ^ build_date ^ ")");
+  print_endline "Copyright (C) 2017 DEF Authors.";
+  print_endline "This is free software; see the source for copying conditions.  There is NO";
+  print_endline "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+
+let version_helper = function
+  | `Version -> (print_version (); `Version)
+  | a -> a
 
 let syntax_error pos = err_pos "Syntax error:" pos
 
@@ -89,10 +111,11 @@ let cmd =
           the routine grammar checking necessary to generate output files, but
           does not guarantee that your code can be compiled.";
       `S Manpage.s_bugs;
-      `P "Bound to be some.  Report bugs to <willtor@mit.edu>."
+      `P ("Bound to be some.  Report bugs to <" ^ support_email ^ ">.")
     ]
   in
+  let version = "v" ^ version_string in
   Term.(const defghi $ output_kind $ files),
-  Term.info "defghi" ~version:"v-tbd" ~doc ~exits:Term.default_exits ~man
+  Term.info "defghi" ~version ~doc ~exits:Term.default_exits ~man
 
-let () = Term.(exit @@ eval cmd)
+let () = Term.(exit @@ version_helper @@ eval cmd)
