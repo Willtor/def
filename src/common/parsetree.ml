@@ -51,6 +51,10 @@ type pt_stmt =
       tokendata * tokendata
       * (tokendata * pt_type) list
       * tokendata * tokendata * pt_expr * tokendata
+  | PTS_VarInlineStructInferred of
+      tokendata * tokendata
+      * tokendata list
+      * tokendata * tokendata * pt_expr * tokendata
   | PTS_DeleteExpr of tokendata * pt_expr * tokendata
   | PTS_RetireExpr of tokendata * pt_expr * tokendata
   | PTS_XBegin of tokendata * tokendata

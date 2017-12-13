@@ -234,6 +234,13 @@ let can_escape_forward labelmap stmts =
 let typeof_literal lit =
   DefTypePrimitive (literal2primitive lit, [])
 
+let rec get_field_types typemap = function
+  | DefTypeNamedStruct nm ->
+     get_field_types typemap (Util.the @@ lookup_symbol typemap nm)
+  | DefTypeLiteralStruct (types, _) -> types
+  | DefTypeStaticStruct types -> types
+  | _ -> Report.err_internal __FILE__ __LINE__ "Unable to get field types."
+
 let rec convert_type defining_p array2ptr typemap = function
   | VarType (pos, name, qlist) ->
      (* FIXME: qualifiers need to be addressed for all types. *)
@@ -880,7 +887,7 @@ let convert_expr typemap scope =
          | DefTypeLiteralStruct (mtypes, fields) ->
             let id = match field with
             | FieldNumber n ->
-               if n >= (List.length fields) then
+               if n >= (List.length mtypes) then
                  Report.err_struct_not_enough_fields fpos n
                else n
             | FieldName fieldname ->
@@ -1227,49 +1234,48 @@ let rec build_bbs name decltable typemap body =
        let decls, bb = List.fold_left initialize (decls, prev_bb) inits in
        process_bb scope decls bb cont_bb sync_label rest
     | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
-       let idecls = List.fold_left
-         (fun accum (pos, nm, tp) ->
-           let decl =
-             make_decl pos scope nm (convert_type false false typemap tp)
-           in
-           let () = add_symbol scope nm decl in
-           (nm, decl) :: accum)
-         decls
-         vars
+       let temp_struct_nm = "inline_struct." ^ (unique_id ()) in
+       let target_tp = infer_type_from_expr typemap scope expr in
+       let target_struct = make_decl p scope temp_struct_nm target_tp
        in
-       let target_tp = convert_type false false typemap (StructType vars) in
-       let target_struct = make_decl p scope "def_inline_struct" target_tp
-       in
-       let () = add_symbol scope "def_inline_struct" target_struct in
+       let () = add_symbol scope temp_struct_nm target_struct in
        let _, cexpr = convert_expr typemap scope
          (ExprBinary { op_pos = epos;
                        op_op = OperAssign;
-                       op_left = ExprVar (p, "def_inline_struct");
+                       op_left = ExprVar (p, temp_struct_nm);
                        op_right = Some expr;
                        op_atomic = false
                      })
        in
-       let assignments = List.mapi
-         (fun n (pos, nm, _) ->
-           let rhs = ExprSelectField (pos, pos,
-                                      ExprVar (pos, "def_inline_struct"),
-                                      FieldNumber n) in
-           let _, cexpr = convert_expr typemap scope
-             (ExprBinary { op_pos = pos;
-                           op_op = OperAssign;
-                           op_left = ExprVar (pos, nm);
-                           op_right = Some rhs;
-                           op_atomic = false
-                         })
-           in pos, cexpr)
-         vars
+       let field_types = get_field_types typemap target_tp in
+       let var_init n (pos, nm, tp) =
+         let field_type = List.nth field_types n in
+         let vartp = match tp with
+           | InferredType -> field_type
+           | _ -> convert_type false false typemap tp
+         in
+         let decl = make_decl pos scope nm vartp in
+         let () = add_symbol scope nm decl in
+         let rhs = ExprSelectField (pos, pos,
+                                    ExprVar (pos, temp_struct_nm),
+                                    FieldNumber n) in
+         let _, cexpr =
+           convert_expr typemap scope
+                        (ExprBinary { op_pos = pos;
+                                      op_op = OperAssign;
+                                      op_left = ExprVar (pos, nm);
+                                      op_right = Some rhs;
+                                      op_atomic = false
+                        })
+         in
+         (nm, decl), (pos, cexpr)
        in
+       let idecls, inits = List.split @@ List.mapi var_init vars in
        let bb =
-         make_sequential_bb (label_of_pos p) ((p, cexpr) :: assignments) in
+         make_sequential_bb (label_of_pos p) ((p, cexpr) :: inits) in
        let () = add_next prev_bb bb in
-       process_bb scope
-         (("def_inline_struct", target_struct) :: idecls) bb cont_bb
-         sync_label rest
+       let idecls = (temp_struct_nm, target_struct) :: idecls in
+       process_bb scope (idecls @ decls) bb cont_bb sync_label rest
     | XBegin pos :: rest ->
        let _, f = build_fcn_call scope typemap pos "llvm.x86.xbegin" [] in
        let e = Expr_Binary (OperEquals, false,

@@ -101,6 +101,9 @@ statement:
 | VAR LCURLY separated_nonempty_list(COMMA, variabledecl) RCURLY
     EQUALS expr SEMICOLON
     { PTS_VarInlineStruct ($1, $2, $3, $4, $5, $6, $7) }
+| VAR LCURLY separated_nonempty_list(COMMA, IDENT) RCURLY
+    EQUALS expr SEMICOLON
+    { PTS_VarInlineStructInferred ($1, $2, $3, $4, $5, $6, $7) }
 | DELETE expr SEMICOLON { PTS_DeleteExpr ($1, $2, $3) }
 | RETIRE expr SEMICOLON { PTS_RetireExpr ($1, $2, $3) }
 | XBEGIN SEMICOLON { PTS_XBegin ($1, $2) }

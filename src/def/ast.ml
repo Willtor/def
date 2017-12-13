@@ -288,6 +288,11 @@ let of_parsetree =
          List.map (fun (id, tp) -> id.td_pos, id.td_text, type_of tp) vlist
        in
        InlineStructVarDecl (var.td_pos, cvlist, (pt_expr_pos e, expr_of e))
+    | PTS_VarInlineStructInferred (var, _, vlist, _, _, e, _) ->
+       let cvlist =
+         List.map (fun id -> id.td_pos, id.td_text, InferredType) vlist
+       in
+       InlineStructVarDecl (var.td_pos, cvlist, (pt_expr_pos e, expr_of e))
     | PTS_DeleteExpr (d, e, _) ->
        let expr = ExprFcnCall { fc_pos = d.td_pos;
                                 fc_name = "forkscan_free";
