@@ -21,6 +21,7 @@ begin
 
     var ni32 = new i32;
     var nfoostruct = new foostruct_t { a: 10, b: 20, c: "hello" };
+    var { struct_i32, struct_f64 } = { 10, 20.0 };
 
     printf("type: %s\n", typestr(ai32));
     printf("type: %s\n", typestr(au64));
@@ -32,6 +33,9 @@ begin
 
     printf("type: %s\n", typestr(ni32));
     printf("type: %s\n", typestr(nfoostruct));
+
+    printf("type: %s\n", typestr(struct_i32));
+    printf("type: %s\n", typestr(struct_f64));
 
     return 0;
 end

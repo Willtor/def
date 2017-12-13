@@ -6,3 +6,5 @@ type: *u64
 type: *{ f64, i32 }
 type: *i32
 type: *struct foostruct_t
+type: i32
+type: f64
