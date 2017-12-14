@@ -36,11 +36,6 @@ open Scrubber
 open Util
 open Version
 
-let filepaths =
-  [ "/usr/include";
-    "/usr/local/include"
-  ]
-
 let tm =
   let triple = Target.default_triple () in
   Llvm_all_backends.initialize ();
@@ -61,7 +56,7 @@ let verify_extension filename =
   | ext -> Report.err_unknown_infile_type filename ext
 
 let findfile file relative_base pos =
-  let paths = relative_base :: filepaths in
+  let paths = relative_base :: !import_dirs in
   let exists_in base = Sys.file_exists (base ^ "/" ^ file) in
   let path =
     try List.find exists_in paths

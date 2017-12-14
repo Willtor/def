@@ -43,7 +43,7 @@ let version_helper = function
   | `Version -> (print_version (); `Version)
   | a -> a
 
-let def compile_depth llvm cgdebug opt output libs files =
+let def compile_depth llvm cgdebug opt output libs import files =
   (* FIXME: Use libs. *)
   if opt < 0 || opt > 3 then
     fatal_error "Specify an optimization level [0-3].  Use --help.";
@@ -54,6 +54,7 @@ let def compile_depth llvm cgdebug opt output libs files =
   if output <> "" then
     output_file := Some output;
   linked_libs := libs;
+  import_dirs := import @ !import_dirs;
   input_files := files;
   try
     Build.pipeline ()
@@ -100,13 +101,15 @@ let cgdebug =
 (* Optimization level. *)
 let opt =
   let doc = "Optimization level [0 = none; 3 = most]." in
-  let optarg = Arg.info ["O"] ~doc in
+  let docv = "LEVEL" in
+  let optarg = Arg.info ["O"] ~doc ~docv in
   Arg.(value & opt int 1 optarg)
 
 (* Output file name. *)
 let output =
   let doc = "Specify an output file name." in
-  let out = Arg.info ["o"] ~doc in
+  let docv = "OUTFILE" in
+  let out = Arg.info ["o"] ~doc ~docv in
   Arg.(value & opt string "" out)
 
 (* Override Cmdliner's default version flag. *)
@@ -120,8 +123,17 @@ let libraries =
   let doc = "Link the specified library.  E.g., if you have libm.so in your
              library path, use -lm to link it."
   in
-  let lib = Arg.info ["l"] ~doc in
+  let docv = "LIBRARY" in
+  let lib = Arg.info ["l"] ~doc ~docv in
   Arg.(value & opt_all string [] lib)
+
+let import_paths =
+  let doc = "Specify a path to directory to be used for searching for files
+             to import."
+  in
+  let docv = "PATH" in
+  let import = Arg.info ["I"] ~doc ~docv in
+  Arg.(value & opt_all string [] import)
 
 let cmd =
   let doc = "compiler for the DEF programming language." in
@@ -137,7 +149,7 @@ let cmd =
   in
   let version = "v" ^ version_string in
   Term.(const def $ compile_depth $ llvm $ cgdebug $ opt $ output
-        $ libraries $ files),
+        $ libraries $ import_paths $ files),
   Term.info "def" ~version ~doc ~exits:Term.default_exits ~man
 
 let () = Term.(exit @@ version_helper @@ eval cmd)

@@ -36,3 +36,8 @@ let comp_depth = ref COMPILE_BINARY
 let compile_llvm = ref false
 
 let codegen_debug = ref false
+
+let import_dirs =
+  ref [ "/usr/lib/def";
+        "/usr/local/lib/def"
+      ]
