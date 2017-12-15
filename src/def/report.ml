@@ -269,3 +269,7 @@ let err_generalizing_types pos t1 t2 =
 (** Invalid cast. *)
 let err_cant_cast pos t1 t2 =
   err_pos ("Can't cast " ^ t1 ^ " to " ^ t2 ^ ".") pos
+
+(** Tried to "break;" out of... nothing. *)
+let err_no_break_scope pos =
+  err_pos "There is no construct that can be broken out of." pos

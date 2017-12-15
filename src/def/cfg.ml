@@ -1590,8 +1590,7 @@ let rec build_bbs name decltable typemap body =
        process_bb scope decls bb cont_bb break_bb sync_label rest
     | Break pos :: rest ->
        begin match break_bb with
-       | None ->
-          Report.err_internal __FILE__ __LINE__ "Need appropriate break error."
+       | None -> Report.err_no_break_scope pos
        | Some bb ->
           let () = add_next prev_bb bb in
           decls, prev_bb
