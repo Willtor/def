@@ -1,0 +1,40 @@
+decl printf (*char, ...) -> i32;
+
+def domatch (array *i32) -> void
+begin
+    switch array with
+    case [0, 0, 0]:
+        printf("three-zero prefix.\n");
+        break;
+    case [0, 0]:
+        printf("two-zero prefix.\n");
+        break;
+    case [0]:
+        printf("one-zero prefix.\n");
+        break;
+    case [_, _, 0]:
+        printf("unknown prefix, but third element is zero.\n");
+        break;
+    case _:
+        printf("no-zero prefix.\n");
+        break;
+    esac
+end
+
+export
+def main () -> i32
+begin
+    var a1 = [0, 0, 0, 3];
+    var a2 = [0, 0, 2, 3];
+    var a3 = [0, 1, 2, 3];
+    var a4 = [1, 1, 0, 3];
+    var a5 = [1, 1, 2, 3];
+
+    domatch(a1);
+    domatch(a2);
+    domatch(a3);
+    domatch(a4);
+    domatch(a5);
+
+    return 0;
+end
