@@ -1464,6 +1464,18 @@ let rec build_bbs name decltable typemap body =
          | DefTypeStaticStruct mtypes -> mtypes
          | _ -> Report.err_internal __FILE__ __LINE__ "No members"
        in
+       let get_array_type = function
+         | DefTypeArray (tp, _) -> tp
+         | _ -> Report.err_internal __FILE__ __LINE__ "Not an array."
+       in
+       let make_ands atoms =
+         List.fold_left
+           (fun accum expr ->
+             Expr_Binary (OperLogicalAnd, false,
+                          DefTypePrimitive (PrimBool, []),
+                          accum, expr))
+           (List.hd atoms) (List.tl atoms)
+       in
        let wildcard_match pos switch_expr case_expr =
          let rec wildcards = function
            | _, (_, Expr_Wildcard) -> Expr_Literal (LitBool true)
@@ -1478,12 +1490,18 @@ let rec build_bbs name decltable typemap body =
                     wildcards ((mtype, member), (vtype, vexpr)))
                   (combine3 mtypes vtypes vexprs)
               in
-              List.fold_left
-                (fun accum expr ->
-                  Expr_Binary (OperLogicalAnd, false,
-                               DefTypePrimitive (PrimBool, []),
-                               accum, expr))
-                (List.hd equals) (List.tl equals)
+              make_ands equals
+           | (ltype, lexpr), (rtype, Expr_StaticArray elements) ->
+              let subtype = get_array_type rtype in
+              let equals =
+                List.mapi
+                  (fun n element ->
+                    let expr_n = Expr_Literal (LitI32 (Int32.of_int n)) in
+                    let el_n = Expr_Index (lexpr, expr_n, subtype, true, false) in
+                    wildcards ((subtype, el_n), (subtype, element)))
+                  elements
+              in
+              make_ands equals
            | (ltype, lexpr), (rtype, rexpr) ->
               reconcile pos (ltype, lexpr) (rtype, rexpr)
          in
