@@ -1111,12 +1111,15 @@ let rec build_bbs name decltable typemap body =
     List.fold_left uniquify [] ordered_regions
   in
 
+  let decls = ref [] in
+  let add_decl name decl = decls := (name, decl) :: !decls in
+
   (* Iterate through the basic blocks and convert them to the CFG structure
      along with all of the contained expressions.  This function will leave
      temporary placeholders, like BB_Goto and BB_Error, so the CFG needs
      cleanup. *)
-  let rec process_bb scope decls prev_bb cont_bb break_bb sync_label = function
-    | [] -> decls, prev_bb
+  let rec process_bb scope prev_bb cont_bb break_bb sync_label = function
+    | [] -> prev_bb
     | StmtExpr (pos, expr) :: rest ->
        let label = label_of_pos pos in
        let make_spawn nm lhs args =
@@ -1196,12 +1199,12 @@ let rec build_bbs name decltable typemap body =
             bb, bb
        in
        let () = add_next prev_bb begin_bb in
-       process_bb scope decls end_bb cont_bb break_bb sync_label rest
+       process_bb scope end_bb cont_bb break_bb sync_label rest
     | Block (_, stmts) :: rest ->
-       let decls, bb =
-         process_bb (push_symtab_scope scope) decls prev_bb cont_bb break_bb
+       let bb =
+         process_bb (push_symtab_scope scope) prev_bb cont_bb break_bb
                     sync_label stmts in
-       process_bb scope decls bb cont_bb break_bb sync_label rest
+       process_bb scope bb cont_bb break_bb sync_label rest
     | DeclFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DeclFcn not expected."
     | DefFcn (pos, _, _, _, _, _) :: _ ->
@@ -1221,24 +1224,25 @@ let rec build_bbs name decltable typemap body =
             List.hd tp_list
          | _ -> convert_type false false typemap tp
        in
-       let declare decls var =
+       let declare var =
          let decl = make_decl var.td_pos scope var.td_text t in
          add_symbol scope var.td_text decl;
-         (var.td_text, decl) :: decls
+         add_decl var.td_text decl
        in
-       let initialize (decls, bb) expr =
+       let initialize bb expr =
          let faux_stmt = StmtExpr (pos_of_astexpr expr, expr) in
-         process_bb scope decls bb cont_bb break_bb sync_label [faux_stmt]
+         process_bb scope bb cont_bb break_bb sync_label [faux_stmt]
        in
-       let decls = List.fold_left declare decls vars in
-       let decls, bb = List.fold_left initialize (decls, prev_bb) inits in
-       process_bb scope decls bb cont_bb break_bb sync_label rest
+       let () = List.iter declare vars in
+       let bb = List.fold_left initialize prev_bb inits in
+       process_bb scope bb cont_bb break_bb sync_label rest
     | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
        let temp_struct_nm = "inline_struct." ^ (unique_id ()) in
        let target_tp = infer_type_from_expr typemap scope expr in
        let target_struct = make_decl p scope temp_struct_nm target_tp
        in
        let () = add_symbol scope temp_struct_nm target_struct in
+       let () = add_decl temp_struct_nm target_struct in
        let _, cexpr = convert_expr typemap scope
          (ExprBinary { op_pos = epos;
                        op_op = OperAssign;
@@ -1256,6 +1260,7 @@ let rec build_bbs name decltable typemap body =
          in
          let decl = make_decl pos scope nm vartp in
          let () = add_symbol scope nm decl in
+         let () = add_decl nm decl in
          let rhs = ExprSelectField (pos, pos,
                                     ExprVar (pos, temp_struct_nm),
                                     FieldNumber n) in
@@ -1268,14 +1273,13 @@ let rec build_bbs name decltable typemap body =
                                       op_atomic = false
                         })
          in
-         (nm, decl), (pos, cexpr)
+         pos, cexpr
        in
-       let idecls, inits = List.split @@ List.mapi var_init vars in
+       let inits = List.mapi var_init vars in
        let bb =
          make_sequential_bb (label_of_pos p) ((p, cexpr) :: inits) in
        let () = add_next prev_bb bb in
-       let idecls = (temp_struct_nm, target_struct) :: idecls in
-       process_bb scope (idecls @ decls) bb cont_bb break_bb sync_label rest
+       process_bb scope bb cont_bb break_bb sync_label rest
     | TransactionBlock (pos, body) :: rest ->
        (* FIXME: Returning/breaking/goto-ing out of the block should commit the
           transaction. *)
@@ -1288,8 +1292,8 @@ let rec build_bbs name decltable typemap body =
        let xact_bb = make_sequential_bb ("xact_" ^ pos_label) [] in
        let bb = make_conditional_bb ("xbegin_" ^ pos_label) (pos, e)
        in
-       let decls, body_end_bb =
-         process_bb (push_symtab_scope scope) decls xact_bb cont_bb break_bb
+       let body_end_bb =
+         process_bb (push_symtab_scope scope) xact_bb cont_bb break_bb
                     sync_label body
        in
        let _, f = build_fcn_call scope typemap pos "llvm.x86.xend" [] in
@@ -1299,7 +1303,7 @@ let rec build_bbs name decltable typemap body =
          add_next bb xact_bb;
          add_next bb bb;
          add_next body_end_bb xend_bb;
-         process_bb scope decls xend_bb cont_bb break_bb sync_label rest
+         process_bb scope xend_bb cont_bb break_bb sync_label rest
        end
     | IfStmt (pos, cond, then_block, else_block_maybe) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
@@ -1309,30 +1313,27 @@ let rec build_bbs name decltable typemap body =
          pos cexpr succ_bb fail_bb
        in
        let () = add_next prev_bb cond_bb in
-       let decls, then_bb =
+       let then_bb =
          process_bb
-           (push_symtab_scope scope) decls succ_bb cont_bb break_bb sync_label
+           (push_symtab_scope scope) succ_bb cont_bb break_bb sync_label
            then_block in
        let merge_bb = make_sequential_bb ("merge_" ^ (label_of_pos pos)) [] in
        let () = add_next then_bb merge_bb in
-       let decls = match else_block_maybe with
-         | None ->
-            (add_next fail_bb merge_bb; decls)
+       let () = match else_block_maybe with
+         | None -> add_next fail_bb merge_bb
          | Some stmts ->
-            let decls, else_bb =
-              process_bb
-                (push_symtab_scope scope) decls fail_bb cont_bb break_bb
-                sync_label stmts in
-            (add_next else_bb merge_bb; decls)
+            let else_bb =
+              process_bb (push_symtab_scope scope) fail_bb cont_bb break_bb
+                         sync_label stmts in
+            add_next else_bb merge_bb
        in
-       process_bb scope decls merge_bb cont_bb break_bb sync_label rest
+       process_bb scope merge_bb cont_bb break_bb sync_label rest
     | ForLoop (pos, (*parallel=*)false, init, (_, cond), iter, body) :: rest ->
        let body_scope = push_symtab_scope scope in
-       let init_decls, init_bb = match init with
-         | None -> decls, prev_bb
+       let init_bb = match init with
+         | None -> prev_bb
          | Some stmt_or_decl ->
-            process_bb body_scope decls prev_bb None None sync_label
-                       [stmt_or_decl]
+            process_bb body_scope prev_bb None None sync_label [stmt_or_decl]
        in
        let succ_bb = make_sequential_bb ("fsucc." ^ (label_of_pos pos)) [] in
        let fail_bb = make_sequential_bb ("ffail." ^ (label_of_pos pos)) [] in
@@ -1351,19 +1352,18 @@ let rec build_bbs name decltable typemap body =
        in
        let () = add_next prev_bb init_bb in
        let () = add_next init_bb cond_bb in
-       let for_decls, for_body_end =
-         process_bb body_scope init_decls succ_bb (Some iter_bb) (Some fail_bb)
+       let for_body_end =
+         process_bb body_scope succ_bb (Some iter_bb) (Some fail_bb)
                     sync_label body
        in
        let () = add_next for_body_end iter_bb in
-       process_bb scope for_decls fail_bb cont_bb break_bb sync_label rest
+       process_bb scope fail_bb cont_bb break_bb sync_label rest
     | ForLoop (pos, (*parallel=*)true, init, (_, cond), iter, body) :: rest ->
        let body_scope = push_symtab_scope scope in
-       let init_decls, init_bb = match init with
-         | None -> decls, prev_bb
+       let init_bb = match init with
+         | None -> prev_bb
          | Some stmt_or_decl ->
-            process_bb body_scope decls prev_bb None None sync_label
-                       [stmt_or_decl]
+            process_bb body_scope prev_bb None None sync_label [stmt_or_decl]
        in
        let for_region = (label_of_pos pos) ^ "." ^ (Util.unique_id ()) in
        let () = push_sync_region for_region in
@@ -1388,8 +1388,8 @@ let rec build_bbs name decltable typemap body =
        let () = add_next prev_bb init_bb in
        let () = add_next init_bb cond_bb in
        let internal_sync = sync_label ^ "." ^ (Util.unique_id ()) in
-       let for_decls, for_body_end =
-         process_bb body_scope init_decls succ_bb
+       let for_body_end =
+         process_bb body_scope succ_bb
                     (Some iter_bb)
                     (*parallel break=*)None
                     internal_sync body
@@ -1402,7 +1402,7 @@ let rec build_bbs name decltable typemap body =
        let sync_block = make_sync_bb ((label_of_pos pos) ^ ".sync") for_region
        in
        let () = add_next fail_bb sync_block in
-       process_bb scope for_decls sync_block cont_bb break_bb sync_label rest
+       process_bb scope sync_block cont_bb break_bb sync_label rest
     | WhileLoop (pos, precheck, cond, body) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
@@ -1427,19 +1427,19 @@ let rec build_bbs name decltable typemap body =
        if precheck then
          let () = add_next prev_bb cond_bb in
          let () = add_next succ_bb body_begin in
-         let decls, body_end =
-           process_bb (push_symtab_scope scope) decls body_begin
+         let body_end =
+           process_bb (push_symtab_scope scope) body_begin
                       (Some cond_bb) (Some fail_bb) sync_label body in
          let () = add_next body_end cond_bb in
-         process_bb scope decls fail_bb cont_bb break_bb sync_label rest
+         process_bb scope fail_bb cont_bb break_bb sync_label rest
        else
          let () = add_next prev_bb body_begin in
-         let decls, body_end =
-           process_bb (push_symtab_scope scope) decls body_begin
+         let body_end =
+           process_bb (push_symtab_scope scope) body_begin
                       (Some cond_bb) (Some fail_bb) sync_label body in
          let () = add_next body_end cond_bb in
          let () = add_next succ_bb body_begin in
-         process_bb scope decls fail_bb cont_bb break_bb sync_label rest
+         process_bb scope fail_bb cont_bb break_bb sync_label rest
     | SwitchStmt (pos, expr, cases) :: rest ->
        (* FIXME: Treating this as an if-statement, but it should be special-
           cased for traditional, C-like switch statements. *)
@@ -1447,7 +1447,7 @@ let rec build_bbs name decltable typemap body =
        let switch_tp, switch_expr = convert_expr typemap scope expr in
        let switch_var_nm = "switch_var." ^ (Util.unique_id ()) in
        let switch_decl = make_decl pos scope switch_var_nm switch_tp in
-       let decls = (switch_var_nm, switch_decl) :: decls in
+       let () = add_decl switch_var_nm switch_decl in
        let switch_assign = Expr_Binary (OperAssign, false, switch_tp,
                                         Expr_Variable (switch_var_nm),
                                         switch_expr) in
@@ -1512,7 +1512,7 @@ let rec build_bbs name decltable typemap body =
          wildcards (switch_expr, case_expr)
        in
 
-       let make_case (decls, last_bb, fallthrough_bb)
+       let make_case (last_bb, fallthrough_bb)
                      (case_pos, case_expr, stmts) =
          let case_label = "case." ^ (label_of_pos case_pos) in
          let case_tp, case_conv = convert_expr typemap scope case_expr in
@@ -1525,8 +1525,8 @@ let rec build_bbs name decltable typemap body =
          let cond_bb = generate_conditional case_label case_pos case_cmp
                                             succ_bb fail_bb
          in
-         let decls, case_end =
-           process_bb (push_symtab_scope scope) decls succ_bb
+         let case_end =
+           process_bb (push_symtab_scope scope) succ_bb
                       cont_bb (Some exit_bb) sync_label stmts
          in
          begin
@@ -1539,20 +1539,20 @@ let rec build_bbs name decltable typemap body =
            | Goto _
            | Break _
            | Continue _ ->
-              decls, fail_bb, None
+              fail_bb, None
            | _ ->
-              decls, fail_bb, Some case_end
+              fail_bb, Some case_end
          end
        in
-       let decls, last_bb, fallthrough =
-         List.fold_left make_case (decls, switch_bb, None) cases
+       let last_bb, fallthrough =
+         List.fold_left make_case (switch_bb, None) cases
        in
        begin
          add_next prev_bb switch_bb;
          add_next last_bb exit_bb;
          if fallthrough <> None then
            add_next (Util.the fallthrough) exit_bb;
-         process_bb scope decls exit_bb cont_bb break_bb sync_label rest
+         process_bb scope exit_bb cont_bb break_bb sync_label rest
        end
     | Return (pos, expr) :: rest ->
        let tp, expr = convert_expr typemap scope expr in
@@ -1560,13 +1560,10 @@ let rec build_bbs name decltable typemap body =
          check_castability pos typemap tp ret_type;
          match tp, expr with
          | DefTypeStaticStruct _, Expr_StaticStruct (_, elist) ->
-            let decl = { decl_pos = pos;
-                         mappedname = "__defret"; (* FIXME: Unique name. *)
-                         vis = VisLocal;
-                         tp = tp;
-                         params = []
-                       } in
-            let structvar = Expr_Variable "__defret" in
+            let nm = "defret." ^ (Util.unique_id ()) in
+            let decl = make_decl pos scope nm tp in
+            let () = add_decl nm decl in
+            let structvar = Expr_Variable nm in
             let exprs =
               List.mapi (fun n (t, e) ->
                 pos,
@@ -1580,24 +1577,22 @@ let rec build_bbs name decltable typemap body =
             let expr_bb =
               make_sequential_bb ("static_" ^ (label_of_pos pos)) exprs in
             let () = add_next prev_bb expr_bb in
-            let retexpr = Expr_Variable "__defret" in
             let term_bb = make_terminal_bb
               ("ret_" ^ (label_of_pos pos))
-              (Some (pos, (maybe_cast typemap tp ret_type retexpr))) in
+              (Some (pos, (maybe_cast typemap tp ret_type structvar))) in
             let () = add_next expr_bb term_bb in
-            process_bb scope (("__defret", decl) :: decls) term_bb cont_bb
-                       break_bb sync_label rest
+            process_bb scope term_bb cont_bb break_bb sync_label rest
          | _ ->
             let term_bb = make_terminal_bb
               ("ret_" ^ (label_of_pos pos))
               (Some (pos, (maybe_cast typemap tp ret_type expr))) in
             let () = add_next prev_bb term_bb in
-            process_bb scope decls term_bb cont_bb break_bb sync_label rest
+            process_bb scope term_bb cont_bb break_bb sync_label rest
        end
     | ReturnVoid pos :: rest ->
        let term_bb = make_terminal_bb ("ret_" ^ (label_of_pos pos)) None in
        let () = add_next prev_bb term_bb in
-       process_bb scope decls term_bb cont_bb break_bb sync_label rest
+       process_bb scope term_bb cont_bb break_bb sync_label rest
     | TypeDecl _ :: _ ->
        Report.err_internal __FILE__ __LINE__
          "FIXME: TypeDecl not implemented Cfg.build_bbs (TypeDecl)"
@@ -1605,17 +1600,17 @@ let rec build_bbs name decltable typemap body =
        let bb = make_sequential_bb label [] in
        let () = Hashtbl.add label_bbs label bb in
        let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb break_bb sync_label rest
+       process_bb scope bb cont_bb break_bb sync_label rest
     | Goto (pos, label) :: rest ->
        let bb = make_goto_bb label in
        let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb break_bb sync_label rest
+       process_bb scope bb cont_bb break_bb sync_label rest
     | Break pos :: rest ->
        begin match break_bb with
        | None -> Report.err_no_break_scope pos
        | Some bb ->
           let () = add_next prev_bb bb in
-          decls, prev_bb
+          prev_bb
        end
     | Continue pos :: rest ->
        begin match cont_bb with
@@ -1626,12 +1621,12 @@ let rec build_bbs name decltable typemap body =
           let bb = make_sequential_bb ("cont_" ^ (label_of_pos pos)) [] in
           let () = add_next prev_bb bb in
           let () = add_next bb condition in
-          process_bb scope decls bb cont_bb break_bb sync_label rest
+          process_bb scope bb cont_bb break_bb sync_label rest
        end
     | Sync pos :: rest ->
        let bb = make_sync_bb ("sync_" ^ (label_of_pos pos)) sync_label in
        let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb break_bb sync_label rest
+       process_bb scope bb cont_bb break_bb sync_label rest
     | Import (tok, _) :: _ ->
        Report.err_import_in_function tok.td_pos name
   in
@@ -1652,7 +1647,7 @@ let rec build_bbs name decltable typemap body =
     | _ -> ()
   in
   let entry_bb = make_sequential_bb "entry" [] in
-  let decls, bb = process_bb fcnscope [] entry_bb None None "bodysync" body in
+  let _ = process_bb fcnscope entry_bb None None "bodysync" body in
   let bb_table = Hashtbl.create 32 in
   let () = visit_df (fun () bb -> match bb with
     | BB_Seq (label, _)
@@ -1665,7 +1660,7 @@ let rec build_bbs name decltable typemap body =
   in
   let () = visit_df (replace_gotos bb_table) false () entry_bb in
   (*let () = Hashtbl.iter fixup_wildcards bb_table in *)
-  unique_regions (), List.rev decls, entry_bb
+  unique_regions (), List.rev !decls, entry_bb
 
 let verify_cfg name =
   let verify () = function
