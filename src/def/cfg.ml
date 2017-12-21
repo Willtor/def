@@ -1276,27 +1276,31 @@ let rec build_bbs name decltable typemap body =
        let () = add_next prev_bb bb in
        let idecls = (temp_struct_nm, target_struct) :: idecls in
        process_bb scope (idecls @ decls) bb cont_bb break_bb sync_label rest
-    | XBegin pos :: rest ->
+    | TransactionBlock (pos, body) :: rest ->
+       (* FIXME: Returning/breaking/goto-ing out of the block should commit the
+          transaction. *)
+       let pos_label = label_of_pos pos in
        let _, f = build_fcn_call scope typemap pos "llvm.x86.xbegin" [] in
        let e = Expr_Binary (OperEquals, false,
                             DefTypePrimitive (PrimI32, [Volatile]),
                             Expr_Literal (LitI32 (Int32.of_int (-1))), f)
        in
-       let xact_bb = make_sequential_bb ("xact_" ^ (label_of_pos pos)) [] in
-       let bb = make_conditional_bb ("xbegin_" ^ (label_of_pos pos)) (pos, e)
+       let xact_bb = make_sequential_bb ("xact_" ^ pos_label) [] in
+       let bb = make_conditional_bb ("xbegin_" ^ pos_label) (pos, e)
        in
+       let decls, body_end_bb =
+         process_bb (push_symtab_scope scope) decls xact_bb cont_bb break_bb
+                    sync_label body
+       in
+       let _, f = build_fcn_call scope typemap pos "llvm.x86.xend" [] in
+       let xend_bb = make_sequential_bb ("xend." ^ pos_label) [(pos, f)] in
        begin
          add_next prev_bb bb;
          add_next bb xact_bb;
          add_next bb bb;
-         process_bb scope decls xact_bb cont_bb break_bb sync_label rest
+         add_next body_end_bb xend_bb;
+         process_bb scope decls xend_bb cont_bb break_bb sync_label rest
        end
-    | XCommit pos :: rest ->
-       let _, f = build_fcn_call scope typemap pos "llvm.x86.xend" [] in
-       let bb =
-         make_sequential_bb ("xcommit_" ^ (label_of_pos pos)) [(pos, f)] in
-       let () = add_next prev_bb bb in
-       process_bb scope decls bb cont_bb break_bb sync_label rest
     | IfStmt (pos, cond, then_block, else_block_maybe) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in

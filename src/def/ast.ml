@@ -114,8 +114,7 @@ type stmt =
   | VarDecl of Parsetree.tokendata list * expr list * vartype
   | InlineStructVarDecl of position * (position * string * vartype) list
     * (position * expr)
-  | XBegin of position
-  | XCommit of position
+  | TransactionBlock of position * stmt list
   | IfStmt of position * expr * stmt list * stmt list option
   (* ForLoop: start-pos * is_parallel * init * cond * iter * body *)
   | ForLoop of position * bool * stmt option * (position * expr)
@@ -311,8 +310,8 @@ let of_parsetree =
                               }
        in
        StmtExpr (r.td_pos, expr)
-    | PTS_XBegin (tok, _) -> XBegin tok.td_pos
-    | PTS_XCommit (tok, _) -> XCommit tok.td_pos
+    | PTS_Transaction (xbegin, stmts, xend) ->
+       TransactionBlock (xbegin.td_pos, List.map stmt_of stmts)
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
        let else_clause = match maybe_else with
          | None -> None
@@ -604,8 +603,7 @@ let rec visit_expr_in_stmt f = function
      Report.err_internal __FILE__ __LINE__ "not implemented."
   | VarDecl (_, exprs, _) -> List.iter (visit_expr f) exprs
   | InlineStructVarDecl (_, _, (_, expr)) -> visit_expr f expr
-  | XBegin _ -> ()
-  | XCommit _ -> ()
+  | TransactionBlock (_, stmts) -> List.iter (visit_expr_in_stmt f) stmts
   | IfStmt (_, cond, then_stmts, else_stmts_maybe) ->
      begin
        visit_expr f cond;

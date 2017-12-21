@@ -33,7 +33,7 @@
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR RETURN BEGIN END IF THEN
 %token <Parsetree.tokendata> ELIF ELSE FI FOR PARFOR WHILE DO OD SWITCH
 %token <Parsetree.tokendata> WITH CASE ESAC GOTO BREAK
-%token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
+%token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XEND
 %token <Parsetree.tokendata> NIL VOLATILE ATOMIC SPAWN SYNC WILDCARD
 
 %token <Parsetree.tokendata> EXPORT
@@ -106,8 +106,7 @@ statement:
     { PTS_VarInlineStructInferred ($1, $2, $3, $4, $5, $6, $7) }
 | DELETE expr SEMICOLON { PTS_DeleteExpr ($1, $2, $3) }
 | RETIRE expr SEMICOLON { PTS_RetireExpr ($1, $2, $3) }
-| XBEGIN SEMICOLON { PTS_XBegin ($1, $2) }
-| XCOMMIT SEMICOLON { PTS_XCommit ($1, $2) }
+| XBEGIN statement* XEND { PTS_Transaction ($1, $2, $3) }
 | IF expr THEN statement* elifclause* elseclause? FI
     { PTS_IfStmt ($1, $2, $3, $4, $5, $6, $7) }
 | FOR for_init? SEMICOLON expr SEMICOLON expr? DO statement* OD
