@@ -79,7 +79,8 @@ and conditional_block =
 and terminal_block =
   { mutable term_prev : cfg_basic_block list;
     term_expr         : (Lexing.position * cfg_expr) option;
-    mutable term_mark_bit : bool
+    mutable term_mark_bit : bool;
+    term_xend         : bool
   }
 
 and detach_block =
@@ -1002,10 +1003,11 @@ let set_cond_parallel = function
   | _ -> Report.err_internal __FILE__ __LINE__
                              "Tried to parallelize a non BB_Cond"
 
-let make_terminal_bb label rexpr =
+let make_terminal_bb label xend rexpr =
   BB_Term (label, { term_prev = [];
                     term_expr = rexpr;
-                    term_mark_bit = false
+                    term_mark_bit = false;
+                    term_xend = xend
                   })
 
 let make_detach_bb label sync args ret =
@@ -1313,8 +1315,8 @@ let rec build_bbs name decltable typemap body =
        let () = add_next prev_bb bb in
        process_bb scope bb rest
     | TransactionBlock (pos, body) :: rest ->
-       (* FIXME: Returning/breaking/goto-ing out of the block should commit the
-          transaction. *)
+       (* FIXME: Breaking/continuing/goto-ing out of the block should commit
+                 the transaction. *)
        let pos_label = label_of_pos pos in
        let _, f =
          build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" []
@@ -1598,20 +1600,24 @@ let rec build_bbs name decltable typemap body =
             let expr_bb =
               make_sequential_bb ("static_" ^ (label_of_pos pos)) exprs in
             let () = add_next prev_bb expr_bb in
-            let term_bb = make_terminal_bb
-              ("ret_" ^ (label_of_pos pos))
-              (Some (pos, (maybe_cast typemap tp ret_type structvar))) in
+            let cast = maybe_cast typemap tp ret_type structvar in
+            let term_bb = make_terminal_bb ("ret_" ^ (label_of_pos pos))
+                                           scope.fs_in_xaction
+                                           (Some (pos, cast)) in
             let () = add_next expr_bb term_bb in
             process_bb scope term_bb rest
          | _ ->
-            let term_bb = make_terminal_bb
-              ("ret_" ^ (label_of_pos pos))
-              (Some (pos, (maybe_cast typemap tp ret_type expr))) in
+            let cast = maybe_cast typemap tp ret_type expr in
+            let term_bb = make_terminal_bb ("ret_" ^ (label_of_pos pos))
+                                           scope.fs_in_xaction
+                                           (Some (pos, cast)) in
             let () = add_next prev_bb term_bb in
             process_bb scope term_bb rest
        end
     | ReturnVoid pos :: rest ->
-       let term_bb = make_terminal_bb ("ret_" ^ (label_of_pos pos)) None in
+       let term_bb = make_terminal_bb ("ret_" ^ (label_of_pos pos))
+                                      scope.fs_in_xaction
+                                      None in
        let () = add_next prev_bb term_bb in
        process_bb scope term_bb rest
     | TypeDecl _ :: _ ->

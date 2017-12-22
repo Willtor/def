@@ -51,7 +51,8 @@ and conditional_block =
 and terminal_block =
   { mutable term_prev : cfg_basic_block list;
     term_expr         : (Lexing.position * cfg_expr) option;
-    mutable term_mark_bit : bool
+    mutable term_mark_bit : bool;
+    term_xend         : bool
   }
 
 and detach_block =

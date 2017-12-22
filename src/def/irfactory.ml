@@ -687,12 +687,20 @@ let process_fcn cgdebug data symbols fcn =
        if block.cond_parallel then
          add_parallel_loop_metadata cond_bb
     | BB_Term (label, block) ->
+       let make_xend () =
+         let _, _, xend = the @@ lookup_symbol varmap "llvm.x86.xend" in
+         ignore(build_call xend [| |] "" data.bldr)
+       in
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
        begin match block.term_expr with
-       | None -> let _ = build_ret_void data.bldr in ()
+       | None ->
+          let () = if block.term_xend then make_xend () in
+          let _ = build_ret_void data.bldr in ()
        | Some e ->
-          let _ = build_ret (process_expr data llvals varmap e) data.bldr in ()
+          let retexpr = process_expr data llvals varmap e in
+          let () = if block.term_xend then make_xend () in
+          let _ = build_ret retexpr data.bldr in ()
        end
     | BB_Detach (label, sb, block) ->
        let bb = get_bb label in
