@@ -116,17 +116,19 @@ type program =
   }
 
 type function_scope =
-  { fs_vars : decl Util.symtab;
-    fs_cont_bb : cfg_basic_block option;
-    fs_break_bb : cfg_basic_block option;
-    fs_sync_label : string
+  { fs_vars       : decl Util.symtab;
+    fs_cont_bb    : cfg_basic_block option;
+    fs_break_bb   : cfg_basic_block option;
+    fs_sync_label : string;
+    fs_in_xaction : bool;
   }
 
 let make_fcn_scope vars =
-  { fs_vars = vars;
-    fs_cont_bb = None;
-    fs_break_bb = None;
-    fs_sync_label = "bodysync"
+  { fs_vars       = vars;
+    fs_cont_bb    = None;
+    fs_break_bb   = None;
+    fs_sync_label = "bodysync";
+    fs_in_xaction = false
   }
 
 let combine3 a b c =
@@ -1133,11 +1135,13 @@ let rec build_bbs name decltable typemap body =
   let push_scope ?(cont = None)
                  ?(break = None)
                  ?(sync = None)
+                 ?(xaction = false)
                  fs =
     { fs_vars = push_symtab_scope fs.fs_vars;
       fs_cont_bb = if cont <> None then cont else fs.fs_cont_bb;
       fs_break_bb = if break <> None then break else fs.fs_break_bb;
-      fs_sync_label = if sync <> None then Util.the sync else fs.fs_sync_label
+      fs_sync_label = if sync <> None then Util.the sync else fs.fs_sync_label;
+      fs_in_xaction = if xaction then true else fs.fs_in_xaction
     }
   in
 
@@ -1320,9 +1324,9 @@ let rec build_bbs name decltable typemap body =
                             Expr_Literal (LitI32 (Int32.of_int (-1))), f)
        in
        let xact_bb = make_sequential_bb ("xact_" ^ pos_label) [] in
-       let bb = make_conditional_bb ("xbegin_" ^ pos_label) (pos, e)
-       in
-       let body_end_bb = process_bb (push_scope scope) xact_bb body in
+       let bb = make_conditional_bb ("xbegin_" ^ pos_label) (pos, e) in
+       let body_scope = push_scope ~xaction:true scope in
+       let body_end_bb = process_bb body_scope xact_bb body in
        let _, f =
          build_fcn_call scope.fs_vars typemap pos "llvm.x86.xend" []
        in
