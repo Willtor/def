@@ -19,13 +19,4 @@
 
 #pragma once
 
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendActions.h"
-#include <memory>
-
-class DeclFindingAction : public clang::ASTFrontendAction
-{
-public:
-    std::unique_ptr<clang::ASTConsumer>
-    CreateASTConsumer (clang::CompilerInstance &ci, StringRef) final;
-};
+int cimport_run (int argc, const char **argv);

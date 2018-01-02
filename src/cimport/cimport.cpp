@@ -25,10 +25,20 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/FrontendActions.h"
+#include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/Tooling.h"
+#include <memory>
 #include <string>
 #include <sstream>
 
+//////////////////////////
+#include "llvm/Support/CommandLine.h"
+//////////////////////////
+
 using namespace clang;
+using namespace clang::tooling;
 using namespace llvm;
 using namespace std;
 
@@ -69,8 +79,35 @@ public:
     }
 };
 
-unique_ptr<ASTConsumer>
-DeclFindingAction::CreateASTConsumer (CompilerInstance &ci, StringRef)
+class DeclFindingAction : public clang::ASTFrontendAction
 {
-    return unique_ptr<ASTConsumer>(new DeclFinder(ci.getSourceManager()));
+public:
+    std::unique_ptr<clang::ASTConsumer>
+    CreateASTConsumer (clang::CompilerInstance &ci, StringRef) final
+    {
+        return unique_ptr<ASTConsumer>(new DeclFinder(ci.getSourceManager()));
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+// Apply a custom category to all command-line options so that they are the
+// only ones displayed.
+static cl::OptionCategory MyToolCategory("my-tool options");
+
+// CommonOptionsParser declares HelpMessage with a description of the common
+// command-line options related to the compilation database and input files.
+// It's nice to have this help message in all tools.
+static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
+
+// A help message for this specific tool can be added afterwards.
+static cl::extrahelp MoreHelp("\nMore help text...");
+
+int cimport_run (int argc, const char **argv)
+{
+    CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);
+    ClangTool Tool(OptionsParser.getCompilations(),
+                   OptionsParser.getSourcePathList());
+    int ret = Tool.run(newFrontendActionFactory<DeclFindingAction>().get());
+    return ret;
 }

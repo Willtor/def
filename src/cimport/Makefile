@@ -1,14 +1,10 @@
 TARGET = cimport
 
-CXX = clang++
-
 TAPIRCPP = $(TAPIRPATH)/build/include
 TAPIRBUILDCPP = $(TAPIRPATH)/include
 TAPIRCLANG = $(TAPIRPATH)/tools/clang/include
 TAPIRBUILDCLANG = $(TAPIRPATH)/build/tools/clang/include
 TAPIRLIBDIR = $(TAPIRPATH)/build/lib
-
-CPPFLAGS = -std=c++11 -fno-rtti -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRCPP) -I$(TAPIRBUILDCPP) -I$(TAPIRCLANG) -I$(TAPIRBUILDCLANG)
 
 LIBS =  -lLLVMX86CodeGen	\
 	-lLLVMX86AsmPrinter	\
@@ -72,10 +68,16 @@ LIBS =  -lLLVMX86CodeGen	\
 SRC = cimport.cpp main.cpp
 OBJ = $(SRC:.cpp=.o)
 
+CXX = clang++
+CPPFLAGS = -std=c++11 -fno-rtti -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRCPP) -I$(TAPIRBUILDCPP) -I$(TAPIRCLANG) -I$(TAPIRBUILDCLANG)
+
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CXX) -o $@ -L$(TAPIRLIBDIR) $(OBJ) $(LIBS) -lpthread -lz -ltinfo
+	$(CXX) -o $@ -L$(TAPIRLIBDIR) -L. $(OBJ) $(LIBS) -lpthread -lz -ltinfo
 
 %.o: %.cpp
 	$(CXX) -o $@ -c $(CPPFLAGS) $<
+
+clean:
+	rm -f $(OBJ) $(TARGET)
