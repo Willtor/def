@@ -20,5 +20,5 @@
 
 int main (int argc, const char **argv)
 {
-    return cimport_run(argc, argv);
+    return cimport_file(argv[1]);
 }

@@ -19,4 +19,4 @@
 
 #pragma once
 
-int cimport_run (int argc, const char **argv);
+int cimport_file (const char *filename);

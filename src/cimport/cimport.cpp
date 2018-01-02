@@ -19,6 +19,7 @@
 // Based on the Xinhuang Clang FindDecl tutorial at:
 // https://github.com/xinhuang/clang-playground
 
+#include <assert.h>
 #include "cimport.h"
 
 #include "clang/AST/ASTConsumer.h"
@@ -32,6 +33,7 @@
 #include <memory>
 #include <string>
 #include <sstream>
+#include <vector>
 
 //////////////////////////
 #include "llvm/Support/CommandLine.h"
@@ -42,6 +44,13 @@ using namespace clang::tooling;
 using namespace llvm;
 using namespace std;
 
+struct fcn_decl
+{
+    string name;
+};
+
+static vector<fcn_decl> functions;
+
 class DeclVisitor : public clang::RecursiveASTVisitor<DeclVisitor> {
 protected:
     SourceManager &sm;
@@ -49,16 +58,68 @@ protected:
 public:
     DeclVisitor (SourceManager &manager) : sm(manager) {}
 
-    bool VisitNamedDecl (NamedDecl *decl) {
-        outs() << "Found " << decl->getQualifiedNameAsString() << " at "
-               << getDeclLocation(decl->getLocStart()) << "\n";
+    const char *kindName (NamedDecl *decl)
+    {
+        switch (decl->getKind()) {
+        case Decl::Function:
+            return "Function";
+        case Decl::Enum:
+            return "Enum";
+        case Decl::Record: // struct.
+            return "Record";
+        case Decl::Typedef:
+            return "Typedef";
+        case Decl::Field:
+            return "Field";
+        case Decl::Var:
+            return "Var";
+        case Decl::ParmVar:
+            return "ParmVar";
+        default:
+            return "Other";
+        }
+    }
+
+    void declareFunction (NamedDecl *decl)
+    {
+        const FunctionDecl *fdecl = decl->getAsFunction();
+        assert(NULL != fdecl);
+        functions.push_back({ decl->getQualifiedNameAsString() });
+    }
+
+    bool VisitNamedDecl (NamedDecl *decl)
+    {
+        // NOTE: Relevant kinds:
+        // Function
+        // Enum
+        // Record (struct)
+        // Field (member)
+        // Typedef
+        // Var
+        // ParmVar (parameter)
+
+        DeclContext *ctx = decl->getDeclContext();
+        if (ctx->isFileContext() || ctx->isRecord()) {
+            switch (decl->getKind()) {
+            case Decl::Function:
+                declareFunction(decl);
+                break;
+            default: break;
+            }
+            /*
+            outs() << "Found " << decl->getQualifiedNameAsString() << " at "
+                   << getDeclLocation(decl->getLocStart())
+                   << "(" << kindName(decl) << ")\n";
+            */
+        }
+
         return true;
     }
 
 private:
     string getDeclLocation (SourceLocation loc) const {
         ostringstream oss;
-        oss << sm.getFilename(loc).str() << ":"
+        oss /*<< sm.getFilename(loc).str() << ":"*/
             << sm.getSpellingLineNumber(loc) << ":"
             << sm.getSpellingColumnNumber(loc);
         return oss.str();
@@ -91,23 +152,19 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// Apply a custom category to all command-line options so that they are the
-// only ones displayed.
-static cl::OptionCategory MyToolCategory("my-tool options");
-
-// CommonOptionsParser declares HelpMessage with a description of the common
-// command-line options related to the compilation database and input files.
-// It's nice to have this help message in all tools.
-static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
-
-// A help message for this specific tool can be added afterwards.
-static cl::extrahelp MoreHelp("\nMore help text...");
-
-int cimport_run (int argc, const char **argv)
+int cimport_file (const char *filename)
 {
-    CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);
-    ClangTool Tool(OptionsParser.getCompilations(),
-                   OptionsParser.getSourcePathList());
-    int ret = Tool.run(newFrontendActionFactory<DeclFindingAction>().get());
+    int argc = 3;
+    const char *argv[] = { "", filename, "--" };
+    cl::OptionCategory option_category("options");
+    CommonOptionsParser options_parser(argc, argv, option_category);
+    ClangTool tool(options_parser.getCompilations(),
+                   options_parser.getSourcePathList());
+    int ret = tool.run(newFrontendActionFactory<DeclFindingAction>().get());
+
+    for (fcn_decl &fcn : functions) {
+        outs() << fcn.name << "\n";
+    }
+
     return ret;
 }
