@@ -25,6 +25,7 @@ CIMPORT_SRC_DIR = src/cimport
 CIMPORTFILES =		\
 	cimport.cpp	\
 	cimport.h	\
+	cimport.mk	\
 	Makefile
 
 DEF_SRC_DIR = src/def

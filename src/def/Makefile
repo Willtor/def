@@ -12,10 +12,14 @@ else
 	TAPIRCPP = /usr/include/llvm-$(LLVM_VER)
 endif
 
+CIMPORT_PATH = ../cimport
+
+include $(CIMPORT_PATH)/cimport.mk
+
 OCAMLC = OCAMLPATH=$(TAPIROCAML) ocamlfind ocamlopt -g
 PACKAGE = -package cmdliner,llvm,llvm.analysis,llvm.scalar_opts,llvm.ipo,llvm.target,llvm.irreader,llvm.bitreader,llvm.bitwriter,llvm.passmgr_builder,llvm.all_backends,str,unix
 LINKPKG = -linkpkg $(PACKAGE) -cclib -lz
-APPENDLINK = -cclib -lLLVMTransformUtils
+APPENDLINK = -cclib -lLLVMTransformUtils $(addprefix -cclib ,$(CIMPORT_LIBS))
 CLANGPP = clang++-$(LLVM_VER)
 CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRC) -I$(TAPIRCPP)
 
@@ -23,7 +27,7 @@ SRC = llvmext.ml config.ml util.ml report.ml link.ml types.ml ast.ml templates.m
 
 COMMONDIR = ../common
 COMMONOBJ = version.cmx error.cmx parsetree.cmx deflex.cmx defparse.cmx
-OBJ = cmpxchg.o cilky.o $(COMMONOBJ) $(SRC:.ml=.cmx)
+OBJ = cmpxchg.o cilky.o $(COMMONOBJ) $(SRC:.ml=.cmx) $(addprefix $(CIMPORT_PATH)/,$(CIMPORT_OBJ))
 INTERFACE_OBJ = $(COMMONOBJ:.cmx=.cmi) $(SRC:.ml=.cmi)
 
 $(TARGET): $(INTERFACE_OBJ) $(OBJ)

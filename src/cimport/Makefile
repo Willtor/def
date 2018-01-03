@@ -7,7 +7,7 @@ SRC = cimport.cpp
 OBJ = $(SRC:.cpp=.o)
 
 CXX = clang++
-CPPFLAGS = -std=c++11 -fno-rtti -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRCPP) -I$(TAPIRBUILDCPP) -I$(TAPIRCLANG) -I$(TAPIRBUILDCLANG)
+CPPFLAGS = -fPIC -std=c++11 -fno-rtti -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRCPP) -I$(TAPIRBUILDCPP) -I$(TAPIRCLANG) -I$(TAPIRBUILDCLANG)
 
 all: $(OBJ)
 
