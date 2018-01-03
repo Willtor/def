@@ -18,6 +18,8 @@
 
 open Llvm
 
+type tapir_target
+
 (** Synchronized cmpxchg operation. *)
 external build_cmpxchg :
   llvalue -> llvalue -> llvalue -> AtomicOrdering.t ->
@@ -48,6 +50,11 @@ external token_type :
 external add_unify_function_exit_nodes :
   [< Llvm.PassManager.any ] Llvm.PassManager.t -> unit
   = "llvm_add_unify_function_exit_nodes"
+
+(** Create a Cilk target for Tapir to use to convert parallel constructs. *)
+external tapir_cilk_target :
+  unit -> tapir_target
+  = "llvm_tapir_cilk_target"
 
 (** Tapir pass to install Cilky stuff in place of detach/sync instructions. *)
 external add_lower_tapir_to_cilk :

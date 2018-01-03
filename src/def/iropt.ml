@@ -39,6 +39,7 @@ let parallelize mdl =
   let unifier = PassManager.create_function mdl in
   let parallelizer = PassManager.create () in
   if not (!Config.no_cilk) then
+    let tapir_target = tapir_cilk_target () in
     begin
       add_unify_function_exit_nodes unifier;
       add_loop_spawning parallelizer;
