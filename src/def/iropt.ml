@@ -39,11 +39,11 @@ let parallelize mdl =
   let unifier = PassManager.create_function mdl in
   let parallelizer = PassManager.create () in
   if not (!Config.no_cilk) then
-    let tapir_target = tapir_cilk_target () in
+    let tt = tapir_cilk_target () in
     begin
       add_unify_function_exit_nodes unifier;
-      add_loop_spawning parallelizer;
-      add_lower_tapir_to_cilk parallelizer
+      add_loop_spawning parallelizer tt;
+      add_lower_tapir_to_cilk parallelizer tt
     end;
   (* Re: is_parallel: Why do we do it this way?  Why not make a note when
      parsing the DEF file.  This input may not have come from a DEF source

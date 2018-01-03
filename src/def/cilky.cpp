@@ -16,6 +16,8 @@
 #define Builder_val(v) (*(LLVMBuilderRef *)(Data_custom_val(v)))
 #define TapirTarget_val(v) (*(TapirTarget **)(Data_custom_val(v)))
 
+typedef void * TapirTargetRef;
+
 using namespace llvm;
 using namespace llvm::tapir;
 
@@ -74,16 +76,16 @@ static value LLVMAllocateTapirTarget(TapirTarget *target)
     return val;
 }
 
-static void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM) {
-    // FIXME: What's the deal with TapirTarget?
-    llvm::tapir::TapirTarget *tapir_target = new llvm::tapir::CilkABI();
-    unwrap(PM)->add(createLowerTapirToTargetPass(tapir_target));
+static void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM,
+                                    TapirTargetRef tt)
+{
+    unwrap(PM)->add(createLowerTapirToTargetPass(TapirTarget_val(tt)));
 }
 
-static void LLVMAddLoopSpawning(LLVMPassManagerRef PM) {
-    // FIXME: What's the deal with TapirTarget?
-    llvm::tapir::TapirTarget *tapir_target = new llvm::tapir::CilkABI();
-    unwrap(PM)->add(createLoopSpawningPass(tapir_target));
+static void LLVMAddLoopSpawning(LLVMPassManagerRef PM,
+                                TapirTargetRef tt)
+{
+    unwrap(PM)->add(createLoopSpawningPass(TapirTarget_val(tt)));
 }
 
 extern LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C);
@@ -136,16 +138,20 @@ CAMLprim value llvm_tapir_cilk_target ()
 /* [`Module] Llvm.PassManager.t -> unit
  */
 extern "C"
-CAMLprim value llvm_add_lower_tapir_to_cilk(LLVMPassManagerRef PM) {
-    LLVMAddLowerTapirToCilk(PM);
+CAMLprim value llvm_add_lower_tapir_to_cilk(LLVMPassManagerRef PM,
+                                            TapirTargetRef tt)
+{
+    LLVMAddLowerTapirToCilk(PM, tt);
     return Val_unit;
 }
 
 /* [`Module] Llvm.PassManager.t -> unit
  */
 extern "C"
-CAMLprim value llvm_add_loop_spawning(LLVMPassManagerRef PM) {
-    LLVMAddLoopSpawning(PM);
+CAMLprim value llvm_add_loop_spawning(LLVMPassManagerRef PM,
+                                      TapirTargetRef tt)
+{
+    LLVMAddLoopSpawning(PM, tt);
     return Val_unit;
 }
 
