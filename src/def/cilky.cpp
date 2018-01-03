@@ -3,6 +3,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/Tapir.h"
+#include "llvm/Transforms/Tapir/CilkABI.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 
 // FIXME: This code should be integrated into TAPIR.
@@ -45,11 +46,15 @@ void LLVMAddUnifyFunctionExitNodes(LLVMPassManagerRef PM) {
 }
 
 void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM) {
-    unwrap(PM)->add(createLowerTapirToCilkPass(true, false));
+    // FIXME: What's the deal with TapirTarget?
+    llvm::tapir::TapirTarget *tapir_target = new llvm::tapir::CilkABI();
+    unwrap(PM)->add(createLowerTapirToTargetPass(tapir_target));
 }
 
 void LLVMAddLoopSpawning(LLVMPassManagerRef PM) {
-    unwrap(PM)->add(createLoopSpawningPass());
+    // FIXME: What's the deal with TapirTarget?
+    llvm::tapir::TapirTarget *tapir_target = new llvm::tapir::CilkABI();
+    unwrap(PM)->add(createLoopSpawningPass(tapir_target));
 }
 
 extern LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C);
