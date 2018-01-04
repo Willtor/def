@@ -23,6 +23,7 @@ COMMONFILES =		\
 
 CIMPORT_SRC_DIR = src/cimport
 CIMPORTFILES =		\
+	cimportext.ml	\
 	cimport.cpp	\
 	cimport.mk	\
 	Makefile
