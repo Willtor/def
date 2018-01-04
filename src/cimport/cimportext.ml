@@ -20,4 +20,4 @@
     declarations. *)
 external import_c_file :
   string -> unit
-  = "cimport_file"
+  = "cimport_import_c_file"

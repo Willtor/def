@@ -27,7 +27,7 @@ SRC = llvmext.ml config.ml util.ml report.ml link.ml types.ml ast.ml templates.m
 
 COMMONDIR = ../common
 COMMONOBJ = version.cmx error.cmx parsetree.cmx deflex.cmx defparse.cmx
-OBJ = cmpxchg.o cilky.o $(COMMONOBJ) $(SRC:.ml=.cmx) $(addprefix $(CIMPORT_PATH)/,$(CIMPORT_OBJ))
+OBJ = cmpxchg.o cilky.o $(addprefix $(CIMPORT_PATH)/,$(CIMPORT_OBJ)) $(COMMONOBJ) $(SRC:.ml=.cmx)
 INTERFACE_OBJ = $(COMMONOBJ:.cmx=.cmi) $(SRC:.ml=.cmi)
 
 $(TARGET): $(INTERFACE_OBJ) $(OBJ)
@@ -37,7 +37,7 @@ $(TARGET): $(INTERFACE_OBJ) $(OBJ)
 	$(CLANGPP) -o $@ -c $(CPPFLAGS) $<
 
 %.cmx: %.ml
-	$(OCAMLC) $(PACKAGE) -c $<
+	$(OCAMLC) $(PACKAGE) -I $(CIMPORT_PATH) -c $<
 
 %.cmi: %.mli
 	$(OCAMLC) $(PACKAGE) -c $<

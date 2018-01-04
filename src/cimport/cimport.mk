@@ -1,4 +1,4 @@
-CIMPORT_OBJ = cimport.o
+CIMPORT_OBJ = cimport.o cimportext.cmx
 
 CIMPORT_LIBDIR = $(TAPIRPATH)/build/lib
 

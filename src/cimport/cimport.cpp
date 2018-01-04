@@ -21,6 +21,11 @@
 
 #include <assert.h>
 
+#include "caml/mlvalues.h"
+#include "caml/memory.h"
+#include "caml/alloc.h"
+#include "caml/custom.h"
+
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -166,4 +171,10 @@ int cimport_file (const char *filename)
     }
 
     return ret;
+}
+
+extern "C"
+CAMLprim value cimport_import_c_file (value filename)
+{
+    return Val_unit;
 }

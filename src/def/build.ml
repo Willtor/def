@@ -18,6 +18,7 @@
 
 open Ast
 open Cfg
+open Cimportext
 open Config
 open Defparse
 open Deflex
@@ -121,6 +122,10 @@ let parse_def_file file =
   close_in infile;
   parsetree
 
+let parse_c_file file =
+  let () = import_c_file file in
+  []
+
 let rec recursive_parse_def_file file =
   let proc parsetree = function
     | PTS_Import (_, (tok, str), _) ->
@@ -128,7 +133,12 @@ let rec recursive_parse_def_file file =
        (recursive_parse_def_file subfile) @ parsetree
     | _ -> parsetree
   in
-  let parsetree = parse_def_file file in
+  let parsetree = match extension file with
+    | ".def" | ".defi" -> parse_def_file file
+    | ".h" -> parse_c_file file
+    | _ -> Report.err_internal __FILE__ __LINE__
+                               "Need appropriate error message."
+  in
   List.fold_left proc parsetree parsetree
 
 let llmodule_of_ast infile ast =
