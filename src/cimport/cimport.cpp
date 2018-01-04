@@ -20,7 +20,6 @@
 // https://github.com/xinhuang/clang-playground
 
 #include <assert.h>
-#include "cimport.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
