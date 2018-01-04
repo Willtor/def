@@ -16,8 +16,14 @@
    02110-1301, USA.
  *)
 
+type ctype =
+  | CT_TypeName of string
+
+type cvalue =
+  | CV_Function of string * ctype list * ctype
+
 (** Import a C header file, along with all of its type and function
     declarations. *)
 external import_c_file :
-  string -> unit
+  string -> cvalue list
   = "cimport_import_c_file"

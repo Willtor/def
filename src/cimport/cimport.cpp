@@ -34,6 +34,7 @@
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <sstream>
@@ -48,12 +49,19 @@ using namespace clang::tooling;
 using namespace llvm;
 using namespace std;
 
-struct fcn_decl
-{
-    string name;
-};
+static vector<value> functions;
 
-static vector<fcn_decl> functions;
+static value reverse_list (value list)
+{
+    value reversed_list = Val_int(0);
+    while (list != Val_int(0)) {
+        value cdr = Field(list, 1);
+        Store_field(list, 1, reversed_list);
+        reversed_list = list;
+        list = cdr;
+    }
+    return reversed_list;
+}
 
 class DeclVisitor : public clang::RecursiveASTVisitor<DeclVisitor> {
 protected:
@@ -84,11 +92,42 @@ public:
         }
     }
 
+    value readType (QualType qtype)
+    {
+        value tname = caml_copy_string(qtype.getAsString().c_str());
+        value ret = caml_alloc(1, 0);
+        Store_field(ret, 0, tname);
+        return ret;
+    }
+
     void declareFunction (NamedDecl *decl)
     {
         const FunctionDecl *fdecl = decl->getAsFunction();
-        assert(NULL != fdecl);
-        functions.push_back({ decl->getQualifiedNameAsString() });
+        //const SourceLocation loc = fdecl->getLocStart();
+        value fname =
+            caml_copy_string(decl->getQualifiedNameAsString().c_str());
+
+        // Read the parameters into a list.
+        value param_list = Val_int(0);
+        for (const ParmVarDecl *param : fdecl->parameters()) {
+            value param_n = readType(param->getOriginalType());
+            value tmp = caml_alloc(2, 0);
+            Store_field(tmp, 0, param_n);
+            Store_field(tmp, 1, param_list);
+            param_list = tmp;
+        }
+        param_list = reverse_list(param_list);
+
+        // Function's return type.
+        value rettp = readType(fdecl->getReturnType());
+
+        // CV_Function of string * ctype list * ctype
+        value fcn = caml_alloc(3, 0);
+        Store_field(fcn, 0, fname);
+        Store_field(fcn, 1, param_list);
+        Store_field(fcn, 2, rettp);
+
+        functions.push_back(fcn);
     }
 
     bool VisitNamedDecl (NamedDecl *decl)
@@ -156,7 +195,7 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-int cimport_file (const char *filename)
+value cimport_file (const char *filename)
 {
     int argc = 3;
     const char *argv[] = { "", filename, "--" };
@@ -164,17 +203,25 @@ int cimport_file (const char *filename)
     CommonOptionsParser options_parser(argc, argv, option_category);
     ClangTool tool(options_parser.getCompilations(),
                    options_parser.getSourcePathList());
-    int ret = tool.run(newFrontendActionFactory<DeclFindingAction>().get());
-
-    for (fcn_decl &fcn : functions) {
-        outs() << fcn.name << "\n";
+    if (0 != tool.run(newFrontendActionFactory<DeclFindingAction>().get())) {
+        outs() << "### BAD EXIT FROM C FILE.\n";
     }
 
-    return ret;
+    // Build the list of functions.
+    value fcn_list = Val_int(0);
+    for (value fcn : functions) {
+        value tmp = caml_alloc(2, 0);
+        Store_field(tmp, 0, fcn);
+        Store_field(tmp, 1, fcn_list);
+        fcn_list = tmp;
+    }
+    fcn_list = reverse_list(fcn_list);
+
+    return fcn_list;
 }
 
 extern "C"
 CAMLprim value cimport_import_c_file (value filename)
 {
-    return Val_unit;
+    return cimport_file(String_val(filename));
 }

@@ -123,7 +123,10 @@ let parse_def_file file =
   parsetree
 
 let parse_c_file file =
-  let () = import_c_file file in
+  let fcns = import_c_file file in
+  List.iter (fun f -> match f with
+                      | CV_Function (name, _, _) -> prerr_endline ("  " ^ name))
+            fcns;
   []
 
 let rec recursive_parse_def_file file =
