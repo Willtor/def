@@ -124,9 +124,12 @@ let parse_def_file file =
 
 let parse_c_file file =
   let fcns = import_c_file file in
-  List.iter (fun f -> match f with
-                      | CV_Function (name, _, _) -> prerr_endline ("  " ^ name))
-            fcns;
+  List.iter
+    (fun f -> match f with
+              | CV_Function (pos, name, _, _) ->
+                 (prerr_endline (name ^ " " ^ (Error.format_position pos));
+                  prerr_endline (Error.show_source pos)))
+    fcns;
   []
 
 let rec recursive_parse_def_file file =

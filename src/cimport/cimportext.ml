@@ -20,7 +20,7 @@ type ctype =
   | CT_TypeName of string
 
 type cvalue =
-  | CV_Function of string * ctype list * ctype
+  | CV_Function of Lexing.position * string * ctype list * ctype
 
 (** Import a C header file, along with all of its type and function
     declarations. *)

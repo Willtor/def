@@ -92,6 +92,27 @@ public:
         }
     }
 
+    /** Lexing.position
+     *  type position = {
+     *      pos_fname : string;
+     *      pos_lnum : int;
+     *      pos_bol : int;
+     *      pos_cnum : int;
+     *  }
+     */
+    value position_of_SourceLocation (const SourceLocation src_loc)
+    {
+        value pos = caml_alloc(4, 0);
+        Store_field(pos, 0,
+                    caml_copy_string(sm.getFilename(src_loc).str().c_str()));
+        Store_field(pos, 1, Val_int(sm.getSpellingLineNumber(src_loc)));
+        unsigned int file_offset = sm.getFileOffset(src_loc);
+        unsigned int column = sm.getSpellingColumnNumber(src_loc);
+        Store_field(pos, 2, Val_int(file_offset + 1 - column));
+        Store_field(pos, 3, Val_int(file_offset));
+        return pos;
+    }
+
     value readType (QualType qtype)
     {
         value tname = caml_copy_string(qtype.getAsString().c_str());
@@ -103,9 +124,10 @@ public:
     void declareFunction (NamedDecl *decl)
     {
         const FunctionDecl *fdecl = decl->getAsFunction();
-        //const SourceLocation loc = fdecl->getLocStart();
+
+        value pos = position_of_SourceLocation(fdecl->getLocStart());
         value fname =
-            caml_copy_string(decl->getQualifiedNameAsString().c_str());
+            caml_copy_string(fdecl->getQualifiedNameAsString().c_str());
 
         // Read the parameters into a list.
         value param_list = Val_int(0);
@@ -122,10 +144,11 @@ public:
         value rettp = readType(fdecl->getReturnType());
 
         // CV_Function of string * ctype list * ctype
-        value fcn = caml_alloc(3, 0);
-        Store_field(fcn, 0, fname);
-        Store_field(fcn, 1, param_list);
-        Store_field(fcn, 2, rettp);
+        value fcn = caml_alloc(4, 0);
+        Store_field(fcn, 0, pos);
+        Store_field(fcn, 1, fname);
+        Store_field(fcn, 2, param_list);
+        Store_field(fcn, 3, rettp);
 
         functions.push_back(fcn);
     }
