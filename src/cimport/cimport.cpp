@@ -113,11 +113,13 @@ public:
         return pos;
     }
 
-    value readType (QualType qtype)
+    value readType (QualType qtype, SourceLocation loc)
     {
         value tname = caml_copy_string(qtype.getAsString().c_str());
-        value ret = caml_alloc(1, 0);
-        Store_field(ret, 0, tname);
+        value pos = position_of_SourceLocation(loc);
+        value ret = caml_alloc(2, 0);
+        Store_field(ret, 0, pos);
+        Store_field(ret, 1, tname);
         return ret;
     }
 
@@ -132,7 +134,8 @@ public:
         // Read the parameters into a list.
         value param_list = Val_int(0);
         for (const ParmVarDecl *param : fdecl->parameters()) {
-            value param_n = readType(param->getOriginalType());
+            value param_n = readType(param->getOriginalType(),
+                                     param->getLocStart());
             value tmp = caml_alloc(2, 0);
             Store_field(tmp, 0, param_n);
             Store_field(tmp, 1, param_list);
@@ -141,7 +144,8 @@ public:
         param_list = reverse_list(param_list);
 
         // Function's return type.
-        value rettp = readType(fdecl->getReturnType());
+        value rettp = readType(fdecl->getReturnType(),
+                               fdecl->getReturnTypeSourceRange().getBegin());
 
         // CV_Function of string * ctype list * ctype
         value fcn = caml_alloc(4, 0);

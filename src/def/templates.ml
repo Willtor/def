@@ -52,6 +52,9 @@ let instantiate templates non_templates =
                      with _ -> name
             in
             VarType (pos, nm, qlist)
+         | CVarType _ ->
+            Report.err_internal __FILE__ __LINE__
+                                "FIXME: instantiate a template with a c type?"
          | FcnType (params, ret) ->
             let f (pos, s, vt) = pos, s, map_type vt in
             FcnType (List.map f params, map_type ret)

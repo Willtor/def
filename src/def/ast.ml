@@ -16,6 +16,7 @@
    02110-1301, USA.
  *)
 
+open Cimportext
 open Types
 open Lexing
 open Parsetree
@@ -95,6 +96,7 @@ and expr =
 
 and vartype =
   | VarType of position * string * Types.qualifier list
+  | CVarType of position * string * Types.qualifier list
   | FcnType of (position * string * vartype) list * vartype
   | StructType of (position * string * vartype) list
   | ArrayType of position * expr * vartype
@@ -528,6 +530,23 @@ let of_parsetree =
        ExprBinary oper
   in
   List.map stmt_of
+
+let of_cimport =
+  let type_of = function
+    | CT_TypeName (pos, tp) -> pos, CVarType (pos, tp, [])
+  in
+  let rec convert accum = function
+    | [] -> List.rev accum
+    | CV_Function (pos, name, params, ret) :: rest ->
+       let pmap param =
+         let tp_pos, tp = type_of param in tp_pos, "", tp
+       in
+       let _, ret_tp = type_of ret in
+       let ftype = FcnType ((List.map pmap params), ret_tp) in
+       let decl = DeclFcn (pos, Types.VisExported pos, name, ftype) in
+       convert (decl :: accum) rest
+  in
+  convert []
 
 let rec pos_of_astexpr = function
   | ExprNew (pos, _, _)

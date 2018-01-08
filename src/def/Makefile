@@ -40,7 +40,7 @@ $(TARGET): $(INTERFACE_OBJ) $(OBJ)
 	$(OCAMLC) $(PACKAGE) -I $(CIMPORT_PATH) -c $<
 
 %.cmi: %.mli
-	$(OCAMLC) $(PACKAGE) -c $<
+	$(OCAMLC) $(PACKAGE) -I $(CIMPORT_PATH) -c $<
 
 %.cmi: $(COMMONDIR)/%.cmi
 	cp $< $@
@@ -50,7 +50,7 @@ $(TARGET): $(INTERFACE_OBJ) $(OBJ)
 	cp $(<:.cmx=.o) $(@:.cmx=.o)
 
 ast.mli: ast.ml
-	$(OCAMLC) -i $< > $@
+	$(OCAMLC) -I $(CIMPORT_PATH) -i $< > $@
 
 report.mli: report.ml
 	$(OCAMLC) -i $< > $@

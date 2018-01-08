@@ -17,7 +17,7 @@
  *)
 
 type ctype =
-  | CT_TypeName of string
+  | CT_TypeName of Lexing.position * string
 
 type cvalue =
   | CV_Function of Lexing.position * string * ctype list * ctype

@@ -258,6 +258,12 @@ let rec get_field_types typemap = function
   | DefTypeStaticStruct types -> types
   | _ -> Report.err_internal __FILE__ __LINE__ "Unable to get field types."
 
+let check_native_c_type =
+  let tbl = Hashtbl.create 16 in
+  List.iter (fun (_, tp, _, name) -> Hashtbl.add tbl name tp)
+            map_builtin_types;
+  Hashtbl.find tbl
+
 let rec convert_type defining_p array2ptr typemap = function
   | VarType (pos, name, qlist) ->
      (* FIXME: qualifiers need to be addressed for all types. *)
@@ -274,6 +280,11 @@ let rec convert_type defining_p array2ptr typemap = function
           DefTypeNamedStruct name
        | Some (DefTypePrimitive (p, _)) -> DefTypePrimitive (p, qlist)
        | Some t -> t
+     end
+  | CVarType (pos, name, qlist) ->
+     begin try check_native_c_type name
+           with _ -> convert_type defining_p array2ptr typemap
+                                  (VarType (pos, name, qlist))
      end
   | FcnType (params, ret) ->
      let rec pconvert accum = function
@@ -325,6 +336,7 @@ let rec convert_type defining_p array2ptr typemap = function
 
 let param_pos_names = function
   | VarType _
+  | CVarType _
   | ArrayType _
   | PtrType _
   | StructType _

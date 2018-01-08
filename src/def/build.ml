@@ -123,14 +123,7 @@ let parse_def_file file =
   parsetree
 
 let parse_c_file file =
-  let fcns = import_c_file file in
-  List.iter
-    (fun f -> match f with
-              | CV_Function (pos, name, _, _) ->
-                 (prerr_endline (name ^ " " ^ (Error.format_position pos));
-                  prerr_endline (Error.show_source pos)))
-    fcns;
-  []
+  let fcns = import_c_file file in fcns
 
 let rec recursive_parse_def_file file =
   let proc parsetree = function
@@ -139,13 +132,14 @@ let rec recursive_parse_def_file file =
        (recursive_parse_def_file subfile) @ parsetree
     | _ -> parsetree
   in
-  let parsetree = match extension file with
-    | ".def" | ".defi" -> parse_def_file file
-    | ".h" -> parse_c_file file
-    | _ -> Report.err_internal __FILE__ __LINE__
-                               "Need appropriate error message."
-  in
-  List.fold_left proc parsetree parsetree
+  match extension file with
+  | ".def" | ".defi" ->
+     let parsetree = parse_def_file file in
+     List.fold_left proc (Ast.of_parsetree parsetree) parsetree
+  | ".h" ->
+     Ast.of_cimport @@ parse_c_file file
+  | _ -> Report.err_internal __FILE__ __LINE__
+                             "Need appropriate error message."
 
 let llmodule_of_ast infile ast =
   let expanded_ast = Templates.expand ast in
@@ -183,7 +177,7 @@ let read_bc file =
 let generate_asm file =
   match extension file with
   | ".def" ->
-     let ast = Ast.of_parsetree (recursive_parse_def_file file) in
+     let ast = recursive_parse_def_file file in
      let mdl = llmodule_of_ast file ast in
      if !compile_llvm then
        let outfile = outfile_name file ".ll" in
@@ -207,7 +201,7 @@ let generate_asm file =
 let generate_obj tmp_obj file =
   match extension file with
   | ".def" ->
-     let ast = Ast.of_parsetree (recursive_parse_def_file file) in
+     let ast = recursive_parse_def_file file in
      let mdl = llmodule_of_ast file ast in
      let () = Iropt.parallelize mdl in
      let () = Iropt.optimize mdl in
