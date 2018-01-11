@@ -532,8 +532,10 @@ let of_parsetree =
   List.map stmt_of
 
 let of_cimport =
-  let type_of = function
+  let rec type_of = function
     | CT_TypeName (pos, tp) -> pos, CVarType (pos, tp, [])
+    | CT_Pointer (pos, tp) ->
+       let _, t = type_of tp in pos, PtrType (pos, t, [])
   in
   let rec convert accum = function
     | [] -> List.rev accum

@@ -115,12 +115,23 @@ public:
 
     value readType (QualType qtype, SourceLocation loc)
     {
-        value tname = caml_copy_string(qtype.getAsString().c_str());
-        value pos = position_of_SourceLocation(loc);
-        value ret = caml_alloc(2, 0);
-        Store_field(ret, 0, pos);
-        Store_field(ret, 1, tname);
-        return ret;
+        const Type *type = qtype.getTypePtr();
+
+        if (type->isPointerType()) {
+            value pointee = readType(type->getPointeeType(), loc);
+            value pos = position_of_SourceLocation(loc);
+            value ret = caml_alloc(2, 1);
+            Store_field(ret, 0, pos);
+            Store_field(ret, 1, pointee);
+            return ret;
+        } else {
+            value tname = caml_copy_string(qtype.getAsString().c_str());
+            value pos = position_of_SourceLocation(loc);
+            value ret = caml_alloc(2, 0);
+            Store_field(ret, 0, pos);
+            Store_field(ret, 1, tname);
+            return ret;
+        }
     }
 
     void declareFunction (NamedDecl *decl)
