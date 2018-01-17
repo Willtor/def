@@ -246,6 +246,8 @@ let process_expr data llvals varmap pos_n_expr =
        let op = if signed_p tp then build_srem else build_urem in
        standard_op op "def_rem"
     | OperLShift, true -> standard_op build_shl "def_shl"
+    | OperRShift, true -> standard_op build_lshr "def_lshr"
+    (* FIXME: use ashr for signed shift. *)
     | OperPlus, true -> standard_op build_add "def_add"
     | OperPlus, false -> standard_op build_fadd "def_add_f"
     | OperMinus, true -> standard_op build_sub "def_sub"
