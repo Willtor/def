@@ -671,7 +671,7 @@ let binary_reconcile typemap =
        tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
-    | OperBitwiseAnd | OperBitwiseOr ->
+    | OperBitwiseAnd | OperBitwiseOr | OperBitwiseXor ->
        let tp = most_general_type pos typemap [ltype; rtype] in
        tp,
        tp,

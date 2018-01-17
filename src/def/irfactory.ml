@@ -268,6 +268,7 @@ let process_expr data llvals varmap pos_n_expr =
     | OperNEquals, false -> standard_op (build_fcmp Fcmp.One) "def_neq_f"
     | OperBitwiseAnd, true -> standard_op build_and "def_band"
     | OperBitwiseOr, true -> standard_op build_or "def_bor"
+    | OperBitwiseXor, true -> standard_op build_xor "def_bxor"
     | OperLogicalAnd, true -> standard_op build_and "def_land" (* FIXME!!! *)
     | OperAssign, _ ->
        begin match left, right with
@@ -303,7 +304,8 @@ let process_expr data llvals varmap pos_n_expr =
           rhs
        end
     | OperBitwiseAnd, false
-    | OperBitwiseOr, false ->
+    | OperBitwiseOr, false
+    | OperBitwiseXor, false ->
        Report.err_internal __FILE__ __LINE__
          ("tried to perform an operation \"" ^ (operator2string op)
           ^ ") on float operands.  This should have been caught earlier.")
