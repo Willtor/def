@@ -625,7 +625,7 @@ let process_expr data llvals varmap pos_n_expr =
   let _, expr = pos_n_expr in
   expr_gen true expr
 
-let process_fcn cgdebug data symbols fcn =
+let process_fcn data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
   let llblocks = Hashtbl.create 32 in
@@ -773,7 +773,7 @@ let process_fcn cgdebug data symbols fcn =
   List.iter
     (fun attr -> add_function_attr llfcn attr AttrIndex.Function)
     data.fattrs;
-  if not cgdebug then Llvm_analysis.assert_valid_function llfcn
+  if not !Config.codegen_debug then Llvm_analysis.assert_valid_function llfcn
 
 let get_const_val data = function
   | Expr_String (_, str) -> const_stringz data.ctx str
@@ -852,5 +852,5 @@ let process_cfg module_name program =
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols program.initializers)
               program.global_decls;
-  List.iter (process_fcn !Config.codegen_debug data symbols) program.fcnlist;
+  List.iter (process_fcn data symbols) program.fcnlist;
   mdl
