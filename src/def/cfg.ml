@@ -451,6 +451,8 @@ let rec infer_type_from_expr typemap scope = function
           | _ -> Report.err_internal __FILE__ __LINE__
                                      "Field name on a static struct."
           end
+       | DefTypePtr (tp, _) ->
+          get_field_tp tp
        | _ -> Report.err_internal __FILE__ __LINE__
                                   "Trying to get field from non-struct."
      in
