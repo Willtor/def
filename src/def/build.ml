@@ -145,7 +145,7 @@ let llmodule_of_ast infile ast =
   let expanded_ast = Templates.expand ast in
   let stmts = scrub (add_builtin_fcns expanded_ast) in
   let prog = lower_cfg (Cfg.of_ast stmts) in
-  let mdl = process_cfg !codegen_debug infile prog in
+  let mdl = process_cfg infile prog in
   let () = Iropt.optimize mdl in
   mdl
 

@@ -35,7 +35,7 @@ let print_version () =
     ("def version " ^ version_string
      ^ " (build #" ^ version_build
      ^ " on " ^ build_date ^ ")");
-  print_endline "Copyright (C) 2017 DEF Authors.";
+  print_endline "Copyright (C) 2018 DEF Authors.";
   print_endline "This is free software; see the source for copying conditions.  There is NO";
   print_endline "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
 
@@ -43,12 +43,13 @@ let version_helper = function
   | `Version -> (print_version (); `Version)
   | a -> a
 
-let def compile_depth llvm cgdebug opt output libs import files =
+let def compile_depth llvm debug cgdebug opt output libs import files =
   (* FIXME: Use libs. *)
   if opt < 0 || opt > 3 then
     fatal_error "Specify an optimization level [0-3].  Use --help.";
   comp_depth := compile_depth;
   compile_llvm := llvm;
+  debug_symbols := debug;
   codegen_debug := cgdebug;
   opt_level := opt;
   if output <> "" then
@@ -91,6 +92,14 @@ let llvm =
   in
   let emit_llvm = Arg.info ["emit-llvm"] ~doc in
   Arg.(value & flag emit_llvm)
+
+(* Generate debug symbols. *)
+let debug =
+  let doc = "Generate debug symbols in the output for use with gdb and other
+             debuggers."
+  in
+  let dbg = Arg.info ["g"] ~doc in
+  Arg.(value & flag dbg)
 
 (* Whether to test the LLVM output. *)
 let cgdebug =
@@ -148,7 +157,7 @@ let cmd =
     ]
   in
   let version = "v" ^ version_string in
-  Term.(const def $ compile_depth $ llvm $ cgdebug $ opt $ output
+  Term.(const def $ compile_depth $ llvm $ debug $ cgdebug $ opt $ output
         $ libraries $ import_paths $ files),
   Term.info "def" ~version ~doc ~exits:Term.default_exits ~man
 

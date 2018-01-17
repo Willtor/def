@@ -824,7 +824,7 @@ let declare_globals data symbols initializers name decl =
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 
-let process_cfg cgdebug module_name program =
+let process_cfg module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let ()   = set_target_triple (Target.default_triple ()) mdl in
@@ -850,5 +850,5 @@ let process_cfg cgdebug module_name program =
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols program.initializers)
               program.global_decls;
-  List.iter (process_fcn cgdebug data symbols) program.fcnlist;
+  List.iter (process_fcn !Config.codegen_debug data symbols) program.fcnlist;
   mdl

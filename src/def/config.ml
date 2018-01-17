@@ -35,6 +35,8 @@ let comp_depth = ref COMPILE_BINARY
 
 let compile_llvm = ref false
 
+let debug_symbols = ref false
+
 let codegen_debug = ref false
 
 let import_dirs =
