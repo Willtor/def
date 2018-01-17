@@ -45,6 +45,8 @@ let fcn_attrs =
    ("target-cpu", "x86-64")
   ]
 
+let debug_locations = Hashtbl.create 32
+
 let get_fcntype = function
   | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
   | _ -> Report.err_internal __FILE__ __LINE__ "Expected a DefTypeFcn."
@@ -544,7 +546,7 @@ let process_expr data llvals varmap pos_n_expr =
           if rvalue_p then build_load_wrapper llvar tp name data.bldr
           else llvar
        end
-    | Expr_Binary (op, is_atomic, tp, left, right) ->
+    | Expr_Binary (pos, op, is_atomic, tp, left, right) ->
        llvm_binop op is_atomic tp left right data.bldr
     | Expr_Unary (op, tp, expr, pre_p) ->
        llvm_unop op tp expr pre_p data.bldr
@@ -804,7 +806,7 @@ let declare_globals data symbols initializers name decl =
        begin
          try
            let init = match Hashtbl.find initializers decl.mappedname with
-             | Expr_Binary (OperAssign, _, _, _, rhs) ->
+             | Expr_Binary (_, OperAssign, _, _, _, rhs) ->
                 get_const_val data rhs
              | _ -> Report.err_internal __FILE__ __LINE__
                                         "Init that is not an assignment."

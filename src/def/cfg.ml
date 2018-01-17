@@ -31,7 +31,8 @@ type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_FcnCall_Refs of string * (*args=*)string list
   | Expr_String of string * string (* label, contents *)
-  | Expr_Binary of Ast.operator * bool * Types.deftype * cfg_expr * cfg_expr
+  | Expr_Binary of Lexing.position * Ast.operator * bool * Types.deftype
+                   * cfg_expr * cfg_expr
   | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
@@ -875,7 +876,8 @@ let convert_expr typemap fcnscope =
           _could_.  Do users want that? *)
        if op.op_atomic && not ((is_integer_type tp) || (is_pointer_type tp))
        then Report.err_atomic_non_integer op.op_pos (string_of_type tp)
-       else rettp, Expr_Binary (op.op_op, op.op_atomic, tp, lhs, rhs)
+       else rettp,
+            Expr_Binary (op.op_pos, op.op_op, op.op_atomic, tp, lhs, rhs)
     | ExprPreUnary op ->
        let tp, subexpr = convert op.op_left in
        let rettp = match op.op_op with
@@ -1116,12 +1118,12 @@ let rec build_bbs name decltable typemap body =
   *)
   let rec generate_conditional str pos expr succ fail =
     match expr with
-    | Expr_Binary (OperLogicalAnd, _, _, left, right) ->
-       let right_bb = generate_conditional (str ^ "r") pos right succ fail in
-       generate_conditional (str ^ "l") pos left right_bb fail
-    | Expr_Binary (OperLogicalOr, _, _, left, right) ->
-       let right_bb = generate_conditional (str ^ "r") pos right succ fail in
-       generate_conditional (str ^ "l") pos left succ right_bb
+    | Expr_Binary (epos, OperLogicalAnd, _, _, left, right) ->
+       let right_bb = generate_conditional (str ^ "r") epos right succ fail in
+       generate_conditional (str ^ "l") epos left right_bb fail
+    | Expr_Binary (epos, OperLogicalOr, _, _, left, right) ->
+       let right_bb = generate_conditional (str ^ "r") epos right succ fail in
+       generate_conditional (str ^ "l") epos left succ right_bb
     | e ->
        let cond_bb = make_conditional_bb str (pos, e) in
        let () = add_next cond_bb succ in
@@ -1215,7 +1217,7 @@ let rec build_bbs name decltable typemap body =
                          op_left = lhs;
                          op_right =
                            Some (ExprFcnCall ({ fc_spawn = true } as fc))
-                      }) ->
+                       } as binop) ->
             (* FIXME: Do casting of return value, if necessary. *)
             let detach, call = make_spawn fc.fc_name (Some lhs) fc.fc_args in
             let lhslabel = match detach with
@@ -1229,7 +1231,8 @@ let rec build_bbs name decltable typemap body =
               | _ -> Report.err_internal __FILE__ __LINE__ "Bad function type."
             in
             let expr =
-              Expr_Binary (OperAssign, false, tp, Expr_Val_Ref lhslabel, call)
+              Expr_Binary (binop.op_pos, OperAssign, false, tp,
+                           Expr_Val_Ref lhslabel, call)
             in
             let reattach =
               make_reattach_bb (label ^ ".reattach") sync_label
@@ -1333,7 +1336,7 @@ let rec build_bbs name decltable typemap body =
        let _, f =
          build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" []
        in
-       let e = Expr_Binary (OperEquals, false,
+       let e = Expr_Binary (pos, OperEquals, false,
                             DefTypePrimitive (PrimI32, [Volatile]),
                             Expr_Literal (LitI32 (Int32.of_int (-1))), f)
        in
@@ -1485,7 +1488,7 @@ let rec build_bbs name decltable typemap body =
        let switch_var_nm = "switch_var." ^ (Util.unique_id ()) in
        let switch_decl = make_decl pos scope switch_var_nm switch_tp in
        let () = add_decl switch_var_nm switch_decl in
-       let switch_assign = Expr_Binary (OperAssign, false, switch_tp,
+       let switch_assign = Expr_Binary (pos, OperAssign, false, switch_tp,
                                         Expr_Variable (switch_var_nm),
                                         switch_expr) in
        let switch_var = Expr_Variable switch_var_nm in
@@ -1496,7 +1499,7 @@ let rec build_bbs name decltable typemap body =
          let _, reconciled_tp, left, right =
            binary_reconcile typemap pos OperEquals l r
          in
-         Expr_Binary (OperEquals, false, reconciled_tp, left, right)
+         Expr_Binary (pos, OperEquals, false, reconciled_tp, left, right)
        in
        let rec get_member_types = function
          | DefTypeNamedStruct nm ->
@@ -1512,7 +1515,7 @@ let rec build_bbs name decltable typemap body =
        let make_ands atoms =
          List.fold_left
            (fun accum expr ->
-             Expr_Binary (OperLogicalAnd, false,
+             Expr_Binary (pos, OperLogicalAnd, false,
                           DefTypePrimitive (PrimBool, []),
                           accum, expr))
            (List.hd atoms) (List.tl atoms)
@@ -1602,7 +1605,7 @@ let rec build_bbs name decltable typemap body =
             let exprs =
               List.mapi (fun n (t, e) ->
                 pos,
-                Expr_Binary (OperAssign, false, t,
+                Expr_Binary (pos, OperAssign, false, t,
                              (* volatility doesn't matter, here, since it's
                                 the lhs of an assignment. => false *)
                              Expr_SelectField (structvar, n, false),
