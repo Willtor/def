@@ -696,6 +696,11 @@ let binary_reconcile typemap =
          check_castability pos typemap ltype rtype;
          ltype, ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
        end
+    | OperBAndAssign | OperBOrAssign | OperBXorAssign ->
+       begin
+         check_castability pos typemap ltype rtype;
+         ltype, ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
+       end
     | _ -> Report.err_internal __FILE__ __LINE__
        ("FIXME: Incomplete implementation Cfg.reconcile (operator "
         ^ (operator2string op) ^ ").")

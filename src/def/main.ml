@@ -85,7 +85,9 @@ let compile_depth =
 let llvm =
   let doc = "In conjunction with -S or -c, generate LLVM output instead of
              native output.  For an object file, this means LLVM bitcode (.bc)
-             will be generated, and for assembly it will be LLVM IR (.ll)."
+             will be generated, and for assembly it will be LLVM IR (.ll). The
+             flag \"-emit-llvm\" is also accepted for compatibility with
+             Clang."
   in
   let emit_llvm = Arg.info ["emit-llvm"] ~doc in
   Arg.(value & flag emit_llvm)
@@ -141,8 +143,6 @@ let cmd =
     [ `S Manpage.s_description;
       `P "Compile DEF source files (.def).  The def compiler is designed to
           copy the look-and-feel of the clang compiler for C and C++.";
-      `P "Take special note that def uses the option $(b,--emit-llvm),
-          instead of clang's $(b,-emit-llvm) option.";
       `S Manpage.s_bugs;
       `P ("Report bugs to <" ^ support_email ^ ">.")
     ]
@@ -152,4 +152,10 @@ let cmd =
         $ libraries $ import_paths $ files),
   Term.info "def" ~version ~doc ~exits:Term.default_exits ~man
 
-let () = Term.(exit @@ version_helper @@ eval cmd)
+let process_arg = function
+  | "-emit-llvm" -> "--emit-llvm" (* duplicate Clang behavior. *)
+  | arg -> arg
+
+let () =
+  let argv = Array.map process_arg Sys.argv in
+  Term.(exit @@ version_helper @@ eval cmd ~argv)
