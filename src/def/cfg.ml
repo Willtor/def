@@ -984,10 +984,6 @@ let convert_expr typemap fcnscope =
        Expr_String (nm, string_of_type expr_tp)
     | ExprNil _ -> DefTypeNullPtr, Expr_Nil
     | ExprWildcard _ -> DefTypeWildcard, Expr_Wildcard
-    | e ->
-       Report.err_internal __FILE__ __LINE__
-                           ("Cfg.convert_expr not fully implemented.\n"
-                            ^ (format_position (pos_of_astexpr e)))
   in convert
 
 let nonconflicting_name pos scope name =
