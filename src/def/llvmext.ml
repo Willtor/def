@@ -70,3 +70,10 @@ external add_loop_spawning :
 external is_parallel :
   llvalue -> bool
   = "llvm_is_parallel"
+
+(* Metadata *)
+
+(** Return a DIFile metadata object given the file and path. *)
+external difile :
+  llcontext -> string -> string -> Llvm.llvalue
+  = "llvm_difile"

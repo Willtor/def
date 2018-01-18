@@ -50,6 +50,7 @@ DEFFILES = 		\
 	main.ml		\
 	main.mli	\
 	Makefile	\
+	metadata.cpp	\
 	report.ml	\
 	scrubber.ml	\
 	scrubber.mli	\

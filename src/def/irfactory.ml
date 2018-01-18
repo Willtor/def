@@ -828,6 +828,13 @@ let declare_globals data symbols initializers name decl =
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 
+let debug_sym_preamble data module_name =
+  let file =
+    difile data.ctx (Filename.basename module_name)
+           (Filename.dirname module_name)
+  in
+  add_named_metadata_operand data.mdl "willtor" file
+
 let process_cfg module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
@@ -851,6 +858,7 @@ let process_cfg module_name program =
                one_f32 = const_float (the (lookup_symbol typemap "f32")) 1.0;
                one_f64 = const_float (the (lookup_symbol typemap "f64")) 1.0
              } in
+  if !Config.debug_symbols then debug_sym_preamble data module_name;
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols program.initializers)
               program.global_decls;
