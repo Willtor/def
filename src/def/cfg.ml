@@ -419,9 +419,11 @@ let rec infer_type_from_expr typemap scope = function
      let tp = infer_type_from_expr typemap scope op.op_left in
      if op.op_op = OperAddrOf then DefTypePtr (tp, [])
      else tp
-  | ExprVar (_, name) ->
-     let decl = Util.the (lookup_symbol scope name) in
-     decl.tp
+  | ExprVar (pos, name) ->
+     begin
+       try let decl = Util.the (lookup_symbol scope name) in decl.tp
+       with _ -> Report.err_undefined_var pos name
+     end
   | ExprLit (_, literal) ->
      typeof_literal literal
   | ExprCast (_, vt, _) ->
@@ -892,6 +894,10 @@ let convert_expr typemap fcnscope =
          | _ -> tp
        in
        rettp, Expr_Unary (op.op_op, tp, subexpr, true)
+    | ExprPostUnary op ->
+       let tp, subexpr = convert op.op_left in
+       let rettp = tp in
+       rettp, Expr_Unary (op.op_op, tp, subexpr, false)
     | ExprVar (pos, name) ->
        begin match lookup_symbol scope name with
        | Some var ->
