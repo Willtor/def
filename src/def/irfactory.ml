@@ -843,7 +843,7 @@ let debug_sym_preamble data module_name =
     dicompile_unit data.ctx dib file
                    ("def version " ^ version_string)
                    (!Config.opt_level <> 0) "" 0 in
-  add_named_metadata_operand data.mdl "willtor" cu
+  add_named_metadata_operand data.mdl "llvm.dbg.cu" cu
 
 let process_cfg module_name program =
   let ctx  = global_context () in
