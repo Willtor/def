@@ -19,6 +19,7 @@
 open Llvm
 
 type tapir_target
+type lldibuilder
 
 (** Synchronized cmpxchg operation. *)
 external build_cmpxchg :
@@ -73,7 +74,17 @@ external is_parallel :
 
 (* Metadata *)
 
+(** Make a DIBuilder for constructing debugging info. *)
+external dibuilder :
+  llmodule -> lldibuilder
+  = "llvm_dibuilder"
+
 (** Return a DIFile metadata object given the file and path. *)
 external difile :
-  llcontext -> string -> string -> Llvm.llvalue
+  llcontext -> lldibuilder -> string -> string -> Llvm.llvalue
   = "llvm_difile"
+
+external dicompile_unit :
+  llcontext -> lldibuilder -> llvalue -> string -> bool -> string -> int
+  -> llvalue
+  = "llvm_dicompile_unit_bc" "llvm_dicompile_unit"

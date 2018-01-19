@@ -829,11 +829,21 @@ let declare_globals data symbols initializers name decl =
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 
 let debug_sym_preamble data module_name =
-  let file =
-    difile data.ctx (Filename.basename module_name)
-           (Filename.dirname module_name)
+  let version_string =
+    (string_of_int Version.version_maj)
+    ^ "." ^ (string_of_int Version.version_min)
+    ^ "." ^ (string_of_int Version.version_patch)
+    ^ Version.version_suffix
   in
-  add_named_metadata_operand data.mdl "willtor" file
+  let dib = dibuilder data.mdl in
+  let file = difile data.ctx dib (Filename.basename module_name)
+                    (Filename.dirname module_name)
+  in
+  let cu =
+    dicompile_unit data.ctx dib file
+                   ("def version " ^ version_string)
+                   (!Config.opt_level <> 0) "" 0 in
+  add_named_metadata_operand data.mdl "willtor" cu
 
 let process_cfg module_name program =
   let ctx  = global_context () in
