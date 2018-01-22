@@ -82,11 +82,17 @@ and function_defn =
     fcn_cilk_init : string list
   }
 
+type cfg_scope =
+  | ScopeGlobal of Lexing.position
+  | ScopeLexical of Lexing.position
+  | ScopeLeaf of Lexing.position
+
 type program =
   { global_decls : decl Util.symtab;
     initializers : (string, cfg_expr) Hashtbl.t;
     fcnlist : function_defn list;
-    deftypemap : Types.deftype Util.symtab
+    deftypemap : Types.deftype Util.symtab;
+    scope_table : (cfg_scope, cfg_scope) Hashtbl.t
   }
 
 (* Visit a graph, depth-first. *)

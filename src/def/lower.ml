@@ -104,7 +104,8 @@ let lift_lhs_static_structs program =
   { global_decls = program.global_decls;
     initializers = program.initializers;
     fcnlist = List.map lift program.fcnlist;
-    deftypemap = program.deftypemap
+    deftypemap = program.deftypemap;
+    scope_table = program.scope_table
   }
 
 let lower_cfg program =

@@ -158,12 +158,16 @@ let instantiate templates non_templates =
                                  List.map member_replace members,
                                  (ipos, do_replace_expr init))
          | IfStmt (pos, cond, tblock, eblock_opt) ->
+            let replaced_eblock_opt = match eblock_opt with
+              | None -> None
+              | Some (epos, estmts) -> Some (epos, List.map do_replace estmts)
+            in
             IfStmt (pos,
                     do_replace_expr cond,
                     List.map do_replace tblock,
-                    if eblock_opt = None then None
-                    else Some (List.map do_replace (Util.the eblock_opt)))
-         | ForLoop (pos, is_parallel, init_opt, (cpos, cond), iter_opt, body)
+                    replaced_eblock_opt)
+         | ForLoop (pos, is_parallel, init_opt, (cpos, cond), iter_opt,
+                    dpos, body)
            ->
             ForLoop (pos, is_parallel,
                      (if init_opt = None then None
@@ -172,6 +176,7 @@ let instantiate templates non_templates =
                      (if iter_opt = None then None
                       else let p, iter = Util.the iter_opt in
                            Some (p, do_replace_expr iter)),
+                     dpos,
                      List.map do_replace body)
          | WhileLoop (pos, pre, cond, body) ->
             WhileLoop (pos, pre, do_replace_expr cond,

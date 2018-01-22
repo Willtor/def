@@ -110,11 +110,17 @@ and function_defn =
     fcn_cilk_init : string list
   }
 
+type cfg_scope =
+  | ScopeGlobal of Lexing.position
+  | ScopeLexical of Lexing.position
+  | ScopeLeaf of Lexing.position
+
 type program =
   { global_decls : decl Util.symtab;
     initializers : (string, cfg_expr) Hashtbl.t;
     fcnlist : function_defn list;
-    deftypemap : Types.deftype Util.symtab
+    deftypemap : Types.deftype Util.symtab;
+    scope_table : (cfg_scope, cfg_scope) Hashtbl.t
   }
 
 type function_scope =
@@ -123,14 +129,19 @@ type function_scope =
     fs_break_bb   : cfg_basic_block option;
     fs_sync_label : string;
     fs_in_xaction : bool;
+    fs_scope_pos  : cfg_scope
   }
 
-let make_fcn_scope vars =
+(** Table of cfg_scopes mapped to their parents. *)
+let scope_table = Hashtbl.create 128
+
+let make_fcn_scope scope_pos vars =
   { fs_vars       = vars;
     fs_cont_bb    = None;
     fs_break_bb   = None;
     fs_sync_label = "bodysync";
-    fs_in_xaction = false
+    fs_in_xaction = false;
+    fs_scope_pos  = scope_pos
   }
 
 let combine3 a b c =
@@ -236,7 +247,7 @@ let can_escape_forward labelmap stmts =
          if result then internal, true
          else match eblock_maybe with
               | None -> forward internal rest
-              | Some eblock ->
+              | Some (_, eblock) ->
                  let internal, result = forward internal eblock in
                  if result then internal, true
                  else forward internal rest
@@ -811,6 +822,7 @@ let build_fcn_call scope typemap pos name args =
     types, and things like variables are valid in the current scope. *)
 let convert_expr typemap fcnscope =
   let scope = fcnscope.fs_vars in
+  let lexical = fcnscope.fs_scope_pos in
   let rec convert = function
     | ExprNew (pos, t, init) ->
        let tp = match t with
@@ -877,6 +889,7 @@ let convert_expr typemap fcnscope =
          DefTypeArray (DefTypePrimitive (PrimI8, []), String.length raw) in
        tp, Expr_String (label_of_pos pos, raw)
     | ExprBinary op ->
+       let () = Hashtbl.add scope_table (ScopeLeaf op.op_pos) lexical in
        let rettp, tp, lhs, rhs =
          binary_reconcile typemap op.op_pos op.op_op
            (convert op.op_left) (convert (the op.op_right))
@@ -1069,7 +1082,7 @@ let make_goto_bb label =
                     seq_mark_bit = false
                   })
 
-let rec build_bbs name decltable typemap body =
+let rec build_bbs name decltable typemap fcn_pos body =
   let fcndecl = the (lookup_symbol decltable name) in
   let param_types, ret_type, _ = get_fcntype_profile fcndecl.tp in
 
@@ -1161,12 +1174,16 @@ let rec build_bbs name decltable typemap body =
                  ?(break = None)
                  ?(sync = None)
                  ?(xaction = false)
+                 pos
                  fs =
+    let lexical_scope = ScopeLexical pos in
+    Hashtbl.add scope_table lexical_scope fs.fs_scope_pos;
     { fs_vars = push_symtab_scope fs.fs_vars;
       fs_cont_bb = if cont <> None then cont else fs.fs_cont_bb;
       fs_break_bb = if break <> None then break else fs.fs_break_bb;
       fs_sync_label = if sync <> None then Util.the sync else fs.fs_sync_label;
-      fs_in_xaction = if xaction then true else fs.fs_in_xaction
+      fs_in_xaction = if xaction then true else fs.fs_in_xaction;
+      fs_scope_pos = lexical_scope
     }
   in
 
@@ -1258,9 +1275,9 @@ let rec build_bbs name decltable typemap body =
        in
        let () = add_next prev_bb begin_bb in
        process_bb scope end_bb rest
-    | Block (_, stmts) :: rest ->
+    | Block (pos, stmts) :: rest ->
        let bb =
-         process_bb (push_scope scope) prev_bb stmts in
+         process_bb (push_scope pos scope) prev_bb stmts in
        process_bb scope bb rest
     | DeclFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DeclFcn not expected."
@@ -1351,7 +1368,7 @@ let rec build_bbs name decltable typemap body =
        in
        let xact_bb = make_sequential_bb ("xact_" ^ pos_label) [] in
        let bb = make_conditional_bb ("xbegin_" ^ pos_label) (pos, e) in
-       let body_scope = push_scope ~xaction:true scope in
+       let body_scope = push_scope ~xaction:true pos scope in
        let body_end_bb = process_bb body_scope xact_bb body in
        let _, f =
          build_fcn_call scope.fs_vars typemap pos "llvm.x86.xend" []
@@ -1372,19 +1389,20 @@ let rec build_bbs name decltable typemap body =
          pos cexpr succ_bb fail_bb
        in
        let () = add_next prev_bb cond_bb in
-       let then_bb = process_bb (push_scope scope) succ_bb then_block in
+       let then_bb = process_bb (push_scope pos scope) succ_bb then_block in
        let merge_bb = make_sequential_bb ("merge_" ^ (label_of_pos pos)) [] in
        let () = add_next then_bb merge_bb in
        let () = match else_block_maybe with
          | None -> add_next fail_bb merge_bb
-         | Some stmts ->
-            let else_bb = process_bb (push_scope scope) fail_bb stmts in
+         | Some (epos, stmts) ->
+            let else_bb = process_bb (push_scope epos scope) fail_bb stmts in
             add_next else_bb merge_bb
        in
        process_bb scope merge_bb rest
-    | ForLoop (pos, (*parallel=*)false, init, (_, cond), iter, body) :: rest ->
+    | ForLoop (pos, (*parallel=*)false, init, (_, cond), iter, dpos, body)
+      :: rest ->
        (* FIXME: Should really unify this with parallel for loop case. *)
-       let init_scope = push_scope ~cont:None ~break:None scope in
+       let init_scope = push_scope ~cont:None ~break:None pos scope in
        let init_bb = match init with
          | None -> prev_bb
          | Some stmt_or_decl -> process_bb init_scope prev_bb [stmt_or_decl]
@@ -1407,12 +1425,13 @@ let rec build_bbs name decltable typemap body =
        let () = add_next prev_bb init_bb in
        let () = add_next init_bb cond_bb in
        let body_scope =
-         push_scope ~cont:(Some iter_bb) ~break:(Some fail_bb) init_scope in
+         push_scope ~cont:(Some iter_bb) ~break:(Some fail_bb) dpos init_scope in
        let for_body_end = process_bb body_scope succ_bb body in
        let () = add_next for_body_end iter_bb in
        process_bb scope fail_bb rest
-    | ForLoop (pos, (*parallel=*)true, init, (_, cond), iter, body) :: rest ->
-       let init_scope = push_scope ~cont:None ~break:None scope in
+    | ForLoop (pos, (*parallel=*)true, init, (_, cond), iter, dpos, body)
+      :: rest ->
+       let init_scope = push_scope ~cont:None ~break:None pos scope in
        let init_bb = match init with
          | None -> prev_bb
          | Some stmt_or_decl -> process_bb init_scope prev_bb [stmt_or_decl]
@@ -1442,7 +1461,7 @@ let rec build_bbs name decltable typemap body =
        let internal_sync = scope.fs_sync_label ^ "." ^ (Util.unique_id ()) in
        let body_scope =
          push_scope ~cont:(Some iter_bb) ~break:None ~sync:(Some internal_sync)
-                    init_scope
+                    dpos init_scope
        in
        let for_body_end = process_bb body_scope succ_bb body in
        let () = add_next succ_bb iter_bb in
@@ -1476,7 +1495,7 @@ let rec build_bbs name decltable typemap body =
        let body_begin =
          make_sequential_bb ("loop_body_" ^ (label_of_pos pos)) [] in
        let body_scope =
-         push_scope ~cont:(Some cond_bb) ~break:(Some fail_bb) scope in
+         push_scope ~cont:(Some cond_bb) ~break:(Some fail_bb) pos scope in
        if precheck then
          let () = add_next prev_bb cond_bb in
          let () = add_next succ_bb body_begin in
@@ -1574,7 +1593,7 @@ let rec build_bbs name decltable typemap body =
          let cond_bb = generate_conditional case_label case_pos case_cmp
                                             succ_bb fail_bb
          in
-         let case_scope = push_scope ~break:(Some exit_bb) scope in
+         let case_scope = push_scope ~break:(Some exit_bb) case_pos scope in
          let case_end = process_bb case_scope succ_bb stmts in
          begin
            add_next last_bb cond_bb;
@@ -1699,7 +1718,7 @@ let rec build_bbs name decltable typemap body =
     | _ -> ()
   in
   let entry_bb = make_sequential_bb "entry" [] in
-  let fcnscope = make_fcn_scope scoped_vars in
+  let fcnscope = make_fcn_scope fcn_pos scoped_vars in
   let _ = process_bb fcnscope entry_bb body in
   let bb_table = Hashtbl.create 32 in
   let () = visit_df (fun () bb -> match bb with
@@ -1737,7 +1756,7 @@ let build_global_vars decltable typemap globals = function
        if init = None then accum
        else
          let decl = Util.the (lookup_symbol decltable var.td_text) in
-         let scope = make_fcn_scope decltable in
+         let scope = make_fcn_scope (ScopeGlobal decl.decl_pos) decltable in
          let etp, expr = convert_expr typemap scope (Util.the init) in
          (decl.mappedname, maybe_cast typemap etp decl.tp expr) :: accum
      in
@@ -1750,7 +1769,9 @@ let build_global_vars decltable typemap globals = function
 
 let build_fcns decltable typemap fcns = function
   | DefFcn (pos, _, _, name, _, body) ->
-     let syncs, decls, entry_bb = build_bbs name decltable typemap body in
+     let fcn_pos = ScopeGlobal pos in
+     let syncs, decls, entry_bb =
+       build_bbs name decltable typemap fcn_pos body in
      let () = verify_cfg name entry_bb in
      let () = reset_bbs entry_bb in
      let fcn =
@@ -1856,8 +1877,10 @@ let resolve_builtins stmts typemap =
        IfStmt (p, process_expr cond,
                List.map process_stmt tstmts,
                if estmts_maybe = None then None
-               else Some (List.map process_stmt (Util.the estmts_maybe)))
-    | ForLoop (p, is_parallel, init, cond, iter, stmts) ->
+               else
+                 let epos, estmts = Util.the estmts_maybe in
+                 Some (epos, (List.map process_stmt estmts)))
+    | ForLoop (p, is_parallel, init, cond, iter, dpos, stmts) ->
        let newinit = match init with
          | None -> None
          | Some s -> Some (process_stmt s)
@@ -1867,7 +1890,7 @@ let resolve_builtins stmts typemap =
          | None -> None
          | Some (p, e) -> Some (p, process_expr e)
        in
-       ForLoop (p, is_parallel, newinit, newcond, newiter,
+       ForLoop (p, is_parallel, newinit, newcond, newiter, dpos,
                 List.map process_stmt stmts)
     | WhileLoop (p, pre, cond, stmts) ->
        WhileLoop (p, pre, process_expr cond, List.map process_stmt stmts)
@@ -1900,5 +1923,6 @@ let of_ast stmts =
   { global_decls = decltable;
     initializers = initializers;
     fcnlist = List.rev fcnlist;
-    deftypemap = typemap
+    deftypemap = typemap;
+    scope_table = scope_table
   }

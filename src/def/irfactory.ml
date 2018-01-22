@@ -627,7 +627,7 @@ let process_expr data llvals varmap pos_n_expr =
   let _, expr = pos_n_expr in
   expr_gen true expr
 
-let process_fcn data symbols fcn =
+let process_fcn data symbols scope_table fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
   let llblocks = Hashtbl.create 32 in
@@ -836,6 +836,7 @@ let debug_sym_preamble data module_name =
     ^ Version.version_suffix
   in
   let dib = dibuilder data.mdl in
+  (* FIXME: basename should be expanded so it isn't "." or whatever. *)
   let file = difile data.ctx dib (Filename.basename module_name)
                     (Filename.dirname module_name)
   in
@@ -872,5 +873,5 @@ let process_cfg module_name program =
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols program.initializers)
               program.global_decls;
-  List.iter (process_fcn data symbols) program.fcnlist;
+  List.iter (process_fcn data symbols program.scope_table) program.fcnlist;
   mdl

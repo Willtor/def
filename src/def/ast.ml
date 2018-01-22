@@ -117,10 +117,10 @@ type stmt =
   | InlineStructVarDecl of position * (position * string * vartype) list
     * (position * expr)
   | TransactionBlock of position * stmt list
-  | IfStmt of position * expr * stmt list * stmt list option
+  | IfStmt of position * expr * stmt list * (Lexing.position * stmt list) option
   (* ForLoop: start-pos * is_parallel * init * cond * iter * body *)
   | ForLoop of position * bool * stmt option * (position * expr)
-    * (position * expr) option * stmt list
+    * (position * expr) option * position * stmt list
   (* WhileLoop: start-pos * pre-check * cond * body *)
   | WhileLoop of position * bool * expr * stmt list
   | SwitchStmt of position * expr * (position * expr * stmt list) list
@@ -317,17 +317,18 @@ let of_parsetree =
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
        let else_clause = match maybe_else with
          | None -> None
-         | Some (_, stmts) -> Some (List.map stmt_of stmts)
+         | Some (etok, stmts) -> Some (etok.td_pos, (List.map stmt_of stmts))
        in
        let rest = List.fold_right (fun (elif, c, _, stmts) rest ->
-                      Some [ IfStmt (elif.td_pos, expr_of c,
+                      Some (elif.td_pos,
+                            [ IfStmt (elif.td_pos, expr_of c,
                                       List.map stmt_of stmts,
-                                      rest) ])
-                           elifs else_clause
+                                      rest) ]))
+                                  elifs else_clause
        in
        IfStmt (iftok.td_pos, expr_of cond, List.map stmt_of stmts, rest)
-    | PTS_ForLoop (fortok, init_p, _, cond, _, iter_p, _, stmts, _)
-    | PTS_ParforLoop (fortok, init_p, _, cond, _, iter_p, _, stmts, _)
+    | PTS_ForLoop (fortok, init_p, _, cond, _, iter_p, dotok, stmts, _)
+    | PTS_ParforLoop (fortok, init_p, _, cond, _, iter_p, dotok, stmts, _)
       ->
        let init = match init_p with
          | None -> None
@@ -355,7 +356,7 @@ let of_parsetree =
        let is_parallel = if fortok.td_text = "for" then false else true in
        ForLoop (fortok.td_pos, is_parallel, init,
                 (pt_expr_pos cond, expr_of cond),
-                iter, List.map stmt_of stmts)
+                iter, dotok.td_pos, List.map stmt_of stmts)
     | PTS_WhileLoop (whiletok, cond, _, stmts, _) ->
        WhileLoop (whiletok.td_pos, true, expr_of cond,
                   List.map stmt_of stmts)
@@ -630,9 +631,10 @@ let rec visit_expr_in_stmt f = function
        visit_expr f cond;
        List.iter (visit_expr_in_stmt f) then_stmts;
        if None <> else_stmts_maybe then
-         List.iter (visit_expr_in_stmt f) (Util.the else_stmts_maybe)
+         let _, estmts = Util.the else_stmts_maybe in
+         List.iter (visit_expr_in_stmt f) estmts
      end
-  | ForLoop (_, _, init_maybe, (_, cond), iter_option, body) ->
+  | ForLoop (_, _, init_maybe, (_, cond), iter_option, _, body) ->
      begin
        if None <> init_maybe then
          visit_expr_in_stmt f (Util.the init_maybe);
