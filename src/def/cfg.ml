@@ -272,7 +272,7 @@ let rec get_field_types typemap = function
 
 let check_native_c_type =
   let tbl = Hashtbl.create 16 in
-  List.iter (fun (_, tp, _, name) -> Hashtbl.add tbl name tp)
+  List.iter (fun (_, tp, _, name, _, _) -> Hashtbl.add tbl name tp)
             map_builtin_types;
   Hashtbl.find tbl
 
@@ -1787,7 +1787,7 @@ let build_fcns decltable typemap fcns = function
 
 let builtin_types () =
   let map = make_symtab () in
-  List.iter (fun (name, tp, _, _) ->
+  List.iter (fun (name, tp, _, _, _, _) ->
     add_symbol map name tp)
     Types.map_builtin_types;
   map

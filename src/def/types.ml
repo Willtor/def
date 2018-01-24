@@ -17,7 +17,7 @@
  *)
 
 open Llvm
-open Llvmext (* token_type *)
+open Llvmext (* token_type, dwarf_type *)
 open Util
 
 type qualifier =
@@ -130,21 +130,36 @@ let compare t1 t2 =
 
 (** name, type, llvm type constructor, C type *)
 let map_builtin_types =
-  [ ("void", DefTypeVoid, void_type, "void");
-    ("bool", DefTypePrimitive (PrimBool, []), i1_type, "char"); 
-    ("char", DefTypePrimitive (PrimI8, []), i8_type, "char");
-    ("uchar", DefTypePrimitive (PrimU8, []), i8_type, "unsigned char");
-    ("i8",  DefTypePrimitive (PrimI8, []),  i8_type, "char");
-    ("u8",  DefTypePrimitive (PrimU8, []),  i8_type, "unsigned char");
-    ("i16", DefTypePrimitive (PrimI16, []), i16_type, "short");
-    ("u16", DefTypePrimitive (PrimU16, []), i16_type, "unsigned short");
-    ("i32", DefTypePrimitive (PrimI32, []), i32_type, "int");
-    ("u32", DefTypePrimitive (PrimU32, []), i32_type, "unsigned int");
-    ("i64", DefTypePrimitive (PrimI64, []), i64_type, "long long");
-    ("u64", DefTypePrimitive (PrimU64, []), i64_type, "unsigned long long");
-    ("f32", DefTypePrimitive (PrimF32, []), float_type, "float");
-    ("f64", DefTypePrimitive (PrimF64, []), double_type, "double");
-    ("llvm.token", DefTypeLLVMToken, token_type, "")
+  [ ("void", DefTypeVoid, void_type, "void",
+     0, DW_INVALID);
+    ("bool", DefTypePrimitive (PrimBool, []), i1_type, "char",
+     1, DW_ATE_BOOLEAN);
+    ("char", DefTypePrimitive (PrimI8, []), i8_type, "char",
+     8, DW_ATE_SIGNED_CHAR);
+    ("uchar", DefTypePrimitive (PrimU8, []), i8_type, "unsigned char",
+     8, DW_ATE_UNSIGNED_CHAR);
+    ("i8",  DefTypePrimitive (PrimI8, []),  i8_type, "char",
+     8, DW_ATE_SIGNED_CHAR);
+    ("u8",  DefTypePrimitive (PrimU8, []),  i8_type, "unsigned char",
+     8, DW_ATE_UNSIGNED_CHAR);
+    ("i16", DefTypePrimitive (PrimI16, []), i16_type, "short",
+     16, DW_ATE_SIGNED);
+    ("u16", DefTypePrimitive (PrimU16, []), i16_type, "unsigned short",
+     16, DW_ATE_UNSIGNED);
+    ("i32", DefTypePrimitive (PrimI32, []), i32_type, "int",
+     32, DW_ATE_SIGNED);
+    ("u32", DefTypePrimitive (PrimU32, []), i32_type, "unsigned int",
+     32, DW_ATE_UNSIGNED);
+    ("i64", DefTypePrimitive (PrimI64, []), i64_type, "long long",
+     64, DW_ATE_SIGNED);
+    ("u64", DefTypePrimitive (PrimU64, []), i64_type, "unsigned long long",
+     64, DW_ATE_UNSIGNED);
+    ("f32", DefTypePrimitive (PrimF32, []), float_type, "float",
+     64, DW_ATE_FLOAT);
+    ("f64", DefTypePrimitive (PrimF64, []), double_type, "double",
+     64, DW_ATE_FLOAT);
+    ("llvm.token", DefTypeLLVMToken, token_type, "",
+     0, DW_INVALID)
   ]
 
 (** Convert a primitive type to its string representation. *)
@@ -400,3 +415,10 @@ let rec contains_wildcard = function
   | DefTypeLiteralStruct (tps, _)
   | DefTypeStaticStruct tps -> List.exists contains_wildcard tps
   | _ -> false
+
+(** Get the dwarf type of a primitive type. *)
+let dwarf_of =
+  let dwarf = Hashtbl.create 16 in
+  List.iter (fun (_, p, _, _, sz, d) -> Hashtbl.add dwarf p (sz, d))
+            map_builtin_types;
+  Hashtbl.find dwarf

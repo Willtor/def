@@ -21,6 +21,16 @@ open Llvm
 type tapir_target
 type lldibuilder
 
+(** Note: This needs to be kept consistent with metadata.cpp. *)
+type dwarf_type =
+  | DW_INVALID
+  | DW_ATE_BOOLEAN
+  | DW_ATE_SIGNED_CHAR
+  | DW_ATE_UNSIGNED_CHAR
+  | DW_ATE_SIGNED
+  | DW_ATE_UNSIGNED
+  | DW_ATE_FLOAT
+
 (** Synchronized cmpxchg operation. *)
 external build_cmpxchg :
   llvalue -> llvalue -> llvalue -> AtomicOrdering.t ->
@@ -84,7 +94,18 @@ external difile :
   llcontext -> lldibuilder -> string -> string -> Llvm.llvalue
   = "llvm_difile"
 
+(** Get a compile unit object. *)
 external dicompile_unit :
   llcontext -> lldibuilder -> llvalue -> string -> bool -> string -> int
   -> llvalue
   = "llvm_dicompile_unit_bc" "llvm_dicompile_unit"
+
+(** Get a new DIBasicType for the given name, length, and DWARF type. *)
+external dibasic_type :
+  llcontext -> lldibuilder -> string -> int -> dwarf_type -> llvalue
+  = "llvm_dibasic_type_bc" "llvm_dibasic_type"
+
+(** Get a new DISubroutineType for the given return value + parameters. *)
+external disubroutine_type :
+  llcontext -> lldibuilder -> llvalue list -> llvalue
+  = "llvm_disubroutine_type"

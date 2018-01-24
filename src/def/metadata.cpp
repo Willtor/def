@@ -17,6 +17,27 @@ using namespace llvm;
 
 typedef void * DIBuilderRef;
 
+/** Get the llvm::dwarf::* type.  Note: This needs to be kept consistent with
+ *  llvmext.ml.
+ */
+static
+int dwarf_of (int ocaml_dwarf_type) {
+    switch (ocaml_dwarf_type) {
+    case 0: // FIXME: Suitable internal error.
+        fprintf(stderr, "Internal error: DW_INVALID.\n");
+        abort();
+    case 1: return llvm::dwarf::DW_ATE_boolean;
+    case 2: return llvm::dwarf::DW_ATE_signed_char;
+    case 3: return llvm::dwarf::DW_ATE_unsigned_char;
+    case 4: return llvm::dwarf::DW_ATE_signed;
+    case 5: return llvm::dwarf::DW_ATE_unsigned;
+    case 6: return llvm::dwarf::DW_ATE_float;
+    default:
+        fprintf(stderr, "Internal error: Unknown dwarf type.\n");
+        abort();
+    }
+}
+
 static
 LLVMValueRef LLVMDIFile (LLVMContextRef ctx, DIBuilderRef dib,
                          char *filename, char *basepath)
@@ -49,6 +70,41 @@ LLVMValueRef LLVMDICompileUnit (LLVMContextRef ctx,
                                                 flags,
                                                 rt_version);
     return wrap(MetadataAsValue::get(Context, cu));
+}
+
+static
+LLVMValueRef LLVMDIBasicType (LLVMContextRef ctx,
+                              DIBuilderRef dib,
+                              char *type_name,
+                              int bitwidth,
+                              int dwarf_type)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    DIBasicType *type =
+        ((DIBuilder*)dib)->createBasicType(StringRef(type_name),
+                                           bitwidth,
+                                           dwarf_of(dwarf_type));
+    return wrap(MetadataAsValue::get(Context, type));
+}
+
+static
+LLVMValueRef LLVMDISubroutineType (LLVMContextRef ctx,
+                                   DIBuilderRef dib,
+                                   value ret_and_params)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    DITypeRefArray plist;
+    int i;
+    for (i = 0; Int_val(0) != ret_and_params; ++i) {
+        LLVMValueRef param =
+            reinterpret_cast<LLVMValueRef>(Field(ret_and_params, 0));
+        DIType *ptype =
+            dyn_cast<DIType>(unwrap<MetadataAsValue>(param)->getMetadata());
+        plist[i] = TypedDINodeRef<DIType>(ptype);
+        ret_and_params = Field(ret_and_params, 1);
+    }
+    DISubroutineType *type = ((DIBuilder*)dib)->createSubroutineType(plist);
+    return wrap(MetadataAsValue::get(Context, type));
 }
 
 /** Make a DIBuilder for constructing debugging info.
@@ -99,4 +155,37 @@ LLVMValueRef llvm_dicompile_unit_bc (value *argv, int argc)
 {
     return llvm_dicompile_unit(argv[0], argv[1], argv[2], argv[3], argv[4],
                                argv[5], argv[6]);
+}
+
+/** Get a new DIBasicType for the given name, length, and DWARF type.
+ *  lldibuilder -> string -> int -> dwarf_type -> llvalue
+ */
+extern "C"
+LLVMValueRef llvm_dibasic_type (value ctx,
+                                value dib,
+                                value type_name,
+                                value bitwidth,
+                                value dwarf_type)
+{
+    return LLVMDIBasicType (reinterpret_cast<LLVMContextRef>(ctx),
+                            reinterpret_cast<DIBuilderRef>(dib),
+                            String_val(type_name),
+                            Int_val(bitwidth),
+                            Int_val(dwarf_type));
+}
+
+/** Bytecode wrapper for llvm_dibasic_type.
+ */
+extern "C"
+LLVMValueRef llvm_dibasic_type_bc (value *argv, int argc)
+{
+    return llvm_dibasic_type(argv[0], argv[1], argv[2], argv[3], argv[4]);
+}
+
+extern "C"
+LLVMValueRef llvm_disubroutine_type (LLVMContextRef ctx,
+                                     DIBuilderRef dib,
+                                     value ret_and_params)
+{
+    return LLVMDISubroutineType(ctx, dib, ret_and_params);
 }

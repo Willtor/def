@@ -31,6 +31,8 @@ type llvm_data =
     typemap : lltype symtab;
     prog : program;
     fattrs : llattribute list;
+    mutable dib : lldibuilder option;
+    d_scope_table : (cfg_scope, cfg_scope) Hashtbl.t;
     zero_i32 : llvalue;
     one_i8  : llvalue;
     one_i16 : llvalue;
@@ -111,7 +113,7 @@ let build_types ctx deftypes =
     | _ -> ()
   in
   List.iter
-    (fun (name, _, f, _) -> add_symbol typemap name (f ctx))
+    (fun (name, _, f, _, _, _) -> add_symbol typemap name (f ctx))
     Types.map_builtin_types;
   symtab_iter forward_declare_structs deftypes;
   symtab_iter build_structs deftypes;
@@ -627,8 +629,38 @@ let process_expr data llvals varmap pos_n_expr =
   let _, expr = pos_n_expr in
   expr_gen true expr
 
-let process_fcn data symbols scope_table fcn =
+let get_debug_type =
+  let debug_types = Hashtbl.create 32 in
+  fun data ->
+  let ctx = data.ctx in
+  let dib = Util.the data.dib in
+  let rec lookup_type tp =
+    try Hashtbl.find debug_types tp
+    with _ ->
+         let create t =
+           Hashtbl.add debug_types tp t;
+           t
+         in
+         match tp with
+         | DefTypeFcn (params, ret, (*variadic:*)_) ->
+            let plist = List.map lookup_type params in
+            let r = lookup_type ret in
+            create (disubroutine_type ctx dib (r :: plist))
+         | DefTypePrimitive (p, _) ->
+            let sz, dtype = dwarf_of tp in
+            create (dibasic_type ctx dib (primitive2string p) sz dtype)
+         | _ ->
+            Report.err_internal __FILE__ __LINE__ "Incomplete debug type info."
+  in
+  lookup_type
+
+let fcn_symbols data profile =
+  let _ = get_debug_type data profile.tp in
+  ()
+
+let process_fcn data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
+  let () = if !Config.debug_symbols then fcn_symbols data profile in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
   let llblocks = Hashtbl.create 32 in
   let make_llbbs () = function
@@ -844,7 +876,8 @@ let debug_sym_preamble data module_name =
     dicompile_unit data.ctx dib file
                    ("def version " ^ version_string)
                    (!Config.opt_level <> 0) "" 0 in
-  add_named_metadata_operand data.mdl "llvm.dbg.cu" cu
+  add_named_metadata_operand data.mdl "llvm.dbg.cu" cu;
+  data.dib <- Some dib
 
 let process_cfg module_name program =
   let ctx  = global_context () in
@@ -861,6 +894,8 @@ let process_cfg module_name program =
                           (fun (key, value) ->
                             create_string_attr ctx key value)
                           fcn_attrs;
+               dib = None;
+               d_scope_table = program.scope_table;
                zero_i32 = const_null (the (lookup_symbol typemap "i32"));
                one_i8 = const_int (the (lookup_symbol typemap "bool")) 1;
                one_i16 = const_int (the (lookup_symbol typemap "i16")) 1;
@@ -873,5 +908,5 @@ let process_cfg module_name program =
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols program.initializers)
               program.global_decls;
-  List.iter (process_fcn data symbols program.scope_table) program.fcnlist;
+  List.iter (process_fcn data symbols) program.fcnlist;
   mdl
