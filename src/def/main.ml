@@ -43,7 +43,7 @@ let version_helper = function
   | `Version -> (print_version (); `Version)
   | a -> a
 
-let def compile_depth llvm debug cgdebug opt output libs import files =
+let def compile_depth llvm debug cgdebug opt pic output libs import files =
   (* FIXME: Use libs. *)
   if opt < 0 || opt > 3 then
     fatal_error "Specify an optimization level [0-3].  Use --help.";
@@ -52,6 +52,7 @@ let def compile_depth llvm debug cgdebug opt output libs import files =
   debug_symbols := debug;
   codegen_debug := cgdebug;
   opt_level := opt;
+  position_indep := pic;
   if output <> "" then
     output_file := Some output;
   linked_libs := libs;
@@ -116,6 +117,13 @@ let opt =
   let optarg = Arg.info ["O"] ~doc ~docv in
   Arg.(value & opt int 1 optarg)
 
+let pic =
+  let doc = "Emit position independent code designed for shared objects that
+             may not always be loaded at the same address on every execution."
+  in
+  let fpic = Arg.info ["fPIC"] ~doc in
+  Arg.(value & flag fpic)
+
 (* Output file name. *)
 let output =
   let doc = "Specify an output file name." in
@@ -152,17 +160,20 @@ let cmd =
     [ `S Manpage.s_description;
       `P "Compile DEF source files (.def).  The def compiler is designed to
           copy the look-and-feel of the clang compiler for C and C++.";
+      `P "Flags that begin with --f<opt> in common with GCC/Clang are also
+          available in single-dash form (\"-f<opt>\") for compatibility.";
       `S Manpage.s_bugs;
       `P ("Report bugs to <" ^ support_email ^ ">.")
     ]
   in
   let version = "v" ^ version_string in
-  Term.(const def $ compile_depth $ llvm $ debug $ cgdebug $ opt $ output
+  Term.(const def $ compile_depth $ llvm $ debug $ cgdebug $ opt $pic $ output
         $ libraries $ import_paths $ files),
   Term.info "def" ~version ~doc ~exits:Term.default_exits ~man
 
 let process_arg = function
   | "-emit-llvm" -> "--emit-llvm" (* duplicate Clang behavior. *)
+  | "-fPIC" -> "--fPIC"
   | arg -> arg
 
 let () =

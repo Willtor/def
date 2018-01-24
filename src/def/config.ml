@@ -23,6 +23,8 @@ type compilation_level =
 
 let opt_level = ref 1
 
+let position_indep = ref false
+
 let no_cilk = ref false
 
 let input_files : string list ref = ref []

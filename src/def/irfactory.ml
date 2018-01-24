@@ -860,6 +860,22 @@ let declare_globals data symbols initializers name decl =
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 
+let make_module_flags data =
+  if !Config.position_indep then
+    let pic_level =
+(*
+      mdnode data.ctx
+             [| mdi32 data.ctx 1;
+                mdstring data.ctx "PIC Level";
+                mdi32 data.ctx 2 |]
+ *)
+      mdnode data.ctx
+             [| const_int (i32_type data.ctx) 1;
+                mdstring data.ctx "PIC Level";
+                const_int (i32_type data.ctx) 2 |]
+    in
+    add_named_metadata_operand data.mdl "llvm.module.flags" pic_level
+
 let debug_sym_preamble data module_name =
   let version_string =
     (string_of_int Version.version_maj)
@@ -904,6 +920,7 @@ let process_cfg module_name program =
                one_f32 = const_float (the (lookup_symbol typemap "f32")) 1.0;
                one_f64 = const_float (the (lookup_symbol typemap "f64")) 1.0
              } in
+  make_module_flags data;
   if !Config.debug_symbols then debug_sym_preamble data module_name;
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols program.initializers)
