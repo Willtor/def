@@ -863,12 +863,6 @@ let declare_globals data symbols initializers name decl =
 let make_module_flags data =
   if !Config.position_indep then
     let pic_level =
-(*
-      mdnode data.ctx
-             [| mdi32 data.ctx 1;
-                mdstring data.ctx "PIC Level";
-                mdi32 data.ctx 2 |]
- *)
       mdnode data.ctx
              [| const_int (i32_type data.ctx) 1;
                 mdstring data.ctx "PIC Level";

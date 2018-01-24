@@ -93,16 +93,18 @@ LLVMValueRef LLVMDISubroutineType (LLVMContextRef ctx,
                                    value ret_and_params)
 {
     LLVMContext &Context = *unwrap(ctx);
-    DITypeRefArray plist;
+    std::vector<Metadata*> pvector;
     int i;
-    for (i = 0; Int_val(0) != ret_and_params; ++i) {
+    for (i = 0; Val_int(0) != ret_and_params; ++i) {
         LLVMValueRef param =
             reinterpret_cast<LLVMValueRef>(Field(ret_and_params, 0));
-        DIType *ptype =
-            dyn_cast<DIType>(unwrap<MetadataAsValue>(param)->getMetadata());
-        plist[i] = TypedDINodeRef<DIType>(ptype);
+        Metadata *ptype =
+            dyn_cast<Metadata>(unwrap<MetadataAsValue>(param)->getMetadata());
+        pvector.push_back(ptype);
         ret_and_params = Field(ret_and_params, 1);
     }
+    ArrayRef<Metadata*> parray(pvector);
+    DITypeRefArray plist = ((DIBuilder*)dib)->getOrCreateTypeArray(parray);
     DISubroutineType *type = ((DIBuilder*)dib)->createSubroutineType(plist);
     return wrap(MetadataAsValue::get(Context, type));
 }
