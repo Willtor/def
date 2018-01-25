@@ -18,6 +18,7 @@
 
 open Ast
 open Cfg
+open Lexing
 open Llvm
 open Llvmext (* build_cmpxchg, token_type *)
 open Llvm_target
@@ -25,21 +26,26 @@ open Types
 open Util
 
 type llvm_data =
-  { ctx  : llcontext;
-    mdl  : llmodule;
-    bldr : llbuilder;
-    typemap : lltype symtab;
-    prog : program;
-    fattrs : llattribute list;
-    mutable dib : lldibuilder option;
-    d_scope_table : (cfg_scope, cfg_scope) Hashtbl.t;
+  { ctx      : llcontext;
+    mdl      : llmodule;
+    bldr     : llbuilder;
+    typemap  : lltype symtab;
+    prog     : program;
+    fattrs   : llattribute list;
+
+    (* Debug info. *)
+    mutable difile : llvalue option;
+    mutable dib    : lldibuilder option;
+    d_scope_table  : (cfg_scope, cfg_scope) Hashtbl.t;
+
+    (* Constant values. *)
     zero_i32 : llvalue;
-    one_i8  : llvalue;
-    one_i16 : llvalue;
-    one_i32 : llvalue;
-    one_i64 : llvalue;
-    one_f32 : llvalue;
-    one_f64 : llvalue
+    one_i8   : llvalue;
+    one_i16  : llvalue;
+    one_i32  : llvalue;
+    one_i64  : llvalue;
+    one_f32  : llvalue;
+    one_f64  : llvalue
   }
 
 let fcn_attrs =
@@ -654,14 +660,23 @@ let get_debug_type =
   in
   lookup_type
 
-let fcn_symbols data profile =
-  let _ = get_debug_type data profile.tp in
-  ()
+let fcn_symbols data decl defn llfcn =
+  let file = Util.the data.difile in
+  let fcn_md = difunction data.ctx
+                          (Util.the data.dib)
+                          defn.name
+                          file
+                          (*scope=*)file
+                          defn.defn_begin.pos_lnum
+                          (decl.vis = VisLocal)
+                          (get_debug_type data decl.tp)
+  in
+  set_subprogram llfcn fcn_md
 
 let process_fcn data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
-  let () = if !Config.debug_symbols then fcn_symbols data profile in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
+  let () = if !Config.debug_symbols then fcn_symbols data profile fcn llfcn in
   let llblocks = Hashtbl.create 32 in
   let make_llbbs () = function
     | BB_Seq (label, _)
@@ -887,6 +902,7 @@ let debug_sym_preamble data module_name =
                    ("def version " ^ version_string)
                    (!Config.opt_level <> 0) "" 0 in
   add_named_metadata_operand data.mdl "llvm.dbg.cu" cu;
+  data.difile <- Some file;
   data.dib <- Some dib
 
 let process_cfg module_name program =
@@ -904,6 +920,7 @@ let process_cfg module_name program =
                           (fun (key, value) ->
                             create_string_attr ctx key value)
                           fcn_attrs;
+               difile = None;
                dib = None;
                d_scope_table = program.scope_table;
                zero_i32 = const_null (the (lookup_symbol typemap "i32"));

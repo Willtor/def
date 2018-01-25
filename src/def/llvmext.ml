@@ -109,3 +109,14 @@ external dibasic_type :
 external disubroutine_type :
   llcontext -> lldibuilder -> llvalue list -> llvalue
   = "llvm_disubroutine_type"
+
+(** Create debugging info for a function. *)
+external difunction :
+  llcontext -> lldibuilder -> string -> llvalue -> llvalue -> int -> bool
+  -> llvalue -> llvalue
+  = "llvm_difunction_bc" "llvm_difunction"
+
+(** Set a function's metadata. *)
+external set_subprogram :
+  llvalue -> llvalue -> unit
+  = "llvm_set_subprogram"

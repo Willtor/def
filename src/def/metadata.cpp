@@ -13,6 +13,9 @@
 //   llvm_ocaml.c
 #define Builder_val(v) (*(LLVMBuilderRef *)(Data_custom_val(v)))
 
+#define VALUEREF2METADATA(type, value)                                  \
+    dyn_cast<type>(unwrap<MetadataAsValue>(value)->getMetadata())
+
 using namespace llvm;
 
 typedef void * DIBuilderRef;
@@ -109,6 +112,38 @@ LLVMValueRef LLVMDISubroutineType (LLVMContextRef ctx,
     return wrap(MetadataAsValue::get(Context, type));
 }
 
+static
+LLVMValueRef LLVMDIFunction (LLVMContextRef ctx,
+                             LLVMBuilderRef dib,
+                             char *fname,
+                             LLVMValueRef file,
+                             LLVMValueRef scope,
+                             int line_no,
+                             bool is_local,
+                             LLVMValueRef type)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    DISubprogram *fcn =
+        ((DIBuilder*)dib)->createFunction(VALUEREF2METADATA(DIScope, scope),
+                                          StringRef(fname),
+                                          StringRef(""),
+                                          VALUEREF2METADATA(DIFile, file),
+                                          (unsigned int)line_no,
+                                          VALUEREF2METADATA(DISubroutineType,
+                                                            type),
+                                          is_local,
+                                          true,
+                                          (unsigned int)line_no);
+    ((DIBuilder*)dib)->finalizeSubprogram(fcn);
+    return wrap(MetadataAsValue::get(Context, fcn));
+}
+
+void LLVMSetSubprogram (LLVMValueRef function, LLVMValueRef metadata)
+{
+    Function *f = unwrap<Function>(function);
+    f->setSubprogram(VALUEREF2METADATA(DISubprogram, metadata));
+}
+
 /** Make a DIBuilder for constructing debugging info.
  *  llmodule -> lldibuilder
  */
@@ -184,10 +219,54 @@ LLVMValueRef llvm_dibasic_type_bc (value *argv, int argc)
     return llvm_dibasic_type(argv[0], argv[1], argv[2], argv[3], argv[4]);
 }
 
+/** Get a new DISubroutineType for the given return value + parameters.
+ *  llcontext -> lldibuilder -> llvalue list -> llvalue
+ */
 extern "C"
 LLVMValueRef llvm_disubroutine_type (LLVMContextRef ctx,
                                      DIBuilderRef dib,
                                      value ret_and_params)
 {
     return LLVMDISubroutineType(ctx, dib, ret_and_params);
+}
+
+/** Create debugging info for a function.
+ *  llcontext -> lldibuilder -> string -> llvalue -> llvalue -> int -> bool
+ *  -> llvalue -> llvalue
+ */
+extern "C"
+LLVMValueRef llvm_difunction (value ctx,
+                              value dib,
+                              value name,
+                              value file,
+                              value scope,
+                              value line_no,
+                              value is_local,
+                              value type)
+{
+    return LLVMDIFunction(reinterpret_cast<LLVMContextRef>(ctx),
+                          reinterpret_cast<LLVMBuilderRef>(dib),
+                          String_val(name),
+                          reinterpret_cast<LLVMValueRef>(file),
+                          reinterpret_cast<LLVMValueRef>(scope),
+                          Int_val(line_no),
+                          Bool_val(is_local),
+                          reinterpret_cast<LLVMValueRef>(type));
+}
+
+/** Bytecode wrapper for llvm_difunction.
+ */
+extern "C"
+LLVMValueRef llvm_difunction_bc (value *argv, int argc)
+{
+    return llvm_difunction(argv[0], argv[1], argv[2], argv[3], argv[4],
+                           argv[5], argv[6], argv[7]);
+}
+
+extern "C"
+CAMLprim value llvm_set_subprogram (LLVMValueRef function,
+                                    LLVMValueRef metadata)
+{
+    LLVMSetSubprogram(function, metadata);
+    return Val_unit;
 }
