@@ -114,7 +114,7 @@ LLVMValueRef LLVMDISubroutineType (LLVMContextRef ctx,
 
 static
 LLVMValueRef LLVMDIFunction (LLVMContextRef ctx,
-                             LLVMBuilderRef dib,
+                             DIBuilderRef dib,
                              char *fname,
                              LLVMValueRef file,
                              LLVMValueRef scope,
@@ -142,6 +142,34 @@ void LLVMSetSubprogram (LLVMValueRef function, LLVMValueRef metadata)
 {
     Function *f = unwrap<Function>(function);
     f->setSubprogram(VALUEREF2METADATA(DISubprogram, metadata));
+}
+
+LLVMValueRef LLVMDILexicalBlock (LLVMContextRef ctx,
+                                 DIBuilderRef dib,
+                                 unsigned int line,
+                                 unsigned int column,
+                                 LLVMValueRef scope,
+                                 LLVMValueRef file)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    DILexicalBlock *block =
+        ((DIBuilder*)dib)
+        ->createLexicalBlock(VALUEREF2METADATA(DIScope, scope),
+                             VALUEREF2METADATA(DIFile, file),
+                             line, column);
+    return wrap(MetadataAsValue::get(Context, block));
+}
+
+LLVMValueRef LLVMDILocation (LLVMContextRef ctx,
+                             unsigned int line,
+                             unsigned int column,
+                             LLVMValueRef scope)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    DILocation *loc =
+        DILocation::get(Context, line, column,
+                        VALUEREF2METADATA(DIScope, scope));
+    return wrap(MetadataAsValue::get(Context, loc));
 }
 
 /** Make a DIBuilder for constructing debugging info.
@@ -245,7 +273,7 @@ LLVMValueRef llvm_difunction (value ctx,
                               value type)
 {
     return LLVMDIFunction(reinterpret_cast<LLVMContextRef>(ctx),
-                          reinterpret_cast<LLVMBuilderRef>(dib),
+                          reinterpret_cast<DIBuilderRef>(dib),
                           String_val(name),
                           reinterpret_cast<LLVMValueRef>(file),
                           reinterpret_cast<LLVMValueRef>(scope),
@@ -269,4 +297,59 @@ CAMLprim value llvm_set_subprogram (LLVMValueRef function,
 {
     LLVMSetSubprogram(function, metadata);
     return Val_unit;
+}
+
+/** Create a DILexicalBlock for the given position.
+ *  llcontext -> lldibuilder -> Lexing.position -> llvalue -> llvalue
+ *  -> llvalue
+ */
+extern "C"
+LLVMValueRef llvm_dilexical_block (value ctx,
+                                   value dib,
+                                   value position,
+                                   value scope,
+                                   value file)
+{
+    unsigned int line = Int_val(Field(position, 1));
+    unsigned int column =
+        Int_val(Field(position, 3)) - Int_val(Field(position, 2));
+    return LLVMDILexicalBlock(reinterpret_cast<LLVMContextRef>(ctx),
+                              reinterpret_cast<DIBuilderRef>(dib),
+                              line,
+                              column,
+                              reinterpret_cast<LLVMValueRef>(scope),
+                              reinterpret_cast<LLVMValueRef>(file));
+}
+
+/** Bytecode wrapper for llvm_dilexical_block.
+ */
+extern "C"
+LLVMValueRef llvm_dilexical_block_bc (value *argv, int argc)
+{
+    return llvm_dilexical_block(argv[0], argv[1], argv[2], argv[3], argv[4]);
+}
+
+/** Create a DILocation for the given position.
+ *  lldibuilder -> Lexing.position -> llvalue -> llvalue -> llvalue
+ */
+extern "C"
+LLVMValueRef llvm_dilocation (value ctx,
+                              value position,
+                              value scope)
+{
+    unsigned int line = Int_val(Field(position, 1));
+    unsigned int column =
+        Int_val(Field(position, 3)) - Int_val(Field(position, 2));
+    return LLVMDILocation(reinterpret_cast<LLVMContextRef>(ctx),
+                          line,
+                          column,
+                          reinterpret_cast<LLVMValueRef>(scope));
+}
+
+/** Bytecode wrapper for llvm_dilexical_block.
+ */
+extern "C"
+LLVMValueRef llvm_dilocation_bc (value *argv, int argc)
+{
+    return llvm_dilocation(argv[0], argv[1], argv[2]);
 }

@@ -120,3 +120,13 @@ external difunction :
 external set_subprogram :
   llvalue -> llvalue -> unit
   = "llvm_set_subprogram"
+
+(** Create a DILexicalBlock for the given position. *)
+external dilexical_block :
+  llcontext -> lldibuilder -> Lexing.position -> llvalue -> llvalue -> llvalue
+  = "llvm_dilexical_block"
+
+(** Create a DILocation for the given position. *)
+external dilocation :
+  llcontext -> Lexing.position -> llvalue -> llvalue
+  = "llvm_dilocation"

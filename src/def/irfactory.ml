@@ -161,6 +161,42 @@ let bytes = function
   | _ ->
      Report.err_internal __FILE__ __LINE__ "Non primitive type."
 
+let get_debug_location data =
+  let dib = Util.the data.dib in
+  let parent_scope scope =
+    try Hashtbl.find data.d_scope_table scope
+    with _ -> Report.err_internal __FILE__ __LINE__ "incomplete debug info."
+  in
+  let rec get loc =
+    try Hashtbl.find debug_locations loc
+    with _ ->
+      let file = Util.the data.difile in
+      match loc with
+      | ScopeGlobal pos ->
+         let dilex = dilexical_block data.ctx dib pos file file in
+         begin
+           Hashtbl.add debug_locations loc dilex;
+           dilex
+         end
+      | ScopeLexical pos ->
+         let pscope = parent_scope loc in
+         let llpscope = get pscope in
+         let dilex = dilexical_block data.ctx dib pos llpscope file in
+         begin
+           Hashtbl.add debug_locations loc dilex;
+           dilex
+         end
+      | ScopeLeaf pos ->
+         let pscope = parent_scope loc in
+         let llpscope = get pscope in
+         let diloc = dilocation data.ctx pos llpscope in
+         begin
+           Hashtbl.add debug_locations loc diloc;
+           diloc
+         end
+  in
+  get
+
 let process_expr data llvals varmap pos_n_expr =
   let i32type = the (lookup_symbol data.typemap "i32") in
   let constval = const_int i32type in
@@ -169,6 +205,7 @@ let process_expr data llvals varmap pos_n_expr =
     if dt_is_volatile tp then set_volatile true deref;
     deref
   in
+  let make_debug_location pos = get_debug_location data (ScopeLeaf pos) in
   let rec llvm_unop op tp expr pre_p bldr =
     match op with
     | OperIncr ->
@@ -218,9 +255,18 @@ let process_expr data llvals varmap pos_n_expr =
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_unop not fully implemented: operator " ^ (operator2string op))
-  and llvm_binop op is_atomic tp left right bldr =
-    let standard_op fnc name =
-      fnc (expr_gen true left) (expr_gen true right) name bldr
+  and llvm_binop pos op is_atomic tp left right bldr =
+    let standard_op fcn name =
+      let lhs = expr_gen true left in
+      let rhs = expr_gen true right in
+      if !Config.debug_symbols then
+        let dbg_loc = make_debug_location pos in
+        let () = set_current_debug_location data.bldr dbg_loc in 
+        let llval = fcn lhs rhs name bldr in
+        let () = clear_current_debug_location data.bldr in
+        llval
+      else
+        fcn lhs rhs name bldr
     in
     let maybe_atomic_op nonatomic_fcn atomic_op name =
       let rhs = expr_gen true right in
@@ -565,7 +611,7 @@ let process_expr data llvals varmap pos_n_expr =
           else llvar
        end
     | Expr_Binary (pos, op, is_atomic, tp, left, right) ->
-       llvm_binop op is_atomic tp left right data.bldr
+       llvm_binop pos op is_atomic tp left right data.bldr
     | Expr_Unary (op, tp, expr, pre_p) ->
        llvm_unop op tp expr pre_p data.bldr
     | Expr_Cast (_, to_tp, Expr_Nil) ->
@@ -671,7 +717,8 @@ let fcn_symbols data decl defn llfcn =
                           (decl.vis = VisLocal)
                           (get_debug_type data decl.tp)
   in
-  set_subprogram llfcn fcn_md
+  set_subprogram llfcn fcn_md;
+  Hashtbl.add debug_locations (ScopeGlobal defn.defn_begin) fcn_md
 
 let process_fcn data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
@@ -886,24 +933,32 @@ let make_module_flags data =
     add_named_metadata_operand data.mdl "llvm.module.flags" pic_level
 
 let debug_sym_preamble data module_name =
+  let i32 = const_int (i32_type data.ctx) in
   let version_string =
     (string_of_int Version.version_maj)
     ^ "." ^ (string_of_int Version.version_min)
     ^ "." ^ (string_of_int Version.version_patch)
     ^ Version.version_suffix
   in
+  let defident = "def version " ^ version_string in
   let dib = dibuilder data.mdl in
   (* FIXME: basename should be expanded so it isn't "." or whatever. *)
   let file = difile data.ctx dib (Filename.basename module_name)
                     (Filename.dirname module_name)
   in
-  let cu =
-    dicompile_unit data.ctx dib file
-                   ("def version " ^ version_string)
-                   (!Config.opt_level <> 0) "" 0 in
-  add_named_metadata_operand data.mdl "llvm.dbg.cu" cu;
+  let _ = dicompile_unit data.ctx dib file defident
+                         (!Config.opt_level <> 0) "" 0 in
   data.difile <- Some file;
-  data.dib <- Some dib
+  data.dib <- Some dib;
+  let dwarf_version =
+    mdnode data.ctx [| i32 2; mdstring data.ctx "Dwarf Version"; i32 4 |]
+  in
+  let debug_info_version =
+    mdnode data.ctx [| i32 2; mdstring data.ctx "Debug Info Version"; i32 3 |]
+  in
+  add_named_metadata_operand data.mdl "llvm.module.flags" dwarf_version;
+  add_named_metadata_operand data.mdl "llvm.module.flags" debug_info_version;
+  add_named_metadata_operand data.mdl "llvm.ident" (mdstring data.ctx defident)
 
 let process_cfg module_name program =
   let ctx  = global_context () in
