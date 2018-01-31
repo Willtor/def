@@ -701,6 +701,9 @@ let get_debug_type =
          | DefTypePrimitive (p, _) ->
             let sz, dtype = dwarf_of tp in
             create (dibasic_type ctx dib (primitive2string p) sz dtype)
+         | DefTypePtr (p, _) ->
+            let base_type = lookup_type p in
+            create (dipointer_type ctx dib base_type 64)
          | _ ->
             Report.err_internal __FILE__ __LINE__ "Incomplete debug type info."
   in

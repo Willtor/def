@@ -105,6 +105,11 @@ external dibasic_type :
   llcontext -> lldibuilder -> string -> int -> dwarf_type -> llvalue
   = "llvm_dibasic_type_bc" "llvm_dibasic_type"
 
+(** Get a new pointer type to the given base type and pointer size. *)
+external dipointer_type :
+  llcontext -> lldibuilder -> llvalue -> int -> llvalue
+  = "llvm_dipointer_type"
+
 (** Get a new DISubroutineType for the given return value + parameters. *)
 external disubroutine_type :
   llcontext -> lldibuilder -> llvalue list -> llvalue

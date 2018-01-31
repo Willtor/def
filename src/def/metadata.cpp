@@ -91,6 +91,20 @@ LLVMValueRef LLVMDIBasicType (LLVMContextRef ctx,
 }
 
 static
+LLVMValueRef LLVMDIPointerType (LLVMContextRef ctx,
+                                DIBuilderRef dib,
+                                LLVMValueRef base_type,
+                                int size)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    DIDerivedType *type =
+        ((DIBuilder*)dib)
+        ->createPointerType(VALUEREF2METADATA(DIType, base_type),
+                            (uint64_t)size);
+    return wrap(MetadataAsValue::get(Context, type));
+}
+
+static
 LLVMValueRef LLVMDISubroutineType (LLVMContextRef ctx,
                                    DIBuilderRef dib,
                                    value ret_and_params)
@@ -245,6 +259,18 @@ extern "C"
 LLVMValueRef llvm_dibasic_type_bc (value *argv, int argc)
 {
     return llvm_dibasic_type(argv[0], argv[1], argv[2], argv[3], argv[4]);
+}
+
+/** Get a new pointer type to the given base type and pointer size.
+ *  llcontext -> lldibuilder -> llvalue -> int -> llvalue
+ */
+extern "C"
+LLVMValueRef llvm_dipointer_type (LLVMContextRef ctx,
+                                  DIBuilderRef dib,
+                                  LLVMValueRef base_type,
+                                  value size)
+{
+    return LLVMDIPointerType(ctx, dib, base_type, Int_val(size));
 }
 
 /** Get a new DISubroutineType for the given return value + parameters.
