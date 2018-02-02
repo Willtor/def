@@ -533,10 +533,18 @@ let of_parsetree =
   List.map stmt_of
 
 let of_cimport =
+  let no_duplicates = Hashtbl.create 16 in
   let rec type_of = function
     | CT_TypeName (pos, tp) -> pos, CVarType (pos, tp, [])
     | CT_Pointer (pos, tp) ->
        let _, t = type_of tp in pos, PtrType (pos, t, [])
+    | CT_Struct fields ->
+       let ast_fields =
+         List.map (fun (pos, nm, tp) -> let _, t = type_of tp in pos, nm, t)
+                  fields
+       in
+       let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
+       p, StructType ast_fields
   in
   let rec convert accum = function
     | [] -> List.rev accum
@@ -548,6 +556,17 @@ let of_cimport =
        let ftype = FcnType ((List.map pmap params), ret_tp) in
        let decl = DeclFcn (pos, Types.VisExported pos, name, ftype) in
        convert (decl :: accum) rest
+    | CV_Typedecl (pos, name, maybe_tp) :: rest ->
+       begin
+         try ignore(Hashtbl.find no_duplicates name);
+             convert accum rest
+         with _ ->
+           let () = prerr_endline name in
+           (* FIXME: Opaque types (maybe_tp = None). *)
+           let _, tp = type_of @@ Util.the maybe_tp in
+           let decl = TypeDecl (pos, name, tp, VisLocal, false) in
+           convert (decl :: accum) rest
+       end
   in
   convert []
 

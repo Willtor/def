@@ -19,9 +19,11 @@
 type ctype =
   | CT_TypeName of Lexing.position * string
   | CT_Pointer of Lexing.position * ctype
+  | CT_Struct of (Lexing.position * string * ctype) list
 
 type cvalue =
   | CV_Function of Lexing.position * string * ctype list * ctype
+  | CV_Typedecl of Lexing.position * string * ctype option
 
 (** Import a C header file, along with all of its type and function
     declarations. *)

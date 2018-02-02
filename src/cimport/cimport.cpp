@@ -49,7 +49,7 @@ using namespace clang::tooling;
 using namespace llvm;
 using namespace std;
 
-static vector<value> functions;
+static vector<value> cvalues;
 
 static value reverse_list (value list)
 {
@@ -165,7 +165,57 @@ public:
         Store_field(fcn, 2, param_list);
         Store_field(fcn, 3, rettp);
 
-        functions.push_back(fcn);
+        cvalues.push_back(fcn);
+    }
+
+    void declareStruct (NamedDecl *decl)
+    {
+        std::string name = decl->getNameAsString();
+
+        if (name == "") {
+            // FIXME: structs without names are typically part of a typedecl
+            // and we should find a way to deal with this.
+            return;
+        }
+        value pos = position_of_SourceLocation(decl->getLocStart());
+        value sname = caml_copy_string(name.c_str());
+        value type_opt;
+
+        RecordDecl *record = static_cast<RecordDecl*>(decl);
+        RecordDecl *defn = record->getDefinition();
+        if (NULL != defn) {
+            // Read the record's fields.
+            value fields = Val_int(0);
+            for (const FieldDecl *field : defn->fields()) {
+                value fpos = position_of_SourceLocation(field->getLocStart());
+                value fname =
+                    caml_copy_string(field->getNameAsString().c_str());
+                value ftype = readType(field->getType(),
+                                       field->getLocStart());
+
+                value frec = caml_alloc(3, 2);
+                Store_field(frec, 0, fpos);
+                Store_field(frec, 1, fname);
+                Store_field(frec, 2, ftype);
+
+                value tmp = fields;
+                fields = caml_alloc(2, 0);
+                Store_field(fields, 0, frec);
+                Store_field(fields, 1, tmp);
+            }
+            value struct_def = caml_alloc(1, 3);
+            Store_field(struct_def, 0, reverse_list(fields));
+            type_opt = caml_alloc(1, 0); // OCaml: Some t
+            Store_field(type_opt, 0, struct_def);
+        } else {
+            // No definition for this record.
+            type_opt = Val_int(0); // OCaml: None
+        }
+        value sdecl = caml_alloc(3, 1);
+        Store_field(sdecl, 0, pos);
+        Store_field(sdecl, 1, sname);
+        Store_field(sdecl, 2, type_opt);
+        cvalues.push_back(sdecl);
     }
 
     bool VisitNamedDecl (NamedDecl *decl)
@@ -184,6 +234,9 @@ public:
             switch (decl->getKind()) {
             case Decl::Function:
                 declareFunction(decl);
+                break;
+            case Decl::Record:
+                declareStruct(decl);
                 break;
             default: break;
             }
@@ -245,17 +298,17 @@ value cimport_file (const char *filename)
         outs() << "### BAD EXIT FROM C FILE.\n";
     }
 
-    // Build the list of functions.
-    value fcn_list = Val_int(0);
-    for (value fcn : functions) {
+    // Build the list of cvalues.
+    value cv_list = Val_int(0);
+    for (value cv : cvalues) {
         value tmp = caml_alloc(2, 0);
-        Store_field(tmp, 0, fcn);
-        Store_field(tmp, 1, fcn_list);
-        fcn_list = tmp;
+        Store_field(tmp, 0, cv);
+        Store_field(tmp, 1, cv_list);
+        cv_list = tmp;
     }
-    fcn_list = reverse_list(fcn_list);
+    cv_list = reverse_list(cv_list);
 
-    return fcn_list;
+    return cv_list;
 }
 
 extern "C"
