@@ -96,6 +96,7 @@ and expr =
 
 and vartype =
   | VarType of position * string * Types.qualifier list
+  | OpaqueType of position * string
   | CVarType of position * string * Types.qualifier list
   | FcnType of (position * string * vartype) list * vartype
   | StructType of (position * string * vartype) list
@@ -561,9 +562,10 @@ let of_cimport =
          try ignore(Hashtbl.find no_duplicates name);
              convert accum rest
          with _ ->
-           let () = prerr_endline name in
-           (* FIXME: Opaque types (maybe_tp = None). *)
-           let _, tp = type_of @@ Util.the maybe_tp in
+           let tp =
+             if maybe_tp = None then OpaqueType (pos, name)
+             else let _, t = type_of @@ Util.the maybe_tp in t
+           in
            let decl = TypeDecl (pos, name, tp, VisLocal, false) in
            convert (decl :: accum) rest
        end

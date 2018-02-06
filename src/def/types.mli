@@ -17,6 +17,7 @@ type visibility =
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
+  | DefTypeOpaque of Lexing.position * string
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype * qualifier list

@@ -52,6 +52,8 @@ let instantiate templates non_templates =
                      with _ -> name
             in
             VarType (pos, nm, qlist)
+         | OpaqueType (pos, nm) ->
+            OpaqueType (pos, nm)
          | CVarType _ ->
             Report.err_internal __FILE__ __LINE__
                                 "FIXME: instantiate a template with a c type?"

@@ -293,6 +293,8 @@ let rec convert_type defining_p array2ptr typemap = function
        | Some (DefTypePrimitive (p, _)) -> DefTypePrimitive (p, qlist)
        | Some t -> t
      end
+  | OpaqueType (pos, name) ->
+     DefTypeOpaque (pos, name)
   | CVarType (pos, name, qlist) ->
      begin try check_native_c_type name
            with _ -> convert_type defining_p array2ptr typemap
@@ -348,6 +350,7 @@ let rec convert_type defining_p array2ptr typemap = function
 
 let param_pos_names = function
   | VarType _
+  | OpaqueType _
   | CVarType _
   | ArrayType _
   | PtrType _
@@ -377,6 +380,7 @@ let resolve_type typemap typename oldtp =
        end
     | DefTypeNamedStruct _ as tp -> tp
     | DefTypeVoid as tp -> tp
+    | DefTypeOpaque _ as tp -> tp
     | DefTypePrimitive _ as tp -> tp
     | DefTypeFcn (params, ret, variadic) ->
        let params = List.map v params
@@ -779,6 +783,8 @@ let build_fcn_call scope typemap pos name args =
         "Tried to call a named-struct-type."
      | DefTypeVoid -> Report.err_internal __FILE__ __LINE__
         "Tried to call a void."
+     | DefTypeOpaque _ -> Report.err_internal __FILE__ __LINE__
+                                              "Tried to call an opaque type."
      | DefTypeFcn (params, rettp, variadic) ->
         let rec match_params_with_args accum = function
           | [], [] -> List.rev accum

@@ -106,6 +106,8 @@ let build_types ctx deftypes =
        | DefTypePrimitive _
        | DefTypePtr _ ->
           add_symbol typemap name (deftype2llvmtype ctx typemap true deftype)
+       | DefTypeOpaque (_, name) ->
+          add_symbol typemap name (named_struct_type ctx name)
        | _ -> Report.err_internal __FILE__ __LINE__
           "Some type other than named struct was not found."
        end

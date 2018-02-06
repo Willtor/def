@@ -39,6 +39,7 @@ type visibility =
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
+  | DefTypeOpaque of Lexing.position * string
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype * qualifier list
@@ -238,6 +239,9 @@ let rec size_of typemap = function
   | DefTypeVoid ->
      Report.err_internal __FILE__ __LINE__
        "size_of called on a void type."
+  | DefTypeOpaque (_, nm) ->
+     Report.err_internal __FILE__ __LINE__
+                         ("size_of called on opaque type: " ^ nm)
   | DefTypePrimitive (p, _) ->
      begin match p with
      | PrimBool | PrimI8 | PrimU8 -> 1
@@ -266,6 +270,7 @@ let rec size_of typemap = function
 let rec string_of_type = function
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
+  | DefTypeOpaque (_, nm) -> nm
   | DefTypePrimitive (t, _) -> primitive2string t (* FIXME: qualifiers *)
   | DefTypePtr (t, _) -> "*" ^ (string_of_type t) (* FIXME: qualifiers *)
   | DefTypeArray (tp, n) ->
@@ -322,6 +327,12 @@ let most_general_type pos typemap =
     | DefTypeVoid, _
     | _, DefTypeVoid ->
        Report.err_internal __FILE__ __LINE__ "Don't know what to do with void"
+    | DefTypeOpaque (_, nm1), DefTypeOpaque (_, nm2) ->
+       if nm1 = nm2 then t1
+       else generalizing_error ()
+    | DefTypeOpaque _, _
+    | _, DefTypeOpaque _ ->
+       generalizing_error ()
     | DefTypePrimitive (p1, q1), DefTypePrimitive (p2, q2) ->
        DefTypePrimitive (generalize_primitives p1 p2,
                          generalize_qualifiers q1 q2)
