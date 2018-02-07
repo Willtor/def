@@ -536,7 +536,20 @@ let of_parsetree =
 let of_cimport =
   let no_duplicates = Hashtbl.create 16 in
   let rec type_of = function
-    | CT_TypeName (pos, tp) -> pos, CVarType (pos, tp, [])
+    | CT_TypeName (pos, tp) ->
+       let tpname = match String.split_on_char ' ' tp with
+         | [ t ] -> t
+         | [ "struct"; t ] ->
+            begin
+              try
+                let _ = Hashtbl.find no_duplicates t in t
+              with _ ->
+                let () = Hashtbl.add no_duplicates t (OpaqueType (pos, t)) in
+                t
+            end
+         | _ -> tp
+       in
+       pos, CVarType (pos, tpname, [])
     | CT_Pointer (pos, tp) ->
        let _, t = type_of tp in pos, PtrType (pos, t, [])
     | CT_Struct fields ->
@@ -564,8 +577,19 @@ let of_cimport =
        convert (decl :: accum) rest
     | CV_Typedecl (pos, name, maybe_tp) :: rest ->
        begin
-         try ignore(Hashtbl.find no_duplicates name);
-             convert accum rest
+         try
+           begin match Hashtbl.find no_duplicates name with
+           | OpaqueType _ ->
+              let accum =
+                if maybe_tp = None then accum
+                else let _, t = type_of @@ Util.the maybe_tp
+                     in (TypeDecl (pos, name, t, VisLocal, false)) :: accum
+              in
+              convert accum rest
+           | _ ->
+              Report.err_internal __FILE__ __LINE__
+                                  ("Redefinition of type " ^ name)
+           end
          with _ ->
            let tp =
              if maybe_tp = None then OpaqueType (pos, name)
