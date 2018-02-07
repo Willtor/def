@@ -57,13 +57,17 @@ let verify_extension filename =
   | ext -> Report.err_unknown_infile_type filename ext
 
 let findfile file relative_base pos =
-  let paths = relative_base :: !import_dirs in
-  let exists_in base = Sys.file_exists (base ^ "/" ^ file) in
-  let path =
-    try List.find exists_in paths
-    with _ -> Report.err_unable_to_locate_imported_file pos file
-  in
-  path ^ "/" ^ file
+  if file.[0] = '/' then
+    if Sys.file_exists file then file
+    else Report.err_unable_to_locate_imported_file pos file
+  else
+    let paths = relative_base :: !import_dirs in
+    let exists_in base = Sys.file_exists (base ^ "/" ^ file) in
+    let path =
+      try List.find exists_in paths
+      with _ -> Report.err_unable_to_locate_imported_file pos file
+    in
+    path ^ "/" ^ file
 
 let add_builtin_fcns stmts =
   let pos = { pos_fname = "builtin";
