@@ -119,8 +119,13 @@ private:
         return pos;
     }
 
-    value readType (QualType qtype, SourceLocation loc)
+    value readType (QualType fulltype, SourceLocation loc)
     {
+        // ---
+        // FIXME: Shouldn't get rid of qualifications.  Need to deal with them.
+        QualType qtype = fulltype.getUnqualifiedType();
+        // ---
+
         const Type *type = qtype.getTypePtr();
 
         if (type->isPointerType()) {
@@ -163,13 +168,15 @@ private:
         // Function's return type.
         value rettp = readType(fdecl->getReturnType(),
                                fdecl->getReturnTypeSourceRange().getBegin());
+        value is_variadic = Val_bool(fdecl->isVariadic());
 
         // CV_Function of string * ctype list * ctype
-        value fcn = caml_alloc(4, 0);
+        value fcn = caml_alloc(5, 0);
         Store_field(fcn, 0, pos);
         Store_field(fcn, 1, fname);
         Store_field(fcn, 2, param_list);
-        Store_field(fcn, 3, rettp);
+        Store_field(fcn, 3, is_variadic);
+        Store_field(fcn, 4, rettp);
 
         cvalues.push_back(fcn);
     }

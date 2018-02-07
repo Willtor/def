@@ -549,12 +549,17 @@ let of_cimport =
   in
   let rec convert accum = function
     | [] -> List.rev accum
-    | CV_Function (pos, name, params, ret) :: rest ->
+    | CV_Function (pos, name, params, is_variadic, ret) :: rest ->
        let pmap param =
          let tp_pos, tp = type_of param in tp_pos, "", tp
        in
        let _, ret_tp = type_of ret in
-       let ftype = FcnType ((List.map pmap params), ret_tp) in
+       let vararg =
+         if is_variadic then [Util.faux_pos, "", Ellipsis Util.faux_pos]
+         else []
+       in
+       let ast_params = (List.map pmap params) @ vararg in
+       let ftype = FcnType (ast_params, ret_tp) in
        let decl = DeclFcn (pos, Types.VisExported pos, name, ftype) in
        convert (decl :: accum) rest
     | CV_Typedecl (pos, name, maybe_tp) :: rest ->
