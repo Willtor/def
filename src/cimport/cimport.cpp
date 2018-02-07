@@ -70,28 +70,34 @@ protected:
 public:
     DeclVisitor (SourceManager &manager) : sm(manager) {}
 
-    const char *kindName (NamedDecl *decl)
+    bool VisitNamedDecl (NamedDecl *decl)
     {
-        switch (decl->getKind()) {
-        case Decl::Function:
-            return "Function";
-        case Decl::Enum:
-            return "Enum";
-        case Decl::Record: // struct.
-            return "Record";
-        case Decl::Typedef:
-            return "Typedef";
-        case Decl::Field:
-            return "Field";
-        case Decl::Var:
-            return "Var";
-        case Decl::ParmVar:
-            return "ParmVar";
-        default:
-            return "Other";
+        // NOTE: Relevant kinds:
+        // Function
+        // Enum
+        // Record (struct)
+        // Field (member)
+        // Typedef
+        // Var
+        // ParmVar (parameter)
+
+        DeclContext *ctx = decl->getDeclContext();
+        if (ctx->isFileContext() || ctx->isRecord()) {
+            switch (decl->getKind()) {
+            case Decl::Function:
+                declareFunction(decl);
+                break;
+            case Decl::Record:
+                declareStruct(decl);
+                break;
+            default: break;
+            }
         }
+
+        return true;
     }
 
+private:
     /** Lexing.position
      *  type position = {
      *      pos_fname : string;
@@ -216,47 +222,6 @@ public:
         Store_field(sdecl, 1, sname);
         Store_field(sdecl, 2, type_opt);
         cvalues.push_back(sdecl);
-    }
-
-    bool VisitNamedDecl (NamedDecl *decl)
-    {
-        // NOTE: Relevant kinds:
-        // Function
-        // Enum
-        // Record (struct)
-        // Field (member)
-        // Typedef
-        // Var
-        // ParmVar (parameter)
-
-        DeclContext *ctx = decl->getDeclContext();
-        if (ctx->isFileContext() || ctx->isRecord()) {
-            switch (decl->getKind()) {
-            case Decl::Function:
-                declareFunction(decl);
-                break;
-            case Decl::Record:
-                declareStruct(decl);
-                break;
-            default: break;
-            }
-            /*
-            outs() << "Found " << decl->getQualifiedNameAsString() << " at "
-                   << getDeclLocation(decl->getLocStart())
-                   << "(" << kindName(decl) << ")\n";
-            */
-        }
-
-        return true;
-    }
-
-private:
-    string getDeclLocation (SourceLocation loc) const {
-        ostringstream oss;
-        oss /*<< sm.getFilename(loc).str() << ":"*/
-            << sm.getSpellingLineNumber(loc) << ":"
-            << sm.getSpellingColumnNumber(loc);
-        return oss.str();
     }
 };
 
