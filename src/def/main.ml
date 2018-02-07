@@ -56,7 +56,7 @@ let def compile_depth llvm debug cgdebug opt pic output libs import files =
   if output <> "" then
     output_file := Some output;
   linked_libs := libs;
-  import_dirs := import @ !import_dirs;
+  import_dirs := import @ (Osspecific.default_import_dirs ());
   input_files := files;
   try
     Build.pipeline ()

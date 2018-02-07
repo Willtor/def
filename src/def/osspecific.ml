@@ -1,4 +1,4 @@
-(* Copyright (C) 2017  DEFC Authors
+(* Copyright (C) 2018  DEFC Authors
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -16,29 +16,16 @@
    02110-1301, USA.
  *)
 
-type compilation_level =
-  | COMPILE_ASM
-  | COMPILE_OBJ
-  | COMPILE_BINARY
+let default_import_dirs () =
+  [ "/usr/lib/def";
+    "/usr/local/lib/def";
 
-let opt_level = ref 1
-
-let position_indep = ref false
-
-let no_cilk = ref false
-
-let input_files : string list ref = ref []
-
-let output_file : string option ref = ref None
-
-let linked_libs : string list ref = ref []
-
-let comp_depth = ref COMPILE_BINARY
-
-let compile_llvm = ref false
-
-let debug_symbols = ref false
-
-let codegen_debug = ref false
-
-let import_dirs = ref [ "default-ERROR" ]
+    (* C include paths from "clang -E -x c - -v < /dev/null"
+       FIXME: Check how clang finds include directories.  This is NOT
+       compatible code.
+     *)
+    "/usr/local/include";
+    "/usr/lib/llvm-4.0/bin/../lib/clang/4.0.1/include";
+    "/usr/include/x86_64-linux-gnu";
+    "/usr/include"
+  ]

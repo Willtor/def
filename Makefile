@@ -51,6 +51,8 @@ DEFFILES = 		\
 	main.mli	\
 	Makefile	\
 	metadata.cpp	\
+	osspecific.ml	\
+	osspecific.mli	\
 	report.ml	\
 	scrubber.ml	\
 	scrubber.mli	\
