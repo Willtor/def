@@ -252,14 +252,14 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-value cimport_file (const char *filename)
+value cimport_file (const char *filename, int argc, const char **argv)
 {
-    int argc = 3;
-    const char *argv[] = { "", filename, "--" };
+    std::vector<std::string> source_files;
+    source_files.push_back(filename);
+
     cl::OptionCategory option_category("options");
     CommonOptionsParser options_parser(argc, argv, option_category);
-    ClangTool tool(options_parser.getCompilations(),
-                   options_parser.getSourcePathList());
+    ClangTool tool(options_parser.getCompilations(), source_files);
     if (0 != tool.run(newFrontendActionFactory<DeclFindingAction>().get())) {
         outs() << "### BAD EXIT FROM C FILE.\n";
     }
@@ -277,8 +277,26 @@ value cimport_file (const char *filename)
     return cv_list;
 }
 
+/** import_c_file f p: Import the C header file, f, using the include
+ *  paths, p, and return a set of type and function declarations.
+ */
 extern "C"
-CAMLprim value cimport_import_c_file (value filename)
+CAMLprim value cimport_import_c_file (value filename, value paths)
 {
-    return cimport_file(String_val(filename));
+    char *file = String_val(filename);
+
+    std::vector<std::string> path_vec;
+    for ( ; paths != Val_int(0); paths = Field(paths, 1)) {
+        path_vec.push_back(std::string("-I") + String_val(Field(paths, 0)));
+    }
+    int argc = path_vec.size() + 3;
+    const char *argv[argc];
+    argv[0] = "def";
+    argv[1] = file;
+    argv[2] = "--";
+    for (int i = 3; i < argc; ++i) {
+        argv[i] = path_vec[i - 3].c_str();
+    }
+
+    return cimport_file(file, argc, argv);
 }

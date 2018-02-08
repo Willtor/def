@@ -127,7 +127,7 @@ let parse_def_file file =
   parsetree
 
 let parse_c_file file =
-  let fcns = import_c_file file in fcns
+  let fcns = import_c_file file !import_dirs in fcns
 
 let rec recursive_parse_def_file file =
   let proc parsetree = function
@@ -152,6 +152,7 @@ let llmodule_of_ast infile ast =
   let mdl = process_cfg infile prog in
   let () = Iropt.optimize mdl in
   mdl
+
 
 let dump_machine_asm file mdl =
   let outfile = outfile_name file ".s" in
@@ -227,7 +228,6 @@ let generate_obj tmp_obj file =
   | _ -> Report.err_cant_generate_obj_from file
 
 let compile_input filename =
-  (* Need OCaml 4.04 for Filename.extension. *)
   match !comp_depth with
   | COMPILE_ASM -> generate_asm filename
   | COMPILE_OBJ -> generate_obj (*tmp-obj=*)false filename
