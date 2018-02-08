@@ -265,6 +265,7 @@ value cimport_file (const char *filename, int argc, const char **argv)
     CommonOptionsParser options_parser(argc, argv, option_category);
     ClangTool tool(options_parser.getCompilations(), source_files);
     if (0 != tool.run(newFrontendActionFactory<DeclFindingAction>().get())) {
+        // FIXME: Should throw an exception.
         outs() << "### BAD EXIT FROM C FILE.\n";
     }
 
