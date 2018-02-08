@@ -34,15 +34,9 @@
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
-#include <cstdlib>
-#include <memory>
 #include <string>
 #include <sstream>
 #include <vector>
-
-//////////////////////////
-#include "llvm/Support/CommandLine.h"
-//////////////////////////
 
 using namespace clang;
 using namespace clang::tooling;
