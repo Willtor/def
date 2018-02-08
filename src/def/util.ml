@@ -17,6 +17,7 @@
  *)
 
 open Lexing
+open Unix
 
 type 'a symtab = (string, 'a) Hashtbl.t list
 
@@ -111,3 +112,29 @@ let faux_pos = { pos_fname = "";
                  pos_lnum = 0;
                  pos_bol = 0;
                  pos_cnum = 0 }
+
+(** find_path_to ~follow_symlinks file dirlist: finds the first path to the
+    specified file given the list of directories.  Optionally follow symbolic
+    links. *)
+let find_path_to ?follow_symlinks:(follow_symlinks=false) file dirlist =
+  let rec find_in = function
+    | [] -> raise Not_found
+    | dir :: rest ->
+       let candidate = dir ^ "/" ^ file in
+       if Sys.file_exists candidate then candidate
+       else find_in rest
+  in
+  let rec read_symlinks f =
+    let stat = Unix.lstat f in
+    if stat.st_kind = Unix.S_LNK then
+      let linked_f = (Filename.dirname f) ^ "/" ^ (Unix.readlink f) in
+      read_symlinks linked_f
+    else f
+  in
+  let f =
+    if file.[0] = '/' then file
+    else
+      find_in dirlist
+  in
+  if follow_symlinks then read_symlinks f
+  else f

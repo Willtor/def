@@ -16,16 +16,38 @@
    02110-1301, USA.
  *)
 
+open Util
+
+let last_nontrivial_entry dirhandle =
+  let rec last entry =
+    try let next = Unix.readdir dirhandle in
+        if next = ".." || next = "." then
+          last entry
+        else last next
+    with _ -> entry
+  in
+  last ""
+
 let default_import_dirs () =
+  let clang_include =
+    try
+      let path_dirs = String.split_on_char ':' (Sys.getenv "PATH") in
+      let clang = find_path_to ~follow_symlinks:true "clang" path_dirs in
+      let clang_install_dir = Filename.dirname clang in
+      let lib_clang = clang_install_dir ^ "/../lib/clang" in
+      let dir = Unix.opendir lib_clang in
+      let latest_version = last_nontrivial_entry dir in
+      let () = Unix.closedir dir in
+      lib_clang ^ "/" ^ latest_version ^ "/include"
+    with _ -> Report.err_unable_to_find_clang ()
+  in
   [ "/usr/lib/def";
     "/usr/local/lib/def";
 
-    (* C include paths from "clang -E -x c - -v < /dev/null"
-       FIXME: Check how clang finds include directories.  This is NOT
-       compatible code.
-     *)
+    (* C include paths. *)
     "/usr/local/include";
-    "/usr/lib/llvm-4.0/bin/../lib/clang/4.0.1/include";
+    clang_include;
+    (* like: "/usr/lib/llvm-4.0/bin/../lib/clang/4.0.1/include"; *)
     "/usr/include/x86_64-linux-gnu";
     "/usr/include"
   ]

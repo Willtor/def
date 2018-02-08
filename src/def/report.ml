@@ -43,6 +43,11 @@ let err_unknown_infile_type filename ext =
     ^ "The filename extension, \"" ^ ext ^ "\" is not supported."
   in fatal_error err
 
+(** Couldn't find where clang was installed on the system. *)
+let err_unable_to_find_clang () =
+  let err = "Unable to find clang installation."
+  in fatal_error err
+
 (** Couldn't open file. *)
 let err_unable_to_open_file filename =
   let err = "Unable to open file \"" ^ filename ^ "\""
