@@ -102,14 +102,18 @@ private:
      */
     value position_of_SourceLocation (const SourceLocation src_loc)
     {
+        SourceLocation spelling_loc = sm.getSpellingLoc(src_loc);
+        unsigned int file_offset = sm.getFileOffset(spelling_loc);
+        unsigned int column = sm.getSpellingColumnNumber(src_loc) - 1;
+
         value pos = caml_alloc(4, 0);
         Store_field(pos, 0,
-                    caml_copy_string(sm.getFilename(src_loc).str().c_str()));
+                    caml_copy_string(sm.getFilename(spelling_loc).str()
+                                     .c_str()));
         Store_field(pos, 1, Val_int(sm.getSpellingLineNumber(src_loc)));
-        unsigned int file_offset = sm.getFileOffset(src_loc);
-        unsigned int column = sm.getSpellingColumnNumber(src_loc);
-        Store_field(pos, 2, Val_int(file_offset + 1 - column));
+        Store_field(pos, 2, Val_int(file_offset - column));
         Store_field(pos, 3, Val_int(file_offset));
+
         return pos;
     }
 
