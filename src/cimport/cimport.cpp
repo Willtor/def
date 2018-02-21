@@ -130,6 +130,7 @@ private:
         const Type *type = qtype.getTypePtr();
 
         if (type->isPointerType()) {
+            // CT_Pointer
             value pointee = readType(type->getPointeeType(), loc);
             value pos = position_of_SourceLocation(loc);
             value ret = caml_alloc(2, 1);
@@ -137,7 +138,7 @@ private:
             Store_field(ret, 1, pointee);
             return ret;
         } else if (type->isFunctionType()) {
-            // FIXME: Need to deal with variadic functions!
+            // CT_Function
             const FunctionProtoType *ftype =
                 static_cast<const FunctionProtoType*>(type);
 
@@ -152,12 +153,14 @@ private:
 
             value pos = position_of_SourceLocation(loc);
             value rettype = readType(ftype->getReturnType(), loc);
-            value prototype = caml_alloc(3, 3);
+            value prototype = caml_alloc(4, 3);
             Store_field(prototype, 0, pos);
             Store_field(prototype, 1, param_list);
-            Store_field(prototype, 2, rettype);
+            Store_field(prototype, 2, Val_int(ftype->isVariadic()));
+            Store_field(prototype, 3, rettype);
             return prototype;
         } else {
+            // CT_TypeName
             value tname = caml_copy_string(qtype.getAsString().c_str());
             value pos = position_of_SourceLocation(loc);
             value ret = caml_alloc(2, 0);

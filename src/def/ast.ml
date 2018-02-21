@@ -557,10 +557,14 @@ let of_cimport =
        in
        let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
        p, StructType ast_fields
-    | CT_Function (pos, params, ret) ->
-       pos, FcnType (List.map
-                       (fun p -> let pos, t = type_of p in pos, "", t) params,
-                     let _, t = type_of ret in t)
+    | CT_Function (pos, params, is_variadic, ret) ->
+       let ast_params =
+         (List.map (fun p -> let pos, t = type_of p in pos, "", t) params)
+         @ (if is_variadic then [ Util.faux_pos, "", Ellipsis Util.faux_pos ]
+            else [])
+       in
+       let _, rtype = type_of ret in
+       pos, FcnType (ast_params, rtype)
   in
   let rec convert accum = function
     | [] -> List.rev accum
