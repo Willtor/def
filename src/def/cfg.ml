@@ -346,6 +346,8 @@ let rec convert_type defining_p array2ptr typemap = function
      Report.err_internal __FILE__ __LINE__
        ("Found an ellipsis at an unexpected location: "
         ^ (format_position pos))
+  | VAList pos ->
+     DefTypeVAList
   | InferredType ->
      Report.err_internal __FILE__ __LINE__
                          "Trying to convert an inferred type."
@@ -357,7 +359,8 @@ let param_pos_names = function
   | ArrayType _
   | PtrType _
   | StructType _
-  | Ellipsis _ -> []
+  | Ellipsis _
+  | VAList _ -> []
   | FcnType (params, _) ->
      List.map (fun (pos, name, _) -> (pos, name)) params
   | InferredType ->
@@ -396,6 +399,7 @@ let resolve_type typemap typename oldtp =
        DefTypeLiteralStruct (List.map v fields, names)
     | DefTypeStaticStruct members ->
        DefTypeStaticStruct (List.map v members)
+    | DefTypeVAList -> DefTypeVAList
     | DefTypeWildcard -> DefTypeWildcard
     | DefTypeLLVMToken -> DefTypeLLVMToken
   in Some (v oldtp)
@@ -788,6 +792,8 @@ let build_fcn_call scope typemap pos name args =
         "Tried to call a void."
      | DefTypeOpaque _ -> Report.err_internal __FILE__ __LINE__
                                               "Tried to call an opaque type."
+     | DefTypeVAList -> Report.err_internal __FILE__ __LINE__
+                                            "Tried to call a va_list."
      | DefTypeFcn (params, rettp, variadic) ->
         let rec match_params_with_args accum = function
           | [], [] -> List.rev accum

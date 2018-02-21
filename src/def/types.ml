@@ -48,6 +48,7 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
+  | DefTypeVAList
   | DefTypeWildcard
   | DefTypeLLVMToken
 
@@ -263,6 +264,8 @@ let rec size_of typemap = function
      (* FIXME: Take aligment into account. *)
      List.fold_left (fun accum t -> accum + (size_of typemap t))
        0 members
+  | DefTypeVAList ->
+     Report.err_internal __FILE__ __LINE__ "Can't get size of a va_list."
   | DefTypeWildcard ->
      Report.err_internal __FILE__ __LINE__ "Can't get the size of a wildcard."
   | DefTypeLLVMToken ->
@@ -324,6 +327,10 @@ let most_general_type pos typemap =
     match t1, t2 with
     | DefTypeWildcard, _ -> t2
     | _, DefTypeWildcard -> t1
+    | DefTypeVAList, DefTypeVAList -> t1
+    | DefTypeVAList, _
+    | _, DefTypeVAList ->
+       Report.err_internal __FILE__ __LINE__ "generalizing va_list."
     | DefTypeUnresolved _, _ -> t2
     | _, DefTypeUnresolved _ -> t1
     | DefTypeVoid, _

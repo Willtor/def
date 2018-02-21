@@ -103,6 +103,7 @@ and vartype =
   | ArrayType of position * expr * vartype
   | PtrType of position * vartype * Types.qualifier list
   | Ellipsis of position
+  | VAList of position
   | InferredType
 
 type stmt =
@@ -546,6 +547,7 @@ let of_cimport =
                 let () = Hashtbl.replace no_duplicates t ret in
                 pos, ret
             end
+         | [ "__builtin_va_list" ] -> pos, VAList pos
          | _ -> pos, CVarType(pos, tp, [])
        end
     | CT_Pointer (pos, tp) ->

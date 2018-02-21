@@ -68,6 +68,7 @@ let instantiate templates non_templates =
          | PtrType (pos, vt, qlist) ->
             PtrType (pos, map_type vt, qlist)
          | Ellipsis pos -> Ellipsis pos
+         | VAList pos -> VAList pos
          | InferredType -> InferredType
        in
 
