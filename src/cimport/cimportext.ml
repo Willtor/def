@@ -20,6 +20,7 @@ type ctype =
   | CT_TypeName of Lexing.position * string
   | CT_Pointer of Lexing.position * ctype
   | CT_Struct of (Lexing.position * string * ctype) list
+  | CT_Function of Lexing.position * ctype list * ctype
 
 type cvalue =
   | CV_Function of Lexing.position * string * ctype list * bool * ctype

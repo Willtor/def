@@ -136,6 +136,27 @@ private:
             Store_field(ret, 0, pos);
             Store_field(ret, 1, pointee);
             return ret;
+        } else if (type->isFunctionType()) {
+            // FIXME: Need to deal with variadic functions!
+            const FunctionProtoType *ftype =
+                static_cast<const FunctionProtoType*>(type);
+
+            value param_list = Val_int(0);
+            for (const QualType param : ftype->param_types()) {
+                value tmp = caml_alloc(2, 0);
+                Store_field(tmp, 0, readType(param, loc));
+                Store_field(tmp, 1, param_list);
+                param_list = tmp;
+            }
+            param_list = reverse_list(param_list);
+
+            value pos = position_of_SourceLocation(loc);
+            value rettype = readType(ftype->getReturnType(), loc);
+            value prototype = caml_alloc(3, 3);
+            Store_field(prototype, 0, pos);
+            Store_field(prototype, 1, param_list);
+            Store_field(prototype, 2, rettype);
+            return prototype;
         } else {
             value tname = caml_copy_string(qtype.getAsString().c_str());
             value pos = position_of_SourceLocation(loc);
@@ -217,7 +238,7 @@ private:
                 Store_field(fields, 0, frec);
                 Store_field(fields, 1, tmp);
             }
-            value struct_def = caml_alloc(1, 3);
+            value struct_def = caml_alloc(1, 2);
             Store_field(struct_def, 0, reverse_list(fields));
             type_opt = caml_alloc(1, 0); // OCaml: Some t
             Store_field(type_opt, 0, struct_def);

@@ -557,6 +557,10 @@ let of_cimport =
        in
        let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
        p, StructType ast_fields
+    | CT_Function (pos, params, ret) ->
+       pos, FcnType (List.map
+                       (fun p -> let pos, t = type_of p in pos, "", t) params,
+                     let _, t = type_of ret in t)
   in
   let rec convert accum = function
     | [] -> List.rev accum
