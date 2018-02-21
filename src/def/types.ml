@@ -129,38 +129,40 @@ let compare t1 t2 =
   | _, DefTypeWildcard -> 0
   | _ -> failwith "Types.compare not fully implemented."
 
-(** name, type, llvm type constructor, C type *)
+(** name, type, llvm type constructor, C type(s), bitwidth, dwarf type *)
 let map_builtin_types =
-  [ ("void", DefTypeVoid, void_type, "void",
-     0, DW_INVALID);
-    ("bool", DefTypePrimitive (PrimBool, []), i1_type, "char",
-     1, DW_ATE_BOOLEAN);
-    ("char", DefTypePrimitive (PrimI8, []), i8_type, "char",
+  [ ("void", DefTypeVoid, void_type,
+     ["void"], 0, DW_INVALID);
+    ("bool", DefTypePrimitive (PrimBool, []), i1_type,
+     ["char"], 1, DW_ATE_BOOLEAN);
+    ("char", DefTypePrimitive (PrimI8, []), i8_type,
+     ["char"],
      8, DW_ATE_SIGNED_CHAR);
-    ("uchar", DefTypePrimitive (PrimU8, []), i8_type, "unsigned char",
-     8, DW_ATE_UNSIGNED_CHAR);
-    ("i8",  DefTypePrimitive (PrimI8, []),  i8_type, "char",
-     8, DW_ATE_SIGNED_CHAR);
-    ("u8",  DefTypePrimitive (PrimU8, []),  i8_type, "unsigned char",
-     8, DW_ATE_UNSIGNED_CHAR);
-    ("i16", DefTypePrimitive (PrimI16, []), i16_type, "short",
-     16, DW_ATE_SIGNED);
-    ("u16", DefTypePrimitive (PrimU16, []), i16_type, "unsigned short",
-     16, DW_ATE_UNSIGNED);
-    ("i32", DefTypePrimitive (PrimI32, []), i32_type, "int",
-     32, DW_ATE_SIGNED);
-    ("u32", DefTypePrimitive (PrimU32, []), i32_type, "unsigned int",
-     32, DW_ATE_UNSIGNED);
-    ("i64", DefTypePrimitive (PrimI64, []), i64_type, "long long",
+    ("uchar", DefTypePrimitive (PrimU8, []), i8_type,
+     ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
+    ("i8",  DefTypePrimitive (PrimI8, []),  i8_type,
+     ["char"; "signed char"], 8, DW_ATE_SIGNED_CHAR);
+    ("u8",  DefTypePrimitive (PrimU8, []),  i8_type,
+     ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
+    ("i16", DefTypePrimitive (PrimI16, []), i16_type,
+     ["short"; "signed short"], 16, DW_ATE_SIGNED);
+    ("u16", DefTypePrimitive (PrimU16, []), i16_type,
+     ["unsigned short"], 16, DW_ATE_UNSIGNED);
+    ("i32", DefTypePrimitive (PrimI32, []), i32_type,
+     ["int"; "signed int"], 32, DW_ATE_SIGNED);
+    ("u32", DefTypePrimitive (PrimU32, []), i32_type,
+     ["unsigned int"], 32, DW_ATE_UNSIGNED);
+    ("i64", DefTypePrimitive (PrimI64, []), i64_type,
+     ["long long"; "signed long long"; "long"; "signed long"],
      64, DW_ATE_SIGNED);
-    ("u64", DefTypePrimitive (PrimU64, []), i64_type, "unsigned long long",
-     64, DW_ATE_UNSIGNED);
-    ("f32", DefTypePrimitive (PrimF32, []), float_type, "float",
-     64, DW_ATE_FLOAT);
-    ("f64", DefTypePrimitive (PrimF64, []), double_type, "double",
-     64, DW_ATE_FLOAT);
-    ("llvm.token", DefTypeLLVMToken, token_type, "",
-     0, DW_INVALID)
+    ("u64", DefTypePrimitive (PrimU64, []), i64_type,
+     ["unsigned long long"; "unsigned long"], 64, DW_ATE_UNSIGNED);
+    ("f32", DefTypePrimitive (PrimF32, []), float_type,
+     ["float"], 64, DW_ATE_FLOAT);
+    ("f64", DefTypePrimitive (PrimF64, []), double_type,
+     ["double"], 64, DW_ATE_FLOAT);
+    ("llvm.token", DefTypeLLVMToken, token_type,
+     [], 0, DW_INVALID)
   ]
 
 (** Convert a primitive type to its string representation. *)

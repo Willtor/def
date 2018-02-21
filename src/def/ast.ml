@@ -520,7 +520,6 @@ let of_parsetree =
        in
        ExprPreUnary oper
     | PTE_Bin (left, atomic_opt, op, right) ->
-       (* FIXME: WORKING HERE!  Carry atomic_opt into the AST. *)
        let oper = { op_pos = op.td_pos;
                     op_op = binop_of op;
                     op_left = expr_of left;
@@ -537,19 +536,18 @@ let of_cimport =
   let no_duplicates = Hashtbl.create 16 in
   let rec type_of = function
     | CT_TypeName (pos, tp) ->
-       let tpname = match String.split_on_char ' ' tp with
-         | [ t ] -> t
+       begin
+         match String.split_on_char ' ' tp with
          | [ "struct"; t ] ->
             begin
-              try
-                let _ = Hashtbl.find no_duplicates t in t
+              try pos, Hashtbl.find no_duplicates t
               with _ ->
-                let () = Hashtbl.add no_duplicates t (OpaqueType (pos, t)) in
-                t
+                let ret = OpaqueType (pos, t) in
+                let () = Hashtbl.replace no_duplicates t ret in
+                pos, ret
             end
-         | _ -> tp
-       in
-       pos, CVarType (pos, tpname, [])
+         | _ -> pos, CVarType(pos, tp, [])
+       end
     | CT_Pointer (pos, tp) ->
        let _, t = type_of tp in pos, PtrType (pos, t, [])
     | CT_Struct fields ->
@@ -587,14 +585,23 @@ let of_cimport =
               in
               convert accum rest
            | _ ->
-              Report.err_internal __FILE__ __LINE__
-                                  ("Redefinition of type " ^ name)
+              (* This is a strange case - that the struct has already been
+                 defined and it seems to be redefined.  It's an artifact of
+                 the way DEF uses Clang to parse C files.  There are cases
+                 when a struct is forward declared, but Clang's AST knows
+                 about its full definition and we captured it for DEF.  If
+                 the struct had _actually_ been redefined, Clang would have
+                 caught it.
+
+                 So we just ignore the apparent redefinition, here. *)
+              convert accum rest
            end
          with _ ->
            let tp =
              if maybe_tp = None then OpaqueType (pos, name)
              else let _, t = type_of @@ Util.the maybe_tp in t
            in
+           let () = Hashtbl.replace no_duplicates name tp in
            let decl = TypeDecl (pos, name, tp, VisLocal, false) in
            convert (decl :: accum) rest
        end

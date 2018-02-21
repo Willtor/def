@@ -272,8 +272,10 @@ let rec get_field_types typemap = function
 
 let check_native_c_type =
   let tbl = Hashtbl.create 16 in
-  List.iter (fun (_, tp, _, name, _, _) -> Hashtbl.add tbl name tp)
-            map_builtin_types;
+  List.iter
+    (fun (_, tp, _, names, _, _) ->
+      List.iter (fun name -> Hashtbl.add tbl name tp) names)
+    Types.map_builtin_types;
   Hashtbl.find tbl
 
 let rec convert_type defining_p array2ptr typemap = function
@@ -374,6 +376,7 @@ let resolve_type typemap typename oldtp =
     | DefTypeUnresolved (pos, name) ->
        begin match lookup_symbol typemap name with
        | Some (DefTypeLiteralStruct _) -> DefTypeNamedStruct name
+       | Some (DefTypeUnresolved (_, name2)) -> Report.err_internal __FILE__ __LINE__ ("Recursive badness: " ^ name ^ ", " ^ name2)
        | Some tp -> v tp
        | None -> (* Unresolved type name. *)
           Report.err_unknown_typename pos name

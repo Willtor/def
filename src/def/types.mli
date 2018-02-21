@@ -41,8 +41,8 @@ val compare : deftype -> deftype -> int
 
 (** name, type, llvm type constructor, C type *)
 val map_builtin_types :
-  (string * deftype * (Llvm.llcontext -> Llvm.lltype) * string
-   * int * Llvmext.dwarf_type) list
+  (string * deftype * (Llvm.llcontext -> Llvm.lltype)
+   * string list * int * Llvmext.dwarf_type) list
 
 (** Convert a primitive type to its string representation. *)
 val primitive2string : primitive -> string

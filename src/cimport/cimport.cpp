@@ -84,6 +84,9 @@ public:
             case Decl::Record:
                 declareStruct(decl);
                 break;
+            case Decl::Typedef:
+                declareTypedef(decl);
+                break;
             default: break;
             }
         }
@@ -227,6 +230,26 @@ private:
         Store_field(sdecl, 1, sname);
         Store_field(sdecl, 2, type_opt);
         cvalues.push_back(sdecl);
+    }
+
+    void declareTypedef (NamedDecl *decl)
+    {
+        SourceLocation src_loc = decl->getLocStart();
+        value pos = position_of_SourceLocation(src_loc);
+        value tname = caml_copy_string(decl->getNameAsString().c_str());
+
+        TypedefNameDecl *typedefdecl = static_cast<TypedefNameDecl*>(decl);
+        value t = readType(typedefdecl->getUnderlyingType(), src_loc);
+
+        // OCaml: Some type
+        value SomeT = caml_alloc(1, 0);
+        Store_field(SomeT, 0, t);
+
+        value tdecl = caml_alloc(3, 1);
+        Store_field(tdecl, 0, pos);
+        Store_field(tdecl, 1, tname);
+        Store_field(tdecl, 2, SomeT);
+        cvalues.push_back(tdecl);
     }
 };
 
