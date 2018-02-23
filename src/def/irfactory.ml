@@ -108,8 +108,31 @@ let build_types ctx deftypes =
           add_symbol typemap name (deftype2llvmtype ctx typemap true deftype)
        | DefTypeOpaque (_, name) ->
           add_symbol typemap name (named_struct_type ctx name)
-       | _ -> Report.err_internal __FILE__ __LINE__
-          "Some type other than named struct was not found."
+       | DefTypeVoid ->
+          (* Sometimes comes out of a typedef.  Any typing problems should have
+             been caught earlier in compilation, so it's okay to simpy i8 the
+             thing. *)
+          add_symbol typemap name (Util.the @@ lookup_symbol typemap "i8")
+
+       (* Shouldn't be seeing any of the following types at this stage in the
+          compilation. *)
+       | DefTypeNullPtr ->
+          Report.err_internal __FILE__ __LINE__ "null pointer type."
+       | DefTypeVAList ->
+          Report.err_internal __FILE__ __LINE__ "va_list type."
+       | DefTypeNamedStruct s ->
+          Report.err_internal __FILE__ __LINE__ ("named struct type: " ^ s)
+       | DefTypeArray _ ->
+          Report.err_internal __FILE__ __LINE__ "array type."
+       | DefTypeFcn _ ->
+          Report.err_internal __FILE__ __LINE__ "function type."
+       | DefTypeUnresolved (pos, s) ->
+          Report.err_internal __FILE__ __LINE__
+                              ("unresolved type " ^ s ^ " from: "
+                               ^ (Error.format_position pos))
+       | _ ->
+          Report.err_internal __FILE__ __LINE__
+                              "Some unknown type was found."
        end
   in
   let build_structs name = function
