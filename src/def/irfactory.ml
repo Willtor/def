@@ -48,6 +48,8 @@ type llvm_data =
     one_f64  : llvalue
   }
 
+let va_list_tag = "struct.__va_list_tag"
+
 let fcn_attrs =
   [("target-features", "+fxsr,+mmx,+rtm,+sse,+sse2,+x87");
    ("target-cpu", "x86-64")
@@ -66,6 +68,8 @@ let deftype2llvmtype ctx typemap =
          ("Tried to convert a placeholder type: " ^ name)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
+    | DefTypeOpaque _ ->
+       Report.err_internal __FILE__ __LINE__ "convert opaque type."
     | DefTypeFcn (args, ret, variadic) ->
        let llvmargs = List.map (fun argtp -> convert true argtp) args in
        let fbuild = if variadic then var_arg_function_type else function_type
@@ -76,22 +80,31 @@ let deftype2llvmtype ctx typemap =
     | DefTypePrimitive (prim, _) ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
-    | DefTypeArray (tp, dim) ->
-       array_type (convert wrap_fcn_ptr tp) dim
     | DefTypePtr (DefTypeVoid, _) ->
        (* Void pointer isn't natively supported by LLVM.  Use char* instead. *)
        pointer_type (the (lookup_symbol typemap "i8"))
+    | DefTypePtr (DefTypeOpaque _, _) ->
+       (* Opaque struct pointers are just i8 pointers, as far as we're
+          concerned.  As long as an opaque type remains opaque, it doesn't
+          matter. *)
+       pointer_type (the (lookup_symbol typemap "i8"))
     | DefTypePtr (pointed_to_tp, _) ->
        pointer_type (convert wrap_fcn_ptr pointed_to_tp)
+    | DefTypeArray (tp, dim) ->
+       array_type (convert wrap_fcn_ptr tp) dim
+    | DefTypeNullPtr ->
+       Report.err_internal __FILE__ __LINE__ "convert null pointer."
     | DefTypeNamedStruct name ->
        the (lookup_symbol typemap name)
     | DefTypeStaticStruct members
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
        struct_type ctx (Array.of_list llvm_members)
+    | DefTypeVAList ->
+       Util.the @@ lookup_symbol typemap va_list_tag
     | DefTypeLLVMToken -> token_type ctx
-    | _ ->
-       Report.err_internal __FILE__ __LINE__ "deftype2llvmtype"
+    | DefTypeWildcard ->
+       Report.err_internal __FILE__ __LINE__ "convert wildcard."
   in convert
 
 let build_types ctx deftypes =
@@ -108,6 +121,28 @@ let build_types ctx deftypes =
           add_symbol typemap name (deftype2llvmtype ctx typemap true deftype)
        | DefTypeOpaque (_, name) ->
           add_symbol typemap name (named_struct_type ctx name)
+       | DefTypeFcn (params, ret, is_variadic) ->
+          let llparams = List.map (deftype2llvmtype ctx typemap true) params in
+          let llret = deftype2llvmtype ctx typemap true ret in
+          let lltype =
+            (if is_variadic then var_arg_function_type
+             else function_type)
+              llret (Array.of_list llparams)
+          in
+          add_symbol typemap name lltype
+       | DefTypeVAList ->
+          (* FIXME: Platform-specific struct: struct.va_list. *)
+          let t name = Util.the @@ lookup_symbol typemap name in
+          let valist = named_struct_type ctx va_list_tag in
+          let () = struct_set_body valist
+                                   [| t "i32";
+                                      t "i32";
+                                      pointer_type @@ t "i8";
+                                      pointer_type @@ t "i8"
+                                   |]
+                                   false
+          in
+          add_symbol typemap va_list_tag valist
        | DefTypeVoid ->
           (* Sometimes comes out of a typedef.  Any typing problems should have
              been caught earlier in compilation, so it's okay to simpy i8 the
@@ -118,14 +153,10 @@ let build_types ctx deftypes =
           compilation. *)
        | DefTypeNullPtr ->
           Report.err_internal __FILE__ __LINE__ "null pointer type."
-       | DefTypeVAList ->
-          Report.err_internal __FILE__ __LINE__ "va_list type."
        | DefTypeNamedStruct s ->
           Report.err_internal __FILE__ __LINE__ ("named struct type: " ^ s)
        | DefTypeArray _ ->
           Report.err_internal __FILE__ __LINE__ "array type."
-       | DefTypeFcn _ ->
-          Report.err_internal __FILE__ __LINE__ "function type."
        | DefTypeUnresolved (pos, s) ->
           Report.err_internal __FILE__ __LINE__
                               ("unresolved type " ^ s ^ " from: "
