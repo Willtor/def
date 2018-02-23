@@ -567,6 +567,9 @@ let of_cimport =
        in
        let _, rtype = type_of ret in
        pos, FcnType (ast_params, rtype)
+    | CT_Array (pos, subtype, sz) ->
+       pos, ArrayType (pos, ExprLit (pos, LitI32 (Int32.of_int sz)),
+                       let _, t = type_of subtype in t)
   in
   let rec convert accum = function
     | [] -> List.rev accum

@@ -120,6 +120,16 @@ private:
         return pos;
     }
 
+    value readFundamentalType (QualType qtype, SourceLocation loc)
+    {
+        value tname = caml_copy_string(qtype.getAsString().c_str());
+        value pos = position_of_SourceLocation(loc);
+        value ret = caml_alloc(2, 0);
+        Store_field(ret, 0, pos);
+        Store_field(ret, 1, tname);
+        return ret;
+    }
+
     value readType (QualType fulltype, SourceLocation loc)
     {
         // ---
@@ -159,14 +169,35 @@ private:
             Store_field(prototype, 2, Val_int(ftype->isVariadic()));
             Store_field(prototype, 3, rettype);
             return prototype;
+        } else if (type->isArrayType()) {
+            // CT_Array
+
+            string asString = qtype.getAsString();
+            if (asString == "__builtin_va_list"
+                || asString == "__gnuc_va_list") {
+                // Certain types are listed as arrays of themselves.  These
+                // are typically types that have some builtin meaning -
+                // language hacks.  Treat them as fundamental types.
+                return readFundamentalType(qtype, loc);
+            }
+
+            value pos = position_of_SourceLocation(loc);
+            if (type->isConstantArrayType()) {
+                const ConstantArrayType *atype =
+                    static_cast<const ConstantArrayType*>(type);
+                value subtype = readType(atype->getElementType(), loc);
+                value ret = caml_alloc(3, 4);
+                Store_field(ret, 0, pos);
+                Store_field(ret, 1, subtype);
+                Store_field(ret, 2, Int_val(atype->getSize().getZExtValue()));
+                return ret;
+            } else {
+                outs() << "Internal error: unhandled array type.\n";
+                exit(1);
+            }
         } else {
             // CT_TypeName
-            value tname = caml_copy_string(qtype.getAsString().c_str());
-            value pos = position_of_SourceLocation(loc);
-            value ret = caml_alloc(2, 0);
-            Store_field(ret, 0, pos);
-            Store_field(ret, 1, tname);
-            return ret;
+            return readFundamentalType(qtype, loc);
         }
     }
 
