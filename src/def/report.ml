@@ -22,7 +22,10 @@ open Error
 let err_internal file line msg =
   let err = "Internal error: file \"" ^ file ^ "\" line "
     ^ (string_of_int line) ^ ".\n"
-    ^ msg
+    ^ msg ^ "\n\n"
+    ^ "If you are seeing this error, it indicates a BUG.  For support,\n"
+    ^ "contact " ^ Version.project_support ^ " with the error and the\n"
+    ^ "following string: " ^ Version.version_build ^ "."
   in fatal_error err
 
 (** Input paramter. *)
