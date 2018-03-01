@@ -519,7 +519,7 @@ let global_decls decltable typemap = function
         in
         add_symbol decltable name fcn
      end
-  | VarDecl (vars, inits, tp) ->
+  | VarDecl (vars, inits, tp, vis) ->
      let f (tok, init) = match lookup_symbol decltable tok.td_text with
        | Some decl ->
           Report.err_redefined_var tok.td_pos decl.decl_pos tok.td_text
@@ -534,7 +534,7 @@ let global_decls decltable typemap = function
           let decl =
             { decl_pos = tok.td_pos;
               mappedname = tok.td_text;
-              vis = VisLocal; (* FIXME *)
+              vis = vis;
               tp = convtp;
               params = []
             }
@@ -616,6 +616,16 @@ let rec maybe_cast typemap orig cast_as expr =
 (** Determine whether one type can be cast as another.  This function returns
     unit, as it only reports an error if it fails. *)
 let check_castability pos typemap ltype rtype =
+  let rec get_struct_defn = function
+    | DefTypeStaticStruct _ as t -> t
+    | DefTypeLiteralStruct _ as t -> t
+    | DefTypeNamedStruct nm ->
+       begin match lookup_symbol typemap nm with
+       | Some t -> t
+       | None -> DefTypeNamedStruct nm
+       end
+    | t -> t
+  in
   let rec similar = function
     | DefTypePrimitive _, DefTypePrimitive _ ->
        ()  (* FIXME: Implement. *)
@@ -658,12 +668,22 @@ let check_castability pos typemap ltype rtype =
                             ^ (format_position pos))
   and identical (ltype, rtype) =
     if ltype = rtype then ()
-    else
-      begin
-        prerr_endline (string_of_type ltype);
-        prerr_endline (string_of_type rtype);
-        Report.err_type_mismatch pos
-      end
+    else match get_struct_defn ltype, get_struct_defn rtype with
+         | DefTypeLiteralStruct (lmembers, _),
+           DefTypeLiteralStruct (rmembers, _)
+         | DefTypeLiteralStruct (lmembers, _),
+           DefTypeStaticStruct rmembers
+         | DefTypeStaticStruct lmembers,
+           DefTypeLiteralStruct (rmembers, _)
+         | DefTypeStaticStruct lmembers,
+           DefTypeStaticStruct rmembers ->
+            List.iter similar (List.combine lmembers rmembers)
+         | _ ->
+            begin
+              prerr_endline (string_of_type ltype);
+              prerr_endline (string_of_type rtype);
+              Report.err_type_mismatch pos
+            end
   in
   similar (ltype, rtype)
 
@@ -1302,7 +1322,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
                             ^ ": local functions not yet implemented.")
     | DefTemplateFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DefTemplateFcn not supported."
-    | VarDecl (vars, inits, tp) :: rest ->
+    | VarDecl (vars, inits, tp, _) :: rest ->
        let t = match tp with
          | InferredType ->
             (* Get the type from the rhs. *)
@@ -1766,7 +1786,7 @@ let verify_cfg name =
   visit_df verify true ()
 
 let build_global_vars decltable typemap globals = function
-  | VarDecl (vars, inits, _) ->
+  | VarDecl (vars, inits, _, _) ->
      let procvar accum (var, init) =
        if init = None then accum
        else
@@ -1884,8 +1904,8 @@ let resolve_builtins stmts typemap =
     | Block (p, stmts) -> Block (p, List.map process_stmt stmts)
     | DefFcn (p, doc, vis, name, tp, stmts) ->
        DefFcn(p, doc, vis, name, tp, List.map process_stmt stmts)
-    | VarDecl (vars, inits, tp) ->
-       VarDecl (vars, List.map process_expr inits, tp)
+    | VarDecl (vars, inits, tp, vis) ->
+       VarDecl (vars, List.map process_expr inits, tp, vis)
     | InlineStructVarDecl (p, vars, (epos, expr)) ->
        InlineStructVarDecl (p, vars, (epos, process_expr expr))
     | IfStmt (p, cond, tstmts, estmts_maybe) ->

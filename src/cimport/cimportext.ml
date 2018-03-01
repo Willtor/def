@@ -26,6 +26,7 @@ type ctype =
 type cvalue =
   | CV_Function of Lexing.position * string * ctype list * bool * ctype
   | CV_Typedecl of Lexing.position * string * ctype option
+  | CV_Variable of Lexing.position * string * ctype * (*extern=*)bool
 
 (** import_c_file f p: Import the C header file, f, using the include
     paths, p, and return a set of type and function declarations. *)

@@ -68,8 +68,8 @@ let deftype2llvmtype ctx typemap =
          ("Tried to convert a placeholder type: " ^ name)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
-    | DefTypeOpaque _ ->
-       Report.err_internal __FILE__ __LINE__ "convert opaque type."
+    | DefTypeOpaque (_, nm) ->
+       the (lookup_symbol typemap nm)
     | DefTypeFcn (args, ret, variadic) ->
        let llvmargs = List.map (fun argtp -> convert true argtp) args in
        let fbuild = if variadic then var_arg_function_type else function_type
@@ -976,7 +976,12 @@ let declare_globals data symbols initializers name decl =
            in
            define_global decl.mappedname init data.mdl
          with _ ->
-           define_global decl.mappedname (zero_llval data decl.tp) data.mdl
+           if decl.vis = VisExternal then
+             let llglobal = declare_global lltp name data.mdl in
+             let () = set_externally_initialized true llglobal in
+             llglobal
+           else
+             define_global decl.mappedname (zero_llval data decl.tp) data.mdl
        end
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)

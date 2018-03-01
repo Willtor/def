@@ -13,6 +13,7 @@ type primitive =
 type visibility =
   | VisLocal
   | VisExported of Lexing.position
+  | VisExternal
 
 type deftype =
   | DefTypeUnresolved of Lexing.position * string

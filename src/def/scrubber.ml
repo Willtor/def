@@ -33,7 +33,7 @@ let position_of_stmt = function
   | DeclFcn (pos, _, _, _)
   | DefFcn (pos, _, _, _, _, _)
   | DefTemplateFcn (pos, _, _, _, _, _, _)
-  | VarDecl ({td_pos = pos} :: _, _, _)
+  | VarDecl ({td_pos = pos} :: _, _, _, _)
   | InlineStructVarDecl (pos, _, _)
   | TransactionBlock (pos, _)
   | IfStmt (pos, _, _, _)

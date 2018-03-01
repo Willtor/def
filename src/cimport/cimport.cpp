@@ -87,6 +87,9 @@ public:
             case Decl::Typedef:
                 declareTypedef(decl);
                 break;
+            case Decl::Var:
+                declareVariable(decl);
+                break;
             default: break;
             }
         }
@@ -190,6 +193,15 @@ private:
                 Store_field(ret, 0, pos);
                 Store_field(ret, 1, subtype);
                 Store_field(ret, 2, Int_val(atype->getSize().getZExtValue()));
+                return ret;
+            } else if (type->isIncompleteArrayType()) {
+                const IncompleteArrayType *atype =
+                    static_cast<const IncompleteArrayType*>(type);
+                value subtype = readType(atype->getElementType(), loc);
+                value ret = caml_alloc(3, 4);
+                Store_field(ret, 0, pos);
+                Store_field(ret, 1, subtype);
+                Store_field(ret, 2, Int_val(0));
                 return ret;
             } else {
                 outs() << "Internal error: unhandled array type.\n";
@@ -305,6 +317,22 @@ private:
         Store_field(tdecl, 1, tname);
         Store_field(tdecl, 2, SomeT);
         cvalues.push_back(tdecl);
+    }
+
+    void declareVariable (NamedDecl *decl)
+    {
+        SourceLocation src_loc = decl->getLocStart();
+        value pos = position_of_SourceLocation(src_loc);
+        value vname = caml_copy_string(decl->getNameAsString().c_str());
+        ValueDecl *valuedecl = static_cast<ValueDecl*>(decl);
+        value vtype = readType(valuedecl->getType(), src_loc);
+
+        value vdecl = caml_alloc(4, 2);
+        Store_field(vdecl, 0, pos);
+        Store_field(vdecl, 1, vname);
+        Store_field(vdecl, 2, vtype);
+        Store_field(vdecl, 3, Val_bool(decl->hasExternalFormalLinkage()));
+        cvalues.push_back(vdecl);
     }
 };
 
