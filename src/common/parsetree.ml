@@ -59,6 +59,9 @@ type pt_stmt =
   | PTS_RetireExpr of tokendata * pt_expr * tokendata
   | PTS_XBegin of tokendata * tokendata
   | PTS_XCommit of tokendata * tokendata
+  | PTS_HybridXBegin of tokendata * tokendata
+  | PTS_HybridXCommit of tokendata * tokendata
+  | PTS_LLVMXCommit of tokendata * tokendata
   | PTS_IfStmt of
       tokendata * pt_expr * tokendata * pt_stmt list
       * (tokendata * pt_expr * tokendata * pt_stmt list) list
@@ -159,6 +162,7 @@ and pt_expr =
   | PTE_PostUni of pt_expr * tokendata
   | PTE_PreUni of tokendata * pt_expr
   | PTE_Bin of pt_expr * tokendata option * tokendata * pt_expr
+  | PTE_LLVMXBegin of tokendata
 
 let pt_type_pos = function
   | PTT_Fcn (tok, _, _, _, _)
@@ -187,6 +191,7 @@ let rec pt_expr_pos = function
   | PTE_F32 (tok, _)
   | PTE_String (tok, _)
   | PTE_Wildcard tok
+  | PTE_LLVMXBegin tok
   | PTE_FcnCall { ptfc_name = tok }
   | PTE_Var tok
   | PTE_StaticStruct (tok, _, _)
@@ -198,3 +203,4 @@ let rec pt_expr_pos = function
   | PTE_PostUni (e, _)
   | PTE_Bin (e, _, _, _) ->
      pt_expr_pos e
+

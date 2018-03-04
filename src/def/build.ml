@@ -92,6 +92,10 @@ let add_builtin_fcns stmts =
                FcnType ([], VarType (pos, "i32", [Types.Volatile])));
       DeclFcn (pos, Types.VisExported pos, "llvm.x86.xend",
                FcnType ([], VarType (pos, "void", [])));
+      DeclFcn (pos, Types.VisExported pos, "hybrid_xbegin",
+               FcnType ([], VarType (pos, "void", [])));
+      DeclFcn (pos, Types.VisExported pos, "hybrid_xend",
+               FcnType ([], VarType (pos, "void", [])));
       DeclFcn (pos, Types.VisExported pos, "llvm.syncregion.start",
                FcnType ([], VarType (pos, "llvm.token", [])))
     ]

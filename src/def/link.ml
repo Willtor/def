@@ -90,6 +90,7 @@ let build_paths base_path gcc_ver =
                      "/lib";
                      "/usr/lib" ]
   and libs = [ "-lforkscan";
+               "-lhytm";
                "-lcilkrts";
                "-lgcc";
                "--as-needed";

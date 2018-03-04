@@ -34,6 +34,7 @@
 %token <Parsetree.tokendata> ELIF ELSE FI FOR PARFOR WHILE DO OD SWITCH
 %token <Parsetree.tokendata> WITH CASE ESAC GOTO BREAK
 %token <Parsetree.tokendata> CONTINUE NEW DELETE RETIRE XBEGIN XCOMMIT
+%token <Parsetree.tokendata> HYBEGIN HYCOMMIT LLVMXBEGIN LLVMXCOMMIT
 %token <Parsetree.tokendata> NIL VOLATILE ATOMIC SPAWN SYNC WILDCARD
 
 %token <Parsetree.tokendata> EXPORT
@@ -108,6 +109,9 @@ statement:
 | RETIRE expr SEMICOLON { PTS_RetireExpr ($1, $2, $3) }
 | XBEGIN SEMICOLON { PTS_XBegin ($1, $2) }
 | XCOMMIT SEMICOLON { PTS_XCommit ($1, $2) }
+| HYBEGIN SEMICOLON { PTS_HybridXBegin ($1, $2) }
+| HYCOMMIT SEMICOLON { PTS_HybridXCommit ($1, $2) }
+| LLVMXCOMMIT SEMICOLON { PTS_LLVMXCommit ($1, $2) }
 | IF expr THEN statement* elifclause* elseclause? FI
     { PTS_IfStmt ($1, $2, $3, $4, $5, $6, $7) }
 | FOR for_init? SEMICOLON expr SEMICOLON expr? DO statement* OD
@@ -268,6 +272,7 @@ expr:
       }
   }
 | IDENT { PTE_Var $1 }
+| LLVMXBEGIN { PTE_LLVMXBegin $1 }
 | LPAREN expr RPAREN { $2 }
 | LCURLY exprlist RCURLY { PTE_StaticStruct ($1, $2, $3) }
 | LSQUARE exprlist RSQUARE { PTE_StaticArray ($1, $2, $3) }

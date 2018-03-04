@@ -43,6 +43,7 @@ type cfg_expr =
   | Expr_StaticArray of cfg_expr list
   | Expr_Nil
   | Expr_Wildcard
+  | Expr_LLVMXBegin
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
   | Expr_Val_Ref of string
 
@@ -446,6 +447,8 @@ let rec infer_type_from_expr typemap scope = function
      Report.err_internal __FILE__ __LINE__ "Type of nil?"
   | ExprWildcard _ ->
      Report.err_internal __FILE__ __LINE__ "Type of wildcard?"
+  | ExprLLVMXBegin _ ->
+     Report.err_internal __FILE__ __LINE__ "Misused LLVM xbegin."
 
 let global_decls decltable typemap = function
   | DeclFcn (pos, vis, name, tp)
@@ -939,6 +942,7 @@ let convert_expr typemap scope =
        Expr_String (nm, string_of_type expr_tp)
     | ExprNil _ -> DefTypeNullPtr, Expr_Nil
     | ExprWildcard _ -> DefTypeWildcard, Expr_Wildcard
+    | ExprLLVMXBegin _ -> DefTypePrimitive (PrimI32, []), Expr_LLVMXBegin
     | e ->
        Report.err_internal __FILE__ __LINE__
                            ("Cfg.convert_expr not fully implemented.\n"

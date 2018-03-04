@@ -42,6 +42,9 @@ type pt_stmt =
   | PTS_RetireExpr of tokendata * pt_expr * tokendata
   | PTS_XBegin of tokendata * tokendata
   | PTS_XCommit of tokendata * tokendata
+  | PTS_HybridXBegin of tokendata * tokendata
+  | PTS_HybridXCommit of tokendata * tokendata
+  | PTS_LLVMXCommit of tokendata * tokendata
   | PTS_IfStmt of
       tokendata * pt_expr * tokendata * pt_stmt list
       * (tokendata * pt_expr * tokendata * pt_stmt list) list
@@ -142,6 +145,7 @@ and pt_expr =
   | PTE_PostUni of pt_expr * tokendata
   | PTE_PreUni of tokendata * pt_expr
   | PTE_Bin of pt_expr * tokendata option * tokendata * pt_expr
+  | PTE_LLVMXBegin of tokendata
 
 val pt_type_pos : pt_type -> Lexing.position
 val pt_expr_pos : pt_expr -> Lexing.position

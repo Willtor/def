@@ -45,11 +45,11 @@ void LLVMAddUnifyFunctionExitNodes(LLVMPassManagerRef PM) {
 }
 
 void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM) {
-    unwrap(PM)->add(createLowerTapirToCilkPass(true, false));
+    // unwrap(PM)->add(createLowerTapirToCilkPass(true, false));
 }
 
 void LLVMAddLoopSpawning(LLVMPassManagerRef PM) {
-    unwrap(PM)->add(createLoopSpawningPass());
+    // unwrap(PM)->add(createLoopSpawningPass());
 }
 
 extern LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C);

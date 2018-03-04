@@ -113,6 +113,10 @@ rule deflex = parse
 | "retire" as tok { RETIRE (get_token_data tok lexbuf) }
 | "xbegin" as tok { XBEGIN (get_token_data tok lexbuf) }
 | "xcommit" as tok { XCOMMIT (get_token_data tok lexbuf) }
+| "hybegin" as tok { HYBEGIN (get_token_data tok lexbuf) }
+| "hycommit" as tok { HYCOMMIT (get_token_data tok lexbuf) }
+| "llvmxbegin" as tok { LLVMXBEGIN (get_token_data tok lexbuf) }
+| "llvmxcommit" as tok { LLVMXCOMMIT (get_token_data tok lexbuf) }
 | "nil" as tok { NIL (get_token_data tok lexbuf) }
 | "volatile" as tok { VOLATILE (get_token_data tok lexbuf) }
 | "atomic" as tok { ATOMIC (get_token_data tok lexbuf) }

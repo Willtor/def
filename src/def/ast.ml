@@ -92,6 +92,7 @@ and expr =
   | ExprTypeString of position * expr
   | ExprNil of position
   | ExprWildcard of position
+  | ExprLLVMXBegin of position
 
 and vartype =
   | VarType of position * string * Types.qualifier list
@@ -311,6 +312,33 @@ let of_parsetree =
                               }
        in
        StmtExpr (r.td_pos, expr)
+    | PTS_HybridXBegin (b, _) ->
+       let expr = ExprFcnCall { fc_pos = b.td_pos;
+                                fc_name = "hybrid_xbegin";
+                                fc_template = [];
+                                fc_args = [];
+                                fc_spawn = false
+                              }
+       in
+       StmtExpr (b.td_pos, expr)
+    | PTS_HybridXCommit (c, _) ->
+       let expr = ExprFcnCall { fc_pos = c.td_pos;
+                                fc_name = "hybrid_xend";
+                                fc_template = [];
+                                fc_args = [];
+                                fc_spawn = false
+                              }
+       in
+       StmtExpr (c.td_pos, expr)
+    | PTS_LLVMXCommit (c, _) ->
+       let expr = ExprFcnCall { fc_pos = c.td_pos;
+                                fc_name = "llvm.x86.xend";
+                                fc_template = [];
+                                fc_args = [];
+                                fc_spawn = false
+                              }
+       in
+       StmtExpr (c.td_pos, expr)
     | PTS_XBegin (tok, _) -> XBegin tok.td_pos
     | PTS_XCommit (tok, _) -> XCommit tok.td_pos
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
@@ -460,6 +488,7 @@ let of_parsetree =
     | PTE_F32 (tok, value) -> ExprLit (tok.td_pos, LitF32 value)
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
     | PTE_Wildcard tok -> ExprWildcard tok.td_pos
+    | PTE_LLVMXBegin tok -> ExprLLVMXBegin tok.td_pos
     | PTE_FcnCall fcn ->
        let template = match fcn.ptfc_template with
          | None -> []
@@ -546,6 +575,7 @@ let rec pos_of_astexpr = function
   | ExprType (pos, _)
   | ExprTypeString (pos, _)
   | ExprNil pos
+  | ExprLLVMXBegin pos -> pos
   | ExprWildcard pos ->
      pos
   | ExprBinary { op_left = operand } ->
@@ -590,6 +620,7 @@ let visit_expr f =
     | ExprTypeString (_, e) -> visit e
     | ExprNil _ -> ()
     | ExprWildcard _ -> ()
+    | ExprLLVMXBegin _ -> ()
   in
   visit
 
