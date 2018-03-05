@@ -1,6 +1,7 @@
 INSTALL_DIR = /usr/local
 BUILDDIR = build
 COMMON_BUILD_DIR = $(BUILDDIR)/common
+CIMPORT_BUILD_DIR = $(BUILDDIR)/cimport
 DEF_BUILD_DIR = $(BUILDDIR)/def
 DEFGHI_BUILD_DIR = $(BUILDDIR)/defghi
 BINDIR = $(BUILDDIR)/bin
@@ -19,6 +20,13 @@ COMMONFILES =		\
 	parsetree.ml	\
 	parsetree.mli	\
 	version.ml
+
+CIMPORT_SRC_DIR = src/cimport
+CIMPORTFILES =		\
+	cimportext.ml	\
+	cimport.cpp	\
+	cimport.mk	\
+	Makefile
 
 DEF_SRC_DIR = src/def
 DEFFILES = 		\
@@ -42,6 +50,9 @@ DEFFILES = 		\
 	main.ml		\
 	main.mli	\
 	Makefile	\
+	metadata.cpp	\
+	osspecific.ml	\
+	osspecific.mli	\
 	report.ml	\
 	scrubber.ml	\
 	scrubber.mli	\
@@ -64,6 +75,7 @@ DEFGHIFILES =		\
 	util.ml
 
 COMMON_SRC = $(addprefix $(COMMON_BUILD_DIR)/,$(COMMONFILES))
+CIMPORT_SRC = $(addprefix $(CIMPORT_BUILD_DIR)/,$(CIMPORTFILES))
 DEF_SRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
 DEFGHI_SRC = $(addprefix $(DEFGHI_BUILD_DIR)/,$(DEFGHIFILES))
 
@@ -97,6 +109,9 @@ $(BINDIR):
 $(COMMON_BUILD_DIR):
 	mkdir -p $@
 
+$(CIMPORT_BUILD_DIR):
+	mkdir -p $@
+
 $(DEF_BUILD_DIR):
 	mkdir -p $@
 
@@ -109,8 +124,9 @@ $(BINDIR)/$(DEF): $(DEF_BUILD_DIR)/$(DEF) $(BINDIR)
 $(BINDIR)/$(DEFGHI): $(DEFGHI_BUILD_DIR)/$(DEFGHI) $(BINDIR)
 	cp $< $@
 
-$(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(DEF_BUILD_DIR) $(COMMON_SRC) $(DEF_SRC)
+$(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(CIMPORT_BUILD_DIR) $(DEF_BUILD_DIR) $(COMMON_SRC) $(CIMPORT_SRC) $(DEF_SRC)
 	make -C $(COMMON_BUILD_DIR)
+	make -C $(CIMPORT_BUILD_DIR)
 	make -C $(DEF_BUILD_DIR)
 
 $(DEFGHI_BUILD_DIR)/$(DEFGHI): $(COMMON_BUILD_DIR) $(DEFGHI_BUILD_DIR) $(COMMON_SRC) $(DEFGHI_SRC)
@@ -128,6 +144,9 @@ $(COMMON_BUILD_DIR)/version.ml:
 	bash version_info.sh ocaml > $@
 
 $(COMMON_BUILD_DIR)/%: $(COMMON_SRC_DIR)/%
+	cp $< $@
+
+$(CIMPORT_BUILD_DIR)/%: $(CIMPORT_SRC_DIR)/%
 	cp $< $@
 
 $(DEF_BUILD_DIR)/%: $(DEF_SRC_DIR)/%

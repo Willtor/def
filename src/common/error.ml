@@ -33,16 +33,20 @@ let format_position pos =
 (** Take a Lexing.position and return a 2-line string: the source line, and
     a line with a carat underneath the offending column. *)
 let show_source pos =
-  let infile = open_in pos.pos_fname in
-  let rec find_line n =
-    if n > 0 then
+  try
+    let infile = open_in pos.pos_fname in
+    let rec find_line n =
+      if n > 0 then
         let _ = input_line infile
         in find_line (n - 1)
-    else input_line infile
-  in
-  try
-    color_yellow ^ (find_line (pos.pos_lnum - 1)) ^ "\n"
-    ^ (String.make (pos.pos_cnum - pos.pos_bol) ' ') ^ "^" ^ color_reset
+      else input_line infile
+    in
+    let str =
+      color_yellow ^ (find_line (pos.pos_lnum - 1)) ^ "\n"
+      ^ (String.make (pos.pos_cnum - pos.pos_bol) ' ') ^ "^" ^ color_reset
+    in
+    close_in infile;
+    str
   with _ -> "(Err: Unable to read from " ^ pos.pos_fname ^ ")"
 
 (** Report a fatal error with the input string and exit with an error

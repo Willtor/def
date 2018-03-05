@@ -4,9 +4,9 @@
 
 ;; Keywords.
 (setq def-keywords-open
-      (regexp-opt '("begin" "then" "do" "with") 'words))
+      (regexp-opt '("begin" "then" "do" "with" "xbegin") 'words))
 (setq def-keywords-close
-      (regexp-opt '("end" "fi" "od" "esac") 'words))
+      (regexp-opt '("end" "fi" "od" "esac" "xend") 'words))
 
 ;; Font coloring.
 (setq def-font-lock-keywords
@@ -18,7 +18,7 @@
          . font-lock-comment-delimiter-face)
         ; Keywords
         (,(regexp-opt '("def" "decl" "begin" "end" "do" "od" "while" "for"
-                        "parfor"
+                        "parfor" "xbegin" "xend"
                         "if" "then" "elif" "else" "fi" "return" "var" "export"
                         "continue" "typedef" "goto" "type"
                         "switch" "with" "esac")

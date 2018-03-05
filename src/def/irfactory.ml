@@ -18,6 +18,7 @@
 
 open Ast
 open Cfg
+open Lexing
 open Llvm
 open Llvmext (* build_cmpxchg, token_type *)
 open Llvm_target
@@ -25,25 +26,36 @@ open Types
 open Util
 
 type llvm_data =
-  { ctx  : llcontext;
-    mdl  : llmodule;
-    bldr : llbuilder;
-    typemap : lltype symtab;
-    prog : program;
-    fattrs : llattribute list;
+  { ctx      : llcontext;
+    mdl      : llmodule;
+    bldr     : llbuilder;
+    typemap  : lltype symtab;
+    prog     : program;
+    fattrs   : llattribute list;
+
+    (* Debug info. *)
+    mutable difile : llvalue option;
+    mutable dib    : lldibuilder option;
+    d_scope_table  : (cfg_scope, cfg_scope) Hashtbl.t;
+
+    (* Constant values. *)
     zero_i32 : llvalue;
-    one_i8  : llvalue;
-    one_i16 : llvalue;
-    one_i32 : llvalue;
-    one_i64 : llvalue;
-    one_f32 : llvalue;
-    one_f64 : llvalue
+    one_i8   : llvalue;
+    one_i16  : llvalue;
+    one_i32  : llvalue;
+    one_i64  : llvalue;
+    one_f32  : llvalue;
+    one_f64  : llvalue
   }
+
+let va_list_tag = "struct.__va_list_tag"
 
 let fcn_attrs =
   [("target-features", "+fxsr,+mmx,+rtm,+sse,+sse2,+x87");
    ("target-cpu", "x86-64")
   ]
+
+let debug_locations = Hashtbl.create 32
 
 let get_fcntype = function
   | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
@@ -56,6 +68,8 @@ let deftype2llvmtype ctx typemap =
          ("Tried to convert a placeholder type: " ^ name)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
+    | DefTypeOpaque (_, nm) ->
+       the (lookup_symbol typemap nm)
     | DefTypeFcn (args, ret, variadic) ->
        let llvmargs = List.map (fun argtp -> convert true argtp) args in
        let fbuild = if variadic then var_arg_function_type else function_type
@@ -66,22 +80,31 @@ let deftype2llvmtype ctx typemap =
     | DefTypePrimitive (prim, _) ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
-    | DefTypeArray (tp, dim) ->
-       array_type (convert wrap_fcn_ptr tp) dim
     | DefTypePtr (DefTypeVoid, _) ->
        (* Void pointer isn't natively supported by LLVM.  Use char* instead. *)
        pointer_type (the (lookup_symbol typemap "i8"))
+    | DefTypePtr (DefTypeOpaque _, _) ->
+       (* Opaque struct pointers are just i8 pointers, as far as we're
+          concerned.  As long as an opaque type remains opaque, it doesn't
+          matter. *)
+       pointer_type (the (lookup_symbol typemap "i8"))
     | DefTypePtr (pointed_to_tp, _) ->
        pointer_type (convert wrap_fcn_ptr pointed_to_tp)
+    | DefTypeArray (tp, dim) ->
+       array_type (convert wrap_fcn_ptr tp) dim
+    | DefTypeNullPtr ->
+       Report.err_internal __FILE__ __LINE__ "convert null pointer."
     | DefTypeNamedStruct name ->
        the (lookup_symbol typemap name)
     | DefTypeStaticStruct members
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
        struct_type ctx (Array.of_list llvm_members)
+    | DefTypeVAList ->
+       Util.the @@ lookup_symbol typemap va_list_tag
     | DefTypeLLVMToken -> token_type ctx
-    | _ ->
-       Report.err_internal __FILE__ __LINE__ "deftype2llvmtype"
+    | DefTypeWildcard ->
+       Report.err_internal __FILE__ __LINE__ "convert wildcard."
   in convert
 
 let build_types ctx deftypes =
@@ -96,8 +119,51 @@ let build_types ctx deftypes =
        | DefTypePrimitive _
        | DefTypePtr _ ->
           add_symbol typemap name (deftype2llvmtype ctx typemap true deftype)
-       | _ -> Report.err_internal __FILE__ __LINE__
-          "Some type other than named struct was not found."
+       | DefTypeOpaque (_, name) ->
+          add_symbol typemap name (named_struct_type ctx name)
+       | DefTypeFcn (params, ret, is_variadic) ->
+          let llparams = List.map (deftype2llvmtype ctx typemap true) params in
+          let llret = deftype2llvmtype ctx typemap true ret in
+          let lltype =
+            (if is_variadic then var_arg_function_type
+             else function_type)
+              llret (Array.of_list llparams)
+          in
+          add_symbol typemap name lltype
+       | DefTypeVAList ->
+          (* FIXME: Platform-specific struct: struct.va_list. *)
+          let t name = Util.the @@ lookup_symbol typemap name in
+          let valist = named_struct_type ctx va_list_tag in
+          let () = struct_set_body valist
+                                   [| t "i32";
+                                      t "i32";
+                                      pointer_type @@ t "i8";
+                                      pointer_type @@ t "i8"
+                                   |]
+                                   false
+          in
+          add_symbol typemap va_list_tag valist
+       | DefTypeVoid ->
+          (* Sometimes comes out of a typedef.  Any typing problems should have
+             been caught earlier in compilation, so it's okay to simpy i8 the
+             thing. *)
+          add_symbol typemap name (Util.the @@ lookup_symbol typemap "i8")
+
+       (* Shouldn't be seeing any of the following types at this stage in the
+          compilation. *)
+       | DefTypeNullPtr ->
+          Report.err_internal __FILE__ __LINE__ "null pointer type."
+       | DefTypeNamedStruct s ->
+          Report.err_internal __FILE__ __LINE__ ("named struct type: " ^ s)
+       | DefTypeArray _ ->
+          Report.err_internal __FILE__ __LINE__ "array type."
+       | DefTypeUnresolved (pos, s) ->
+          Report.err_internal __FILE__ __LINE__
+                              ("unresolved type " ^ s ^ " from: "
+                               ^ (Error.format_position pos))
+       | _ ->
+          Report.err_internal __FILE__ __LINE__
+                              "Some unknown type was found."
        end
   in
   let build_structs name = function
@@ -109,7 +175,7 @@ let build_types ctx deftypes =
     | _ -> ()
   in
   List.iter
-    (fun (name, _, f, _) -> add_symbol typemap name (f ctx))
+    (fun (name, _, f, _, _, _) -> add_symbol typemap name (f ctx))
     Types.map_builtin_types;
   symtab_iter forward_declare_structs deftypes;
   symtab_iter build_structs deftypes;
@@ -151,6 +217,42 @@ let bytes = function
   | _ ->
      Report.err_internal __FILE__ __LINE__ "Non primitive type."
 
+let get_debug_location data =
+  let dib = Util.the data.dib in
+  let parent_scope scope =
+    try Hashtbl.find data.d_scope_table scope
+    with _ -> Report.err_internal __FILE__ __LINE__ "incomplete debug info."
+  in
+  let rec get loc =
+    try Hashtbl.find debug_locations loc
+    with _ ->
+      let file = Util.the data.difile in
+      match loc with
+      | ScopeGlobal pos ->
+         let dilex = dilexical_block data.ctx dib pos file file in
+         begin
+           Hashtbl.add debug_locations loc dilex;
+           dilex
+         end
+      | ScopeLexical pos ->
+         let pscope = parent_scope loc in
+         let llpscope = get pscope in
+         let dilex = dilexical_block data.ctx dib pos llpscope file in
+         begin
+           Hashtbl.add debug_locations loc dilex;
+           dilex
+         end
+      | ScopeLeaf pos ->
+         let pscope = parent_scope loc in
+         let llpscope = get pscope in
+         let diloc = dilocation data.ctx pos llpscope in
+         begin
+           Hashtbl.add debug_locations loc diloc;
+           diloc
+         end
+  in
+  get
+
 let process_expr data llvals varmap pos_n_expr =
   let i32type = the (lookup_symbol data.typemap "i32") in
   let constval = const_int i32type in
@@ -159,6 +261,7 @@ let process_expr data llvals varmap pos_n_expr =
     if dt_is_volatile tp then set_volatile true deref;
     deref
   in
+  let make_debug_location pos = get_debug_location data (ScopeLeaf pos) in
   let rec llvm_unop op tp expr pre_p bldr =
     match op with
     | OperIncr ->
@@ -208,9 +311,18 @@ let process_expr data llvals varmap pos_n_expr =
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_unop not fully implemented: operator " ^ (operator2string op))
-  and llvm_binop op is_atomic tp left right bldr =
-    let standard_op fnc name =
-      fnc (expr_gen true left) (expr_gen true right) name bldr
+  and llvm_binop pos op is_atomic tp left right bldr =
+    let standard_op fcn name =
+      let lhs = expr_gen true left in
+      let rhs = expr_gen true right in
+      if !Config.debug_symbols then
+        let dbg_loc = make_debug_location pos in
+        let () = set_current_debug_location data.bldr dbg_loc in 
+        let llval = fcn lhs rhs name bldr in
+        let () = clear_current_debug_location data.bldr in
+        llval
+      else
+        fcn lhs rhs name bldr
     in
     let maybe_atomic_op nonatomic_fcn atomic_op name =
       let rhs = expr_gen true right in
@@ -244,6 +356,8 @@ let process_expr data llvals varmap pos_n_expr =
        let op = if signed_p tp then build_srem else build_urem in
        standard_op op "def_rem"
     | OperLShift, true -> standard_op build_shl "def_shl"
+    | OperRShift, true -> standard_op build_lshr "def_lshr"
+    (* FIXME: use ashr for signed shift. *)
     | OperPlus, true -> standard_op build_add "def_add"
     | OperPlus, false -> standard_op build_fadd "def_add_f"
     | OperMinus, true -> standard_op build_sub "def_sub"
@@ -266,6 +380,7 @@ let process_expr data llvals varmap pos_n_expr =
     | OperNEquals, false -> standard_op (build_fcmp Fcmp.One) "def_neq_f"
     | OperBitwiseAnd, true -> standard_op build_and "def_band"
     | OperBitwiseOr, true -> standard_op build_or "def_bor"
+    | OperBitwiseXor, true -> standard_op build_xor "def_bxor"
     | OperLogicalAnd, true -> standard_op build_and "def_land" (* FIXME!!! *)
     | OperAssign, _ ->
        begin match left, right with
@@ -301,7 +416,8 @@ let process_expr data llvals varmap pos_n_expr =
           rhs
        end
     | OperBitwiseAnd, false
-    | OperBitwiseOr, false ->
+    | OperBitwiseOr, false
+    | OperBitwiseXor, false ->
        Report.err_internal __FILE__ __LINE__
          ("tried to perform an operation \"" ^ (operator2string op)
           ^ ") on float operands.  This should have been caught earlier.")
@@ -313,6 +429,12 @@ let process_expr data llvals varmap pos_n_expr =
        maybe_atomic_op (if integer_math then build_sub else build_fsub)
                        AtomicRMWBinOp.Sub
                        "minuseq"
+    | OperBAndAssign, true ->
+       maybe_atomic_op build_and AtomicRMWBinOp.And "andeq"
+    | OperBOrAssign, true ->
+       maybe_atomic_op build_or AtomicRMWBinOp.Or "oreq"
+    | OperBXorAssign, true ->
+       maybe_atomic_op build_xor AtomicRMWBinOp.Xor "oreq"
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_operator not fully implemented: operator "
@@ -544,8 +666,8 @@ let process_expr data llvals varmap pos_n_expr =
           if rvalue_p then build_load_wrapper llvar tp name data.bldr
           else llvar
        end
-    | Expr_Binary (op, is_atomic, tp, left, right) ->
-       llvm_binop op is_atomic tp left right data.bldr
+    | Expr_Binary (pos, op, is_atomic, tp, left, right) ->
+       llvm_binop pos op is_atomic tp left right data.bldr
     | Expr_Unary (op, tp, expr, pre_p) ->
        llvm_unop op tp expr pre_p data.bldr
     | Expr_Cast (_, to_tp, Expr_Nil) ->
@@ -619,9 +741,52 @@ let process_expr data llvals varmap pos_n_expr =
   let _, expr = pos_n_expr in
   expr_gen true expr
 
-let process_fcn cgdebug data symbols fcn =
+let get_debug_type =
+  let debug_types = Hashtbl.create 32 in
+  fun data ->
+  let ctx = data.ctx in
+  let dib = Util.the data.dib in
+  let rec lookup_type tp =
+    try Hashtbl.find debug_types tp
+    with _ ->
+         let create t =
+           Hashtbl.add debug_types tp t;
+           t
+         in
+         match tp with
+         | DefTypeFcn (params, ret, (*variadic:*)_) ->
+            let plist = List.map lookup_type params in
+            let r = lookup_type ret in
+            create (disubroutine_type ctx dib (r :: plist))
+         | DefTypePrimitive (p, _) ->
+            let sz, dtype = dwarf_of tp in
+            create (dibasic_type ctx dib (primitive2string p) sz dtype)
+         | DefTypePtr (p, _) ->
+            let base_type = lookup_type p in
+            create (dipointer_type ctx dib base_type 64)
+         | _ ->
+            Report.err_internal __FILE__ __LINE__ "Incomplete debug type info."
+  in
+  lookup_type
+
+let fcn_symbols data decl defn llfcn =
+  let file = Util.the data.difile in
+  let fcn_md = difunction data.ctx
+                          (Util.the data.dib)
+                          defn.name
+                          file
+                          (*scope=*)file
+                          defn.defn_begin.pos_lnum
+                          (decl.vis = VisLocal)
+                          (get_debug_type data decl.tp)
+  in
+  set_subprogram llfcn fcn_md;
+  Hashtbl.add debug_locations (ScopeGlobal defn.defn_begin) fcn_md
+
+let process_fcn data symbols fcn =
   let profile = the (lookup_symbol data.prog.global_decls fcn.name) in
   let (_, _, llfcn) = the (lookup_symbol symbols profile.mappedname) in
+  let () = if !Config.debug_symbols then fcn_symbols data profile fcn llfcn in
   let llblocks = Hashtbl.create 32 in
   let make_llbbs () = function
     | BB_Seq (label, _)
@@ -691,12 +856,20 @@ let process_fcn cgdebug data symbols fcn =
        if block.cond_parallel then
          add_parallel_loop_metadata cond_bb
     | BB_Term (label, block) ->
+       let make_xend () =
+         let _, _, xend = the @@ lookup_symbol varmap "llvm.x86.xend" in
+         ignore(build_call xend [| |] "" data.bldr)
+       in
        let bb = get_bb label in
        let () = position_at_end bb data.bldr in
        begin match block.term_expr with
-       | None -> let _ = build_ret_void data.bldr in ()
+       | None ->
+          let () = if block.term_xend then make_xend () in
+          let _ = build_ret_void data.bldr in ()
        | Some e ->
-          let _ = build_ret (process_expr data llvals varmap e) data.bldr in ()
+          let retexpr = process_expr data llvals varmap e in
+          let () = if block.term_xend then make_xend () in
+          let _ = build_ret retexpr data.bldr in ()
        end
     | BB_Detach (label, sb, block) ->
        let bb = get_bb label in
@@ -759,7 +932,7 @@ let process_fcn cgdebug data symbols fcn =
   List.iter
     (fun attr -> add_function_attr llfcn attr AttrIndex.Function)
     data.fattrs;
-  if not cgdebug then Llvm_analysis.assert_valid_function llfcn
+  if not !Config.codegen_debug then Llvm_analysis.assert_valid_function llfcn
 
 let get_const_val data = function
   | Expr_String (_, str) -> const_stringz data.ctx str
@@ -800,19 +973,62 @@ let declare_globals data symbols initializers name decl =
        begin
          try
            let init = match Hashtbl.find initializers decl.mappedname with
-             | Expr_Binary (OperAssign, _, _, _, rhs) ->
+             | Expr_Binary (_, OperAssign, _, _, _, rhs) ->
                 get_const_val data rhs
              | _ -> Report.err_internal __FILE__ __LINE__
                                         "Init that is not an assignment."
            in
            define_global decl.mappedname init data.mdl
          with _ ->
-           define_global decl.mappedname (zero_llval data decl.tp) data.mdl
+           if decl.vis = VisExternal then
+             let llglobal = declare_global lltp name data.mdl in
+             let () = set_externally_initialized true llglobal in
+             llglobal
+           else
+             define_global decl.mappedname (zero_llval data decl.tp) data.mdl
        end
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 
-let process_cfg cgdebug module_name program =
+let make_module_flags data =
+  if !Config.position_indep then
+    let pic_level =
+      mdnode data.ctx
+             [| const_int (i32_type data.ctx) 1;
+                mdstring data.ctx "PIC Level";
+                const_int (i32_type data.ctx) 2 |]
+    in
+    add_named_metadata_operand data.mdl "llvm.module.flags" pic_level
+
+let debug_sym_preamble data module_name =
+  let i32 = const_int (i32_type data.ctx) in
+  let version_string =
+    (string_of_int Version.version_maj)
+    ^ "." ^ (string_of_int Version.version_min)
+    ^ "." ^ (string_of_int Version.version_patch)
+    ^ Version.version_suffix
+  in
+  let defident = "def version " ^ version_string in
+  let dib = dibuilder data.mdl in
+  (* FIXME: basename should be expanded so it isn't "." or whatever. *)
+  let file = difile data.ctx dib (Filename.basename module_name)
+                    (Filename.dirname module_name)
+  in
+  let _ = dicompile_unit data.ctx dib file defident
+                         (!Config.opt_level <> 0) "" 0 in
+  data.difile <- Some file;
+  data.dib <- Some dib;
+  let dwarf_version =
+    mdnode data.ctx [| i32 2; mdstring data.ctx "Dwarf Version"; i32 4 |]
+  in
+  let debug_info_version =
+    mdnode data.ctx [| i32 2; mdstring data.ctx "Debug Info Version"; i32 3 |]
+  in
+  add_named_metadata_operand data.mdl "llvm.module.flags" dwarf_version;
+  add_named_metadata_operand data.mdl "llvm.module.flags" debug_info_version;
+  add_named_metadata_operand data.mdl "llvm.ident" (mdstring data.ctx defident)
+
+let process_cfg module_name program =
   let ctx  = global_context () in
   let mdl  = create_module ctx module_name in
   let ()   = set_target_triple (Target.default_triple ()) mdl in
@@ -827,6 +1043,9 @@ let process_cfg cgdebug module_name program =
                           (fun (key, value) ->
                             create_string_attr ctx key value)
                           fcn_attrs;
+               difile = None;
+               dib = None;
+               d_scope_table = program.scope_table;
                zero_i32 = const_null (the (lookup_symbol typemap "i32"));
                one_i8 = const_int (the (lookup_symbol typemap "bool")) 1;
                one_i16 = const_int (the (lookup_symbol typemap "i16")) 1;
@@ -835,8 +1054,10 @@ let process_cfg cgdebug module_name program =
                one_f32 = const_float (the (lookup_symbol typemap "f32")) 1.0;
                one_f64 = const_float (the (lookup_symbol typemap "f64")) 1.0
              } in
+  make_module_flags data;
+  if !Config.debug_symbols then debug_sym_preamble data module_name;
   let symbols = make_symtab () in
   symtab_iter (declare_globals data symbols program.initializers)
               program.global_decls;
-  List.iter (process_fcn cgdebug data symbols) program.fcnlist;
+  List.iter (process_fcn data symbols) program.fcnlist;
   mdl

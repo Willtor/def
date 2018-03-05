@@ -26,13 +26,14 @@ let lift_lhs_static_structs program =
     (* FIXME: Special-case.  Need something more general/correct. *)
     let rec repair_expr (pos, expr) =
       match expr with
-      | Expr_Binary (OperAssign,
+      | Expr_Binary (pos,
+                     OperAssign,
                      is_atomic,
                      DefTypeStaticStruct mtypes,
                      Expr_StaticStruct (_, members),
                      rhs) ->
-         let decl = { decl_pos = fcn.defn_begin;
-                      mappedname = "__defstatic";
+         let decl = { decl_pos = pos;
+                      mappedname = "__defstatic"; (* FIXME: unique name. *)
                       vis = VisLocal;
                       tp = DefTypeStaticStruct mtypes;
                       params = [];
@@ -40,7 +41,7 @@ let lift_lhs_static_structs program =
          let vars = ("__defstatic", decl) in
          let exprs = List.mapi (fun n (tp, e) ->
            pos,
-           Expr_Binary (OperAssign, is_atomic, tp, e,
+           Expr_Binary (pos, OperAssign, is_atomic, tp, e,
                         Expr_SelectField
                           (* volatility doesn't matter since it's the lhs
                              of the original assignment. => false. *)
@@ -48,16 +49,16 @@ let lift_lhs_static_structs program =
            members
          in
          [ vars ],
-         (pos, Expr_Binary (OperAssign, is_atomic,
+         (pos, Expr_Binary (pos, OperAssign, is_atomic,
                             DefTypeStaticStruct mtypes,
                             Expr_Variable "__defstatic", rhs)) :: exprs
-      | Expr_Binary (OperAssign,
+      | Expr_Binary (pos, OperAssign,
                      is_atomic,
                      DefTypeLiteralStruct (mtypes, mnames),
                      Expr_StaticStruct (_, members),
                      rhs) ->
-         let decl = { decl_pos = fcn.defn_begin;
-                      mappedname = "__defstatic";
+         let decl = { decl_pos = pos;
+                      mappedname = "__defstatic"; (* FIXME: unique name. *)
                       vis = VisLocal;
                       tp = DefTypeLiteralStruct (mtypes, mnames);
                       params = [];
@@ -65,7 +66,7 @@ let lift_lhs_static_structs program =
          let vars = ("__defstatic", decl) in
          let exprs = List.mapi (fun n (tp, e) ->
            pos,
-           Expr_Binary (OperAssign, is_atomic, tp, e,
+           Expr_Binary (pos, OperAssign, is_atomic, tp, e,
                         Expr_SelectField
                           (* volatility doesn't matter since it's the lhs
                              of the original assignment. => false. *)
@@ -73,7 +74,7 @@ let lift_lhs_static_structs program =
            members
          in
          [ vars ],
-         (pos, Expr_Binary (OperAssign, is_atomic,
+         (pos, Expr_Binary (pos, OperAssign, is_atomic,
                             DefTypeLiteralStruct (mtypes, mnames),
                             Expr_Variable "__defstatic", rhs)) :: exprs
       (* FIXME: Need something for static arrays, I think. *)
@@ -103,7 +104,8 @@ let lift_lhs_static_structs program =
   { global_decls = program.global_decls;
     initializers = program.initializers;
     fcnlist = List.map lift program.fcnlist;
-    deftypemap = program.deftypemap
+    deftypemap = program.deftypemap;
+    scope_table = program.scope_table
   }
 
 let lower_cfg program =

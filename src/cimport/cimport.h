@@ -1,4 +1,5 @@
-(* Copyright (C) 2017  DEFC Authors
+// -*- C++ -*-
+/* Copyright (C) 2018  DEF Authors
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -14,31 +15,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
    02110-1301, USA.
- *)
+ */
 
-type compilation_level =
-  | COMPILE_ASM
-  | COMPILE_OBJ
-  | COMPILE_BINARY
+#pragma once
 
-let opt_level = ref 1
-
-let position_indep = ref false
-
-let no_cilk = ref false
-
-let input_files : string list ref = ref []
-
-let output_file : string option ref = ref None
-
-let linked_libs : string list ref = ref []
-
-let comp_depth = ref COMPILE_BINARY
-
-let compile_llvm = ref false
-
-let debug_symbols = ref false
-
-let codegen_debug = ref false
-
-let import_dirs = ref [ "default-ERROR" ]
+int cimport_file (const char *filename);

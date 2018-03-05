@@ -48,3 +48,8 @@ val unique_id : unit -> string
 
 (** Non-existant position, for when a position is required but not used. *)
 val faux_pos : Lexing.position
+
+(** find_path_to ~follow_symlinks file dirlist: finds the first path to the
+    specified file given the list of directories.  Optionally follow symbolic
+    links. *)
+val find_path_to : ?follow_symlinks:bool -> string -> string list -> string

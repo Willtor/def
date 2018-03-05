@@ -18,6 +18,7 @@
 
 open Ast
 open Cfg
+open Cimportext
 open Config
 open Defparse
 open Deflex
@@ -35,11 +36,6 @@ open Parsetree
 open Scrubber
 open Util
 open Version
-
-let filepaths =
-  [ "/usr/include";
-    "/usr/local/include"
-  ]
 
 let tm =
   let triple = Target.default_triple () in
@@ -61,13 +57,17 @@ let verify_extension filename =
   | ext -> Report.err_unknown_infile_type filename ext
 
 let findfile file relative_base pos =
-  let paths = relative_base :: filepaths in
-  let exists_in base = Sys.file_exists (base ^ "/" ^ file) in
-  let path =
-    try List.find exists_in paths
-    with _ -> Report.err_unable_to_locate_imported_file pos file
-  in
-  path ^ "/" ^ file
+  if file.[0] = '/' then
+    if Sys.file_exists file then file
+    else Report.err_unable_to_locate_imported_file pos file
+  else
+    let paths = relative_base :: !import_dirs in
+    let exists_in base = Sys.file_exists (base ^ "/" ^ file) in
+    let path =
+      try List.find exists_in paths
+      with _ -> Report.err_unable_to_locate_imported_file pos file
+    in
+    path ^ "/" ^ file
 
 let add_builtin_fcns stmts =
   let pos = { pos_fname = "builtin";
@@ -130,6 +130,9 @@ let parse_def_file file =
   close_in infile;
   parsetree
 
+let parse_c_file file =
+  let fcns = import_c_file file !import_dirs in fcns
+
 let rec recursive_parse_def_file file =
   let proc parsetree = function
     | PTS_Import (_, (tok, str), _) ->
@@ -137,16 +140,23 @@ let rec recursive_parse_def_file file =
        (recursive_parse_def_file subfile) @ parsetree
     | _ -> parsetree
   in
-  let parsetree = parse_def_file file in
-  List.fold_left proc parsetree parsetree
+  match extension file with
+  | ".def" | ".defi" ->
+     let parsetree = parse_def_file file in
+     List.fold_left proc (Ast.of_parsetree parsetree) parsetree
+  | ".h" ->
+     Ast.of_cimport @@ parse_c_file file
+  | _ -> Report.err_internal __FILE__ __LINE__
+                             "Need appropriate error message."
 
 let llmodule_of_ast infile ast =
   let expanded_ast = Templates.expand ast in
   let stmts = scrub (add_builtin_fcns expanded_ast) in
   let prog = lower_cfg (Cfg.of_ast stmts) in
-  let mdl = process_cfg !codegen_debug infile prog in
+  let mdl = process_cfg infile prog in
   let () = Iropt.optimize mdl in
   mdl
+
 
 let dump_machine_asm file mdl =
   let outfile = outfile_name file ".s" in
@@ -176,7 +186,7 @@ let read_bc file =
 let generate_asm file =
   match extension file with
   | ".def" ->
-     let ast = Ast.of_parsetree (recursive_parse_def_file file) in
+     let ast = recursive_parse_def_file file in
      let mdl = llmodule_of_ast file ast in
      if !compile_llvm then
        let outfile = outfile_name file ".ll" in
@@ -200,7 +210,7 @@ let generate_asm file =
 let generate_obj tmp_obj file =
   match extension file with
   | ".def" ->
-     let ast = Ast.of_parsetree (recursive_parse_def_file file) in
+     let ast = recursive_parse_def_file file in
      let mdl = llmodule_of_ast file ast in
      let () = Iropt.parallelize mdl in
      let () = Iropt.optimize mdl in
@@ -222,7 +232,6 @@ let generate_obj tmp_obj file =
   | _ -> Report.err_cant_generate_obj_from file
 
 let compile_input filename =
-  (* Need OCaml 4.04 for Filename.extension. *)
   match !comp_depth with
   | COMPILE_ASM -> generate_asm filename
   | COMPILE_OBJ -> generate_obj (*tmp-obj=*)false filename

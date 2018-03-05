@@ -17,7 +17,7 @@
  *)
 
 open Llvm
-open Llvmext (* token_type *)
+open Llvmext (* token_type, dwarf_type *)
 open Util
 
 type qualifier =
@@ -35,10 +35,12 @@ type primitive =
 type visibility =
   | VisLocal
   | VisExported of Lexing.position
+  | VisExternal
 
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
+  | DefTypeOpaque of Lexing.position * string
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype * qualifier list
@@ -47,6 +49,7 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
+  | DefTypeVAList
   | DefTypeWildcard
   | DefTypeLLVMToken
 
@@ -128,23 +131,40 @@ let compare t1 t2 =
   | _, DefTypeWildcard -> 0
   | _ -> failwith "Types.compare not fully implemented."
 
-(** name, type, llvm type constructor, C type *)
+(** name, type, llvm type constructor, C type(s), bitwidth, dwarf type *)
 let map_builtin_types =
-  [ ("void", DefTypeVoid, void_type, "void");
-    ("bool", DefTypePrimitive (PrimBool, []), i1_type, "char"); 
-    ("char", DefTypePrimitive (PrimI8, []), i8_type, "char");
-    ("uchar", DefTypePrimitive (PrimU8, []), i8_type, "unsigned char");
-    ("i8",  DefTypePrimitive (PrimI8, []),  i8_type, "char");
-    ("u8",  DefTypePrimitive (PrimU8, []),  i8_type, "unsigned char");
-    ("i16", DefTypePrimitive (PrimI16, []), i16_type, "short");
-    ("u16", DefTypePrimitive (PrimU16, []), i16_type, "unsigned short");
-    ("i32", DefTypePrimitive (PrimI32, []), i32_type, "int");
-    ("u32", DefTypePrimitive (PrimU32, []), i32_type, "unsigned int");
-    ("i64", DefTypePrimitive (PrimI64, []), i64_type, "long long");
-    ("u64", DefTypePrimitive (PrimU64, []), i64_type, "unsigned long long");
-    ("f32", DefTypePrimitive (PrimF32, []), float_type, "float");
-    ("f64", DefTypePrimitive (PrimF64, []), double_type, "double");
-    ("llvm.token", DefTypeLLVMToken, token_type, "")
+  [ ("void", DefTypeVoid, void_type,
+     ["void"], 0, DW_INVALID);
+    ("bool", DefTypePrimitive (PrimBool, []), i1_type,
+     ["char"], 1, DW_ATE_BOOLEAN);
+    ("char", DefTypePrimitive (PrimI8, []), i8_type,
+     ["char"],
+     8, DW_ATE_SIGNED_CHAR);
+    ("uchar", DefTypePrimitive (PrimU8, []), i8_type,
+     ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
+    ("i8",  DefTypePrimitive (PrimI8, []),  i8_type,
+     ["char"; "signed char"], 8, DW_ATE_SIGNED_CHAR);
+    ("u8",  DefTypePrimitive (PrimU8, []),  i8_type,
+     ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
+    ("i16", DefTypePrimitive (PrimI16, []), i16_type,
+     ["short"; "signed short"], 16, DW_ATE_SIGNED);
+    ("u16", DefTypePrimitive (PrimU16, []), i16_type,
+     ["unsigned short"], 16, DW_ATE_UNSIGNED);
+    ("i32", DefTypePrimitive (PrimI32, []), i32_type,
+     ["int"; "signed int"], 32, DW_ATE_SIGNED);
+    ("u32", DefTypePrimitive (PrimU32, []), i32_type,
+     ["unsigned int"], 32, DW_ATE_UNSIGNED);
+    ("i64", DefTypePrimitive (PrimI64, []), i64_type,
+     ["long long"; "signed long long"; "long"; "signed long"],
+     64, DW_ATE_SIGNED);
+    ("u64", DefTypePrimitive (PrimU64, []), i64_type,
+     ["unsigned long long"; "unsigned long"], 64, DW_ATE_UNSIGNED);
+    ("f32", DefTypePrimitive (PrimF32, []), float_type,
+     ["float"], 64, DW_ATE_FLOAT);
+    ("f64", DefTypePrimitive (PrimF64, []), double_type,
+     ["double"], 64, DW_ATE_FLOAT);
+    ("llvm.token", DefTypeLLVMToken, token_type,
+     [], 0, DW_INVALID)
   ]
 
 (** Convert a primitive type to its string representation. *)
@@ -223,6 +243,9 @@ let rec size_of typemap = function
   | DefTypeVoid ->
      Report.err_internal __FILE__ __LINE__
        "size_of called on a void type."
+  | DefTypeOpaque (_, nm) ->
+     Report.err_internal __FILE__ __LINE__
+                         ("size_of called on opaque type: " ^ nm)
   | DefTypePrimitive (p, _) ->
      begin match p with
      | PrimBool | PrimI8 | PrimU8 -> 1
@@ -242,6 +265,8 @@ let rec size_of typemap = function
      (* FIXME: Take aligment into account. *)
      List.fold_left (fun accum t -> accum + (size_of typemap t))
        0 members
+  | DefTypeVAList ->
+     Report.err_internal __FILE__ __LINE__ "Can't get size of a va_list."
   | DefTypeWildcard ->
      Report.err_internal __FILE__ __LINE__ "Can't get the size of a wildcard."
   | DefTypeLLVMToken ->
@@ -251,6 +276,7 @@ let rec size_of typemap = function
 let rec string_of_type = function
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
+  | DefTypeOpaque (_, nm) -> nm
   | DefTypePrimitive (t, _) -> primitive2string t (* FIXME: qualifiers *)
   | DefTypePtr (t, _) -> "*" ^ (string_of_type t) (* FIXME: qualifiers *)
   | DefTypeArray (tp, n) ->
@@ -302,11 +328,21 @@ let most_general_type pos typemap =
     match t1, t2 with
     | DefTypeWildcard, _ -> t2
     | _, DefTypeWildcard -> t1
+    | DefTypeVAList, DefTypeVAList -> t1
+    | DefTypeVAList, _
+    | _, DefTypeVAList ->
+       Report.err_internal __FILE__ __LINE__ "generalizing va_list."
     | DefTypeUnresolved _, _ -> t2
     | _, DefTypeUnresolved _ -> t1
     | DefTypeVoid, _
     | _, DefTypeVoid ->
        Report.err_internal __FILE__ __LINE__ "Don't know what to do with void"
+    | DefTypeOpaque (_, nm1), DefTypeOpaque (_, nm2) ->
+       if nm1 = nm2 then t1
+       else generalizing_error ()
+    | DefTypeOpaque _, _
+    | _, DefTypeOpaque _ ->
+       generalizing_error ()
     | DefTypePrimitive (p1, q1), DefTypePrimitive (p2, q2) ->
        DefTypePrimitive (generalize_primitives p1 p2,
                          generalize_qualifiers q1 q2)
@@ -400,3 +436,10 @@ let rec contains_wildcard = function
   | DefTypeLiteralStruct (tps, _)
   | DefTypeStaticStruct tps -> List.exists contains_wildcard tps
   | _ -> false
+
+(** Get the dwarf type of a primitive type. *)
+let dwarf_of =
+  let dwarf = Hashtbl.create 16 in
+  List.iter (fun (_, p, _, _, sz, d) -> Hashtbl.add dwarf p (sz, d))
+            map_builtin_types;
+  Hashtbl.find dwarf

@@ -1,0 +1,16 @@
+// Unit test for breaking out of a while loop.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var i = 0;
+    while i < 100 do
+        printf("i = %d\n", i);
+        if i % 7 == 6 then break; fi
+        ++i;
+    od
+    printf("done.\n");
+    return 0;
+end

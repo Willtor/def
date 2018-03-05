@@ -22,7 +22,10 @@ open Error
 let err_internal file line msg =
   let err = "Internal error: file \"" ^ file ^ "\" line "
     ^ (string_of_int line) ^ ".\n"
-    ^ msg
+    ^ msg ^ "\n\n"
+    ^ "If you are seeing this error, it indicates a BUG.  For support,\n"
+    ^ "contact " ^ Version.project_support ^ " with the error and the\n"
+    ^ "following string: " ^ Version.version_build ^ "."
   in fatal_error err
 
 (** Input paramter. *)
@@ -41,6 +44,11 @@ let err_no_input_file () =
 let err_unknown_infile_type filename ext =
   let err = "Unknown type of file \"" ^ filename ^ "\".\n"
     ^ "The filename extension, \"" ^ ext ^ "\" is not supported."
+  in fatal_error err
+
+(** Couldn't find where clang was installed on the system. *)
+let err_unable_to_find_clang () =
+  let err = "Unable to find clang installation."
   in fatal_error err
 
 (** Couldn't open file. *)
@@ -269,3 +277,7 @@ let err_generalizing_types pos t1 t2 =
 (** Invalid cast. *)
 let err_cant_cast pos t1 t2 =
   err_pos ("Can't cast " ^ t1 ^ " to " ^ t2 ^ ".") pos
+
+(** Tried to "break;" out of... nothing. *)
+let err_no_break_scope pos =
+  err_pos "There is no construct that can be broken out of." pos
