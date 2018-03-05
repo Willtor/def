@@ -35,7 +35,7 @@ let print_version () =
     ("def version " ^ version_string
      ^ " (build #" ^ version_build
      ^ " on " ^ build_date ^ ")");
-  print_endline "Copyright (C) 2017 DEF Authors.";
+  print_endline "Copyright (C) 2018 DEF Authors.";
   print_endline "This is free software; see the source for copying conditions.  There is NO";
   print_endline "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
 
@@ -43,17 +43,20 @@ let version_helper = function
   | `Version -> (print_version (); `Version)
   | a -> a
 
-let def compile_depth llvm cgdebug opt output libs files =
+let def compile_depth llvm debug cgdebug opt pic output libs import files =
   (* FIXME: Use libs. *)
   if opt < 0 || opt > 3 then
     fatal_error "Specify an optimization level [0-3].  Use --help.";
   comp_depth := compile_depth;
   compile_llvm := llvm;
+  debug_symbols := debug;
   codegen_debug := cgdebug;
   opt_level := opt;
+  position_indep := pic;
   if output <> "" then
     output_file := Some output;
   linked_libs := libs;
+  import_dirs := import @ (Osspecific.default_import_dirs ());
   input_files := files;
   try
     Build.pipeline ()
@@ -84,10 +87,20 @@ let compile_depth =
 let llvm =
   let doc = "In conjunction with -S or -c, generate LLVM output instead of
              native output.  For an object file, this means LLVM bitcode (.bc)
-             will be generated, and for assembly it will be LLVM IR (.ll)."
+             will be generated, and for assembly it will be LLVM IR (.ll). The
+             flag \"-emit-llvm\" is also accepted for compatibility with
+             Clang."
   in
   let emit_llvm = Arg.info ["emit-llvm"] ~doc in
   Arg.(value & flag emit_llvm)
+
+(* Generate debug symbols. *)
+let debug =
+  let doc = "Generate debug symbols in the output for use with gdb and other
+             debuggers."
+  in
+  let dbg = Arg.info ["g"] ~doc in
+  Arg.(value & flag dbg)
 
 (* Whether to test the LLVM output. *)
 let cgdebug =
@@ -100,13 +113,22 @@ let cgdebug =
 (* Optimization level. *)
 let opt =
   let doc = "Optimization level [0 = none; 3 = most]." in
-  let optarg = Arg.info ["O"] ~doc in
+  let docv = "LEVEL" in
+  let optarg = Arg.info ["O"] ~doc ~docv in
   Arg.(value & opt int 1 optarg)
+
+let pic =
+  let doc = "Emit position independent code designed for shared objects that
+             may not always be loaded at the same address on every execution."
+  in
+  let fpic = Arg.info ["fPIC"] ~doc in
+  Arg.(value & flag fpic)
 
 (* Output file name. *)
 let output =
   let doc = "Specify an output file name." in
-  let out = Arg.info ["o"] ~doc in
+  let docv = "OUTFILE" in
+  let out = Arg.info ["o"] ~doc ~docv in
   Arg.(value & opt string "" out)
 
 (* Override Cmdliner's default version flag. *)
@@ -120,8 +142,17 @@ let libraries =
   let doc = "Link the specified library.  E.g., if you have libm.so in your
              library path, use -lm to link it."
   in
-  let lib = Arg.info ["l"] ~doc in
+  let docv = "LIBRARY" in
+  let lib = Arg.info ["l"] ~doc ~docv in
   Arg.(value & opt_all string [] lib)
+
+let import_paths =
+  let doc = "Specify a path to directory to be used for searching for files
+             to import."
+  in
+  let docv = "PATH" in
+  let import = Arg.info ["I"] ~doc ~docv in
+  Arg.(value & opt_all string [] import)
 
 let cmd =
   let doc = "compiler for the DEF programming language." in
@@ -129,15 +160,22 @@ let cmd =
     [ `S Manpage.s_description;
       `P "Compile DEF source files (.def).  The def compiler is designed to
           copy the look-and-feel of the clang compiler for C and C++.";
-      `P "Take special note that def uses the option $(b,--emit-llvm),
-          instead of clang's $(b,-emit-llvm) option.";
+      `P "Flags that begin with --f<opt> in common with GCC/Clang are also
+          available in single-dash form (\"-f<opt>\") for compatibility.";
       `S Manpage.s_bugs;
       `P ("Report bugs to <" ^ support_email ^ ">.")
     ]
   in
   let version = "v" ^ version_string in
-  Term.(const def $ compile_depth $ llvm $ cgdebug $ opt $ output
-        $ libraries $ files),
+  Term.(const def $ compile_depth $ llvm $ debug $ cgdebug $ opt $pic $ output
+        $ libraries $ import_paths $ files),
   Term.info "def" ~version ~doc ~exits:Term.default_exits ~man
 
-let () = Term.(exit @@ version_helper @@ eval cmd)
+let process_arg = function
+  | "-emit-llvm" -> "--emit-llvm" (* duplicate Clang behavior. *)
+  | "-fPIC" -> "--fPIC"
+  | arg -> arg
+
+let () =
+  let argv = Array.map process_arg Sys.argv in
+  Term.(exit @@ version_helper @@ eval cmd ~argv)

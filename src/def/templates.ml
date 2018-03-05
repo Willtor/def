@@ -52,6 +52,11 @@ let instantiate templates non_templates =
                      with _ -> name
             in
             VarType (pos, nm, qlist)
+         | OpaqueType (pos, nm) ->
+            OpaqueType (pos, nm)
+         | CVarType _ ->
+            Report.err_internal __FILE__ __LINE__
+                                "FIXME: instantiate a template with a c type?"
          | FcnType (params, ret) ->
             let f (pos, s, vt) = pos, s, map_type vt in
             FcnType (List.map f params, map_type ret)
@@ -63,6 +68,7 @@ let instantiate templates non_templates =
          | PtrType (pos, vt, qlist) ->
             PtrType (pos, map_type vt, qlist)
          | Ellipsis pos -> Ellipsis pos
+         | VAList pos -> VAList pos
          | InferredType -> InferredType
        in
 
@@ -147,20 +153,24 @@ let instantiate templates non_templates =
        let rec do_replace = function
          | StmtExpr (pos, e) -> StmtExpr (pos, do_replace_expr e)
          | Block (pos, body) -> Block (pos, List.map do_replace body)
-         | VarDecl (vars, exprs, tp) ->
-            VarDecl (vars, List.map do_replace_expr exprs, map_type tp)
+         | VarDecl (vars, exprs, tp, vis) ->
+            VarDecl (vars, List.map do_replace_expr exprs, map_type tp, vis)
          | InlineStructVarDecl (pos, members, (ipos, init)) ->
             let member_replace (p, nm, tp) = p, nm, map_type tp in
             InlineStructVarDecl (pos,
                                  List.map member_replace members,
                                  (ipos, do_replace_expr init))
          | IfStmt (pos, cond, tblock, eblock_opt) ->
+            let replaced_eblock_opt = match eblock_opt with
+              | None -> None
+              | Some (epos, estmts) -> Some (epos, List.map do_replace estmts)
+            in
             IfStmt (pos,
                     do_replace_expr cond,
                     List.map do_replace tblock,
-                    if eblock_opt = None then None
-                    else Some (List.map do_replace (Util.the eblock_opt)))
-         | ForLoop (pos, is_parallel, init_opt, (cpos, cond), iter_opt, body)
+                    replaced_eblock_opt)
+         | ForLoop (pos, is_parallel, init_opt, (cpos, cond), iter_opt,
+                    dpos, body)
            ->
             ForLoop (pos, is_parallel,
                      (if init_opt = None then None
@@ -169,6 +179,7 @@ let instantiate templates non_templates =
                      (if iter_opt = None then None
                       else let p, iter = Util.the iter_opt in
                            Some (p, do_replace_expr iter)),
+                     dpos,
                      List.map do_replace body)
          | WhileLoop (pos, pre, cond, body) ->
             WhileLoop (pos, pre, do_replace_expr cond,

@@ -13,10 +13,12 @@ type primitive =
 type visibility =
   | VisLocal
   | VisExported of Lexing.position
+  | VisExternal
 
 type deftype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
+  | DefTypeOpaque of Lexing.position * string
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype * qualifier list
@@ -25,6 +27,7 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
+  | DefTypeVAList
   | DefTypeWildcard
   | DefTypeLLVMToken
 
@@ -40,7 +43,8 @@ val compare : deftype -> deftype -> int
 
 (** name, type, llvm type constructor, C type *)
 val map_builtin_types :
-  (string * deftype * (Llvm.llcontext -> Llvm.lltype) * string) list
+  (string * deftype * (Llvm.llcontext -> Llvm.lltype)
+   * string list * int * Llvmext.dwarf_type) list
 
 (** Convert a primitive type to its string representation. *)
 val primitive2string : primitive -> string
@@ -72,3 +76,6 @@ val most_general_type : Lexing.position -> deftype Util.symtab
 
 (** Return true iff the given type contains a wildcard. *)
 val contains_wildcard : deftype -> bool
+
+(** Get the dwarf type of a primitive type. *)
+val dwarf_of : deftype -> (int * Llvmext.dwarf_type)

@@ -33,12 +33,11 @@ let position_of_stmt = function
   | DeclFcn (pos, _, _, _)
   | DefFcn (pos, _, _, _, _, _)
   | DefTemplateFcn (pos, _, _, _, _, _, _)
-  | VarDecl ({td_pos = pos} :: _, _, _)
+  | VarDecl ({td_pos = pos} :: _, _, _, _)
   | InlineStructVarDecl (pos, _, _)
-  | XBegin pos
-  | XCommit pos
+  | TransactionBlock (pos, _)
   | IfStmt (pos, _, _, _)
-  | ForLoop (pos, _, _, _, _, _)
+  | ForLoop (pos, _, _, _, _, _, _)
   | WhileLoop (pos, _, _, _)
   | SwitchStmt (pos, _, _)
   | Return (pos, _)
@@ -78,18 +77,19 @@ let kill_dead_code =
          proc (stmt :: accum) rest
       | InlineStructVarDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
-      | XBegin _ as stmt :: rest ->
-         proc (stmt :: accum) rest
-      | XCommit _ as stmt :: rest ->
+      | TransactionBlock (pos, body) :: rest ->
+         let stmt = TransactionBlock (pos, proc [] body) in
          proc (stmt :: accum) rest
       | IfStmt (pos, cond, thenblk, maybe_else) :: rest ->
          let stmt = IfStmt (pos, cond, proc [] thenblk,
                             match maybe_else with
                             | None -> None
-                            | Some elseblk -> Some (proc [] elseblk))
+                            | Some (epos, elseblk) ->
+                               Some (epos, (proc [] elseblk)))
          in proc (stmt :: accum) rest
-      | ForLoop (pos, is_parallel, init, cond, iter, body) :: rest ->
-         let stmt = ForLoop (pos, is_parallel, init, cond, iter, proc [] body)
+      | ForLoop (pos, is_parallel, init, cond, iter, dpos, body) :: rest ->
+         let stmt = ForLoop (pos, is_parallel, init, cond, iter, dpos,
+                             proc [] body)
          in proc (stmt :: accum) rest
       | WhileLoop (pos, precheck, cond, body) :: rest ->
          let stmt = WhileLoop (pos, precheck, cond, proc [] body)
@@ -140,11 +140,11 @@ let return_all_paths =
       | IfStmt (_, _, tstmts, None) :: rest ->
          if contains_return tstmts then true
          else contains_return rest
-      | IfStmt (_, _, tstmts, Some estmts) :: rest ->
+      | IfStmt (_, _, tstmts, Some (_, estmts)) :: rest ->
          if contains_return tstmts then true
          else if contains_return estmts then true
          else contains_return rest
-      | ForLoop (_, _, _, _, _, body) :: rest
+      | ForLoop (_, _, _, _, _, _, body) :: rest
       | WhileLoop (_, _, _, body) :: rest ->
          if contains_return body then true
          else contains_return rest
@@ -170,8 +170,7 @@ let return_all_paths =
       | DefFcn _ :: rest
       | VarDecl _ :: rest
       | InlineStructVarDecl _ :: rest
-      | XBegin _ :: rest
-      | XCommit _ :: rest
+      | TransactionBlock _ :: rest
       | IfStmt (_, _, _, None) :: rest
       | TypeDecl _ :: rest
       | Label _ :: rest
@@ -180,7 +179,7 @@ let return_all_paths =
       | Continue _ :: rest (* FIXME: Also, the Continue case. *)
       | Sync _ :: rest
         -> returns_p rest
-      | IfStmt (_, _, then_branch, Some else_branch) :: rest ->
+      | IfStmt (_, _, then_branch, Some (_, else_branch)) :: rest ->
          if (returns_p then_branch) && (returns_p else_branch) then true
          else returns_p rest
       | ForLoop _ :: rest ->

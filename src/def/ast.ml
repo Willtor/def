@@ -16,6 +16,7 @@
    02110-1301, USA.
  *)
 
+open Cimportext
 open Types
 open Lexing
 open Parsetree
@@ -96,11 +97,14 @@ and expr =
 
 and vartype =
   | VarType of position * string * Types.qualifier list
+  | OpaqueType of position * string
+  | CVarType of position * string * Types.qualifier list
   | FcnType of (position * string * vartype) list * vartype
   | StructType of (position * string * vartype) list
   | ArrayType of position * expr * vartype
   | PtrType of position * vartype * Types.qualifier list
   | Ellipsis of position
+  | VAList of position
   | InferredType
 
 type stmt =
@@ -112,15 +116,14 @@ type stmt =
     * stmt list
   | DefTemplateFcn of position * pt_template * string option * Types.visibility
     * string * vartype * stmt list
-  | VarDecl of Parsetree.tokendata list * expr list * vartype
+  | VarDecl of Parsetree.tokendata list * expr list * vartype * Types.visibility
   | InlineStructVarDecl of position * (position * string * vartype) list
     * (position * expr)
-  | XBegin of position
-  | XCommit of position
-  | IfStmt of position * expr * stmt list * stmt list option
+  | TransactionBlock of position * stmt list
+  | IfStmt of position * expr * stmt list * (Lexing.position * stmt list) option
   (* ForLoop: start-pos * is_parallel * init * cond * iter * body *)
   | ForLoop of position * bool * stmt option * (position * expr)
-    * (position * expr) option * stmt list
+    * (position * expr) option * position * stmt list
   (* WhileLoop: start-pos * pre-check * cond * body *)
   | WhileLoop of position * bool * expr * stmt list
   | SwitchStmt of position * expr * (position * expr * stmt list) list
@@ -271,7 +274,7 @@ let of_parsetree =
     | PTS_Expr (e, _) ->
        StmtExpr (pt_expr_pos e, expr_of e)
     | PTS_Var (_, ids, tp, _) ->
-       VarDecl (ids, [], type_of tp)
+       VarDecl (ids, [], type_of tp, VisLocal)
     | PTS_VarInit (var, ids, tp_opt, eq, elist, _) ->
        let asttp = if tp_opt = None then InferredType
                    else type_of (Util.the tp_opt) in
@@ -283,7 +286,7 @@ let of_parsetree =
                       op_atomic = false;
                     }
        in
-       VarDecl (ids, List.map2 initify ids elist, asttp)
+       VarDecl (ids, List.map2 initify ids elist, asttp, VisLocal)
     | PTS_VarInlineStruct (var, _, vlist, _, _, e, _) ->
        let cvlist =
          List.map (fun (id, tp) -> id.td_pos, id.td_text, type_of tp) vlist
@@ -339,22 +342,23 @@ let of_parsetree =
                               }
        in
        StmtExpr (c.td_pos, expr)
-    | PTS_XBegin (tok, _) -> XBegin tok.td_pos
-    | PTS_XCommit (tok, _) -> XCommit tok.td_pos
+    | PTS_Transaction (xbegin, stmts, xend) ->
+       TransactionBlock (xbegin.td_pos, List.map stmt_of stmts)
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
        let else_clause = match maybe_else with
          | None -> None
-         | Some (_, stmts) -> Some (List.map stmt_of stmts)
+         | Some (etok, stmts) -> Some (etok.td_pos, (List.map stmt_of stmts))
        in
        let rest = List.fold_right (fun (elif, c, _, stmts) rest ->
-                      Some [ IfStmt (elif.td_pos, expr_of c,
+                      Some (elif.td_pos,
+                            [ IfStmt (elif.td_pos, expr_of c,
                                       List.map stmt_of stmts,
-                                      rest) ])
-                           elifs else_clause
+                                      rest) ]))
+                                  elifs else_clause
        in
        IfStmt (iftok.td_pos, expr_of cond, List.map stmt_of stmts, rest)
-    | PTS_ForLoop (fortok, init_p, _, cond, _, iter_p, _, stmts, _)
-    | PTS_ParforLoop (fortok, init_p, _, cond, _, iter_p, _, stmts, _)
+    | PTS_ForLoop (fortok, init_p, _, cond, _, iter_p, dotok, stmts, _)
+    | PTS_ParforLoop (fortok, init_p, _, cond, _, iter_p, dotok, stmts, _)
       ->
        let init = match init_p with
          | None -> None
@@ -371,7 +375,7 @@ let of_parsetree =
               | Some t -> type_of t
               | None -> InferredType
             in
-            Some (VarDecl ([id], [init], tp))
+            Some (VarDecl ([id], [init], tp, VisLocal))
          | Some (PTForInit_Expr e) ->
             Some (StmtExpr (pt_expr_pos e, expr_of e))
        in
@@ -382,7 +386,7 @@ let of_parsetree =
        let is_parallel = if fortok.td_text = "for" then false else true in
        ForLoop (fortok.td_pos, is_parallel, init,
                 (pt_expr_pos cond, expr_of cond),
-                iter, List.map stmt_of stmts)
+                iter, dotok.td_pos, List.map stmt_of stmts)
     | PTS_WhileLoop (whiletok, cond, _, stmts, _) ->
        WhileLoop (whiletok.td_pos, true, expr_of cond,
                   List.map stmt_of stmts)
@@ -546,7 +550,6 @@ let of_parsetree =
        in
        ExprPreUnary oper
     | PTE_Bin (left, atomic_opt, op, right) ->
-       (* FIXME: WORKING HERE!  Carry atomic_opt into the AST. *)
        let oper = { op_pos = op.td_pos;
                     op_op = binop_of op;
                     op_left = expr_of left;
@@ -558,6 +561,106 @@ let of_parsetree =
        ExprBinary oper
   in
   List.map stmt_of
+
+let of_cimport =
+  let no_duplicates = Hashtbl.create 16 in
+  let rec type_of = function
+    | CT_TypeName (pos, tp) ->
+       begin
+         match String.split_on_char ' ' tp with
+         | [ "struct"; t ] ->
+            begin
+              try pos, Hashtbl.find no_duplicates t
+              with _ ->
+                let ret = OpaqueType (pos, t) in
+                let () = Hashtbl.replace no_duplicates t ret in
+                pos, ret
+            end
+         | [ "__builtin_va_list" ] -> pos, VAList pos
+         | _ -> pos, CVarType(pos, tp, [])
+       end
+    | CT_Pointer (pos, tp) ->
+       let _, t = type_of tp in pos, PtrType (pos, t, [])
+    | CT_Struct fields ->
+       let ast_fields =
+         List.map (fun (pos, nm, tp) -> let _, t = type_of tp in pos, nm, t)
+                  fields
+       in
+       let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
+       p, StructType ast_fields
+    | CT_Function (pos, params, is_variadic, ret) ->
+       let ast_params =
+         (List.map (fun p -> let pos, t = type_of p in pos, "", t) params)
+         @ (if is_variadic then [ Util.faux_pos, "", Ellipsis Util.faux_pos ]
+            else [])
+       in
+       let _, rtype = type_of ret in
+       pos, FcnType (ast_params, rtype)
+    | CT_Array (pos, subtype, sz) ->
+       pos, ArrayType (pos, ExprLit (pos, LitI32 (Int32.of_int sz)),
+                       let _, t = type_of subtype in t)
+  in
+  let rec convert accum = function
+    | [] -> List.rev accum
+    | CV_Function (pos, name, params, is_variadic, ret) :: rest ->
+       let pmap param =
+         let tp_pos, tp = type_of param in tp_pos, "", tp
+       in
+       let _, ret_tp = type_of ret in
+       let vararg =
+         if is_variadic then [Util.faux_pos, "", Ellipsis Util.faux_pos]
+         else []
+       in
+       let ast_params = (List.map pmap params) @ vararg in
+       let ftype = FcnType (ast_params, ret_tp) in
+       let decl = DeclFcn (pos, Types.VisExported pos, name, ftype) in
+       convert (decl :: accum) rest
+    | CV_Typedecl (pos, name, maybe_tp) :: rest ->
+       begin
+         try
+           begin match Hashtbl.find no_duplicates name with
+           | OpaqueType _ ->
+              let accum =
+                if maybe_tp = None then accum
+                else let _, t = type_of @@ Util.the maybe_tp
+                     in (TypeDecl (pos, name, t, VisLocal, false)) :: accum
+              in
+              convert accum rest
+           | _ ->
+              (* This is a strange case - that the struct has already been
+                 defined and it seems to be redefined.  It's an artifact of
+                 the way DEF uses Clang to parse C files.  There are cases
+                 when a struct is forward declared, but Clang's AST knows
+                 about its full definition and we captured it for DEF.  If
+                 the struct had _actually_ been redefined, Clang would have
+                 caught it.
+
+                 So we just ignore the apparent redefinition, here. *)
+              convert accum rest
+           end
+         with _ ->
+           let tp =
+             if maybe_tp = None then OpaqueType (pos, name)
+             else let _, t = type_of @@ Util.the maybe_tp in t
+           in
+           let () = Hashtbl.replace no_duplicates name tp in
+           let decl = TypeDecl (pos, name, tp, VisLocal, false) in
+           convert (decl :: accum) rest
+       end
+    | CV_Variable (pos, name, ctype, extern) :: rest ->
+       let faux_tokendata = [ { td_pos = pos;
+                                td_text = name;
+                                td_noncode = []
+                              }
+                            ]
+       in
+       let _, tp = type_of ctype in
+       let decl = VarDecl (faux_tokendata, [], tp,
+                           if extern then VisExternal else VisLocal)
+       in
+       convert (decl :: accum) rest
+  in
+  convert []
 
 let rec pos_of_astexpr = function
   | ExprNew (pos, _, _)
@@ -633,18 +736,18 @@ let rec visit_expr_in_stmt f = function
   | DeclFcn _
   | DefTemplateFcn _ ->
      Report.err_internal __FILE__ __LINE__ "not implemented."
-  | VarDecl (_, exprs, _) -> List.iter (visit_expr f) exprs
+  | VarDecl (_, exprs, _, _) -> List.iter (visit_expr f) exprs
   | InlineStructVarDecl (_, _, (_, expr)) -> visit_expr f expr
-  | XBegin _ -> ()
-  | XCommit _ -> ()
+  | TransactionBlock (_, stmts) -> List.iter (visit_expr_in_stmt f) stmts
   | IfStmt (_, cond, then_stmts, else_stmts_maybe) ->
      begin
        visit_expr f cond;
        List.iter (visit_expr_in_stmt f) then_stmts;
        if None <> else_stmts_maybe then
-         List.iter (visit_expr_in_stmt f) (Util.the else_stmts_maybe)
+         let _, estmts = Util.the else_stmts_maybe in
+         List.iter (visit_expr_in_stmt f) estmts
      end
-  | ForLoop (_, _, init_maybe, (_, cond), iter_option, body) ->
+  | ForLoop (_, _, init_maybe, (_, cond), iter_option, _, body) ->
      begin
        if None <> init_maybe then
          visit_expr_in_stmt f (Util.the init_maybe);
