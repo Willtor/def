@@ -1,5 +1,5 @@
 
-DIRECTORIES = ops stmts cilk
+DIRECTORIES = ops stmts cilk cimport
 
 .PHONY: all unit smoke clean
 
