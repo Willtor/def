@@ -4,11 +4,14 @@ COMMON_BUILD_DIR = $(BUILDDIR)/common
 CIMPORT_BUILD_DIR = $(BUILDDIR)/cimport
 DEF_BUILD_DIR = $(BUILDDIR)/def
 DEFGHI_BUILD_DIR = $(BUILDDIR)/defghi
+LIBHYTM_BUILD_DIR = $(BUILDDIR)/libhytm
 BINDIR = $(BUILDDIR)/bin
+LIBDIR = $(BUILDDIR)/lib
 TESTDIR = tests
 
 DEF = def
 DEFGHI = defghi
+LIBHYTM = libhytm.a
 
 COMMON_SRC_DIR = src/common
 COMMONFILES =		\
@@ -74,12 +77,19 @@ DEFGHIFILES =		\
 	Makefile	\
 	util.ml
 
+LIBHYTM_SRC_DIR = src/libhytm
+LIBHYTMFILES =		\
+	Makefile	\
+	software_tran.def
+
 COMMON_SRC = $(addprefix $(COMMON_BUILD_DIR)/,$(COMMONFILES))
 CIMPORT_SRC = $(addprefix $(CIMPORT_BUILD_DIR)/,$(CIMPORTFILES))
 DEF_SRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
 DEFGHI_SRC = $(addprefix $(DEFGHI_BUILD_DIR)/,$(DEFGHIFILES))
+LIBHYTM_SRC = $(addprefix $(LIBHYTM_BUILD_DIR)/,$(LIBHYTMFILES))
 
-all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF) $(BINDIR)/$(DEFGHI)
+all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF) $(BINDIR)/$(DEFGHI) \
+	$(LIBDIR)/$(LIBHYTM)
 
 install: $(INSTALL_DIR)/bin/$(DEF) $(INSTALL_DIR)/bin/$(DEFGHI)
 
@@ -106,6 +116,9 @@ $(BUILDDIR)/version.t:
 $(BINDIR):
 	mkdir -p $@
 
+$(LIBDIR):
+	mkdir -p $@
+
 $(COMMON_BUILD_DIR):
 	mkdir -p $@
 
@@ -118,10 +131,16 @@ $(DEF_BUILD_DIR):
 $(DEFGHI_BUILD_DIR):
 	mkdir -p $@
 
+$(LIBHYTM_BUILD_DIR):
+	mkdir -p $@
+
 $(BINDIR)/$(DEF): $(DEF_BUILD_DIR)/$(DEF) $(BINDIR)
 	cp $< $@
 
 $(BINDIR)/$(DEFGHI): $(DEFGHI_BUILD_DIR)/$(DEFGHI) $(BINDIR)
+	cp $< $@
+
+$(LIBDIR)/$(LIBHYTM): $(LIBHYTM_BUILD_DIR)/$(LIBHYTM) $(LIBDIR)
 	cp $< $@
 
 $(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(CIMPORT_BUILD_DIR) $(DEF_BUILD_DIR) $(COMMON_SRC) $(CIMPORT_SRC) $(DEF_SRC)
@@ -132,6 +151,9 @@ $(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(CIMPORT_BUILD_DIR) $(DEF_BUILD_DI
 $(DEFGHI_BUILD_DIR)/$(DEFGHI): $(COMMON_BUILD_DIR) $(DEFGHI_BUILD_DIR) $(COMMON_SRC) $(DEFGHI_SRC)
 	make -C $(COMMON_BUILD_DIR)
 	make -C $(DEFGHI_BUILD_DIR)
+
+$(LIBHYTM_BUILD_DIR)/$(LIBHYTM): $(LIBHYTM_BUILD_DIR) $(LIBHYTM_SRC)
+	make -C $(LIBHYTM_BUILD_DIR) DEF=../../$(BINDIR)/$(DEF)
 
 clean:
 	rm -rf $(BUILDDIR)
@@ -153,4 +175,7 @@ $(DEF_BUILD_DIR)/%: $(DEF_SRC_DIR)/%
 	cp $< $@
 
 $(DEFGHI_BUILD_DIR)/%: $(DEFGHI_SRC_DIR)/%
+	cp $< $@
+
+$(LIBHYTM_BUILD_DIR)/%: $(LIBHYTM_SRC_DIR)/%
 	cp $< $@
