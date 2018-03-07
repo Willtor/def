@@ -1,0 +1,11 @@
+// Smoke test for importing stdio.h.
+
+import "stdio.h";
+
+export
+def main () -> i32
+begin
+    var n size_t = -1U64;
+    fprintf(stdout, "Hello world: 0x%zx\n", n); // WARNING: 64-bit specific.
+    return 0;
+end
