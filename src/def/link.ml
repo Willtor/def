@@ -74,13 +74,15 @@ let gcc_path_and_version () =
 (** Get the basic paths, libraries, and ofiles used by GCC.
     TBD: I don't know how these are actually generated.  Look at clang. *)
 let build_paths base_path gcc_ver =
+  let def_path = Filename.dirname Sys.executable_name in
   let gcc_libpath = base_path ^ "/../lib/gcc/x86_64-linux-gnu/" ^ gcc_ver in
   let opath = base_path ^ "/../lib/x86_64-linux-gnu" in
   let pathset = [ opath ^ "/crt1.o";
                   opath ^ "/crti.o";
                   gcc_libpath ^ "/crtbegin.o" ]
   and libpaths = env_paths @
-                   [ gcc_libpath;
+                   [ def_path ^ "/../lib";
+                     gcc_libpath;
                      opath;
                      "/lib/x86_64-linux-gnu";
                      "/lib64";
