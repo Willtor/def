@@ -1,5 +1,6 @@
-// Repeatedly tries to set m_locked to 1,
-// and takes the lock when m_locked is set to 1.
+/** Repeatedly tries to set m_locked to 1,
+ *  and takes the lock when m_locked is set to 1.
+ */
 export
 def TAS_lock(m_locked * i32)-> void
 begin
@@ -7,8 +8,9 @@ begin
     od
 end
 
-// Sets lock to 0, representing that the thread
-// has released the lock.
+/** Sets lock to 0, representing that the thread
+ *  has released the lock.
+ */
 export
 def TAS_unlock(lock * i32) -> void
 begin
@@ -53,8 +55,8 @@ export
 def hybrid_xend() -> void
 begin
     if TAS_not_taken(&lock) then
-      llvmxcommit;
+        llvmxcommit;
     else
-      TAS_unlock(&lock);
+        TAS_unlock(&lock);
     fi
 end
