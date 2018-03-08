@@ -1,5 +1,3 @@
-import "stdio.h";
-
 /** Repeatedly tries to set m_locked to 1,
  *  and takes the lock when m_locked is set to 1.
  */
@@ -48,7 +46,6 @@ start:
         fi
     od
     if TAS_try_acquire_lock(&lock) then
-        fprintf(stderr, "had to acquire the lock.\n");
         return;
     fi
     goto start;
