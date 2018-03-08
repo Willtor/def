@@ -19,6 +19,7 @@
 open Cmdliner
 open Config
 open Error
+open Result
 open Version
 
 let support_email = "willtor@mit.edu"
@@ -43,7 +44,8 @@ let version_helper = function
   | `Version -> (print_version (); `Version)
   | a -> a
 
-let def compile_depth llvm debug cgdebug opt pic output libs import files =
+let def compile_depth llvm debug cgdebug opt xact pic output libs import
+        files =
   (* FIXME: Use libs. *)
   if opt < 0 || opt > 3 then
     fatal_error "Specify an optimization level [0-3].  Use --help.";
@@ -52,6 +54,7 @@ let def compile_depth llvm debug cgdebug opt pic output libs import files =
   debug_symbols := debug;
   codegen_debug := cgdebug;
   opt_level := opt;
+  xact_kind := xact;
   position_indep := pic;
   if output <> "" then
     output_file := Some output;
@@ -112,10 +115,32 @@ let cgdebug =
 
 (* Optimization level. *)
 let opt =
-  let doc = "Optimization level [0 = none; 3 = most]." in
+  let doc = "Optimization level [0 = none; 3 = most].  Default = 1." in
   let docv = "LEVEL" in
   let optarg = Arg.info ["O"] ~doc ~docv in
   Arg.(value & opt int 1 optarg)
+
+let xact =
+  let doc = "Kind of transactions to perform in xbegin/xend blocks.  Options
+             for <XACT_KIND> are hardware, software, or hybrid (default).
+             Note that if your architecture doesn't have hardware
+             transactional memory, both hardware and hybrid will cause your
+             program to crash when entering an xbegin/xend block."
+  in
+  let docv = "XACT_KIND" in
+  let xact_conv =
+    let f = function
+      | "hardware" -> Ok XACT_HARDWARE
+      | "hybrid" -> Ok XACT_HYBRID
+      | "software" -> Ok XACT_SOFTWARE
+      | cfg -> Error (`Msg ("unknown transaction configuration '"
+                            ^ cfg ^ "'"))
+    in
+    let printer fmtr _ = Format.fprintf fmtr "hybrid" in
+    Arg.conv ~docv (f, printer)
+  in
+  let xactarg = Arg.info ["ftransactions"] ~doc ~docv in
+  Arg.(value & opt xact_conv XACT_HYBRID xactarg)
 
 let pic =
   let doc = "Emit position independent code designed for shared objects that
@@ -160,21 +185,25 @@ let cmd =
     [ `S Manpage.s_description;
       `P "Compile DEF source files (.def).  The def compiler is designed to
           copy the look-and-feel of the clang compiler for C and C++.";
-      `P "Flags that begin with --f<opt> in common with GCC/Clang are also
-          available in single-dash form (\"-f<opt>\") for compatibility.";
+      `P "Flags that begin with --f<opt> are also available in single-dash
+          form (\"-f<opt>\") for compatibility and consistency with GCC and
+          Clang.";
       `S Manpage.s_bugs;
       `P ("Report bugs to <" ^ support_email ^ ">.")
     ]
   in
   let version = "v" ^ version_string in
-  Term.(const def $ compile_depth $ llvm $ debug $ cgdebug $ opt $pic $ output
-        $ libraries $ import_paths $ files),
+  Term.(const def $ compile_depth $ llvm $ debug $ cgdebug $ opt $ xact $ pic
+        $ output $ libraries $ import_paths $ files),
   Term.info "def" ~version ~doc ~exits:Term.default_exits ~man
 
 let process_arg = function
   | "-emit-llvm" -> "--emit-llvm" (* duplicate Clang behavior. *)
-  | "-fPIC" -> "--fPIC"
-  | arg -> arg
+  | arg ->
+     if arg.[0] = '-' && arg.[1] = 'f' then
+       "-" ^ arg
+     else
+       arg
 
 let () =
   let argv = Array.map process_arg Sys.argv in

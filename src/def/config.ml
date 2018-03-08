@@ -21,7 +21,14 @@ type compilation_level =
   | COMPILE_OBJ
   | COMPILE_BINARY
 
+type transaction_kind =
+  | XACT_HARDWARE
+  | XACT_HYBRID
+  | XACT_SOFTWARE
+
 let opt_level = ref 1
+
+let xact_kind = ref XACT_HYBRID
 
 let position_indep = ref false
 

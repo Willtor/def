@@ -28,13 +28,6 @@ let err_internal file line msg =
     ^ "following string: " ^ Version.version_build ^ "."
   in fatal_error err
 
-(** Input paramter. *)
-let err_param msg =
-  let err = "Compilation halted based on command line input:\n"
-    ^ "  " ^ msg ^ "\n"
-    ^ "Use --help for options."
-  in fatal_error err
-
 (** User forgot to specify an input file. *)
 let err_no_input_file () =
   let err = "No input file specified.  Use --help for options."
