@@ -1,3 +1,5 @@
+import "stdio.h";
+
 /** Repeatedly tries to set m_locked to 1,
  *  and takes the lock when m_locked is set to 1.
  */
@@ -32,7 +34,7 @@ end
 var lock i32 = 0;
 var THRESHOLD i32 = 4;
 // should be u32 but def can't compare u32?
-var _XBEGIN_STARTED i32 = 0;
+var _XBEGIN_STARTED i32 = -1I32;
 
 export
 def hybrid_xbegin() -> void
@@ -46,6 +48,7 @@ start:
         fi
     od
     if TAS_try_acquire_lock(&lock) then
+        fprintf(stderr, "had to acquire the lock.\n");
         return;
     fi
     goto start;

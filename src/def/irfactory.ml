@@ -934,9 +934,11 @@ let process_fcn data symbols fcn =
     data.fattrs;
   if not !Config.codegen_debug then Llvm_analysis.assert_valid_function llfcn
 
-let get_const_val data = function
+let rec get_const_val data = function
   | Expr_String (_, str) -> const_stringz data.ctx str
   | Expr_Literal astlit -> process_literal data.typemap astlit
+  | Expr_Unary (OperMinus, tp, expr, true) ->
+     const_neg (get_const_val data expr)
   | Expr_Cast (from, totp, e) ->
      (prerr_endline ("cast " ^ (string_of_type from) ^ " to "
                      ^ (string_of_type totp));
