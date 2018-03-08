@@ -1226,6 +1226,31 @@ let rec build_bbs name decltable typemap fcn_pos body =
     }
   in
 
+  let begin_xact prev_bb pos scope =
+    let label = label_of_pos pos in
+    let _, f = build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" [] in
+    let e = Expr_Binary (pos, OperEquals, false,
+                         DefTypePrimitive (PrimI32, [Volatile]),
+                         Expr_Literal (LitI32 (Int32.of_int (-1))), f)
+    in
+    let xact_bb = make_sequential_bb ("xact_" ^ label) [] in
+    let bb = make_conditional_bb ("xbegin_" ^ label) (pos, e) in
+    add_next prev_bb bb;
+    add_next bb xact_bb;
+    add_next bb bb;
+    xact_bb
+  in
+
+  let end_xact prev_bb pos scope =
+    let label = label_of_pos pos in
+    let _, f =
+      build_fcn_call scope.fs_vars typemap pos "llvm.x86.xend" []
+    in
+    let xend_bb = make_sequential_bb ("xend." ^ label) [(pos, f)] in
+    add_next prev_bb xend_bb;
+    xend_bb
+  in
+
   (* Iterate through the basic blocks and convert them to the CFG structure
      along with all of the contained expressions.  This function will leave
      temporary placeholders, like BB_Goto and BB_Error, so the CFG needs
@@ -1397,29 +1422,13 @@ let rec build_bbs name decltable typemap fcn_pos body =
     | TransactionBlock (pos, body) :: rest ->
        (* FIXME: Breaking/continuing/goto-ing out of the block should commit
                  the transaction. *)
-       let pos_label = label_of_pos pos in
-       let _, f =
-         build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" []
-       in
-       let e = Expr_Binary (pos, OperEquals, false,
-                            DefTypePrimitive (PrimI32, [Volatile]),
-                            Expr_Literal (LitI32 (Int32.of_int (-1))), f)
-       in
-       let xact_bb = make_sequential_bb ("xact_" ^ pos_label) [] in
-       let bb = make_conditional_bb ("xbegin_" ^ pos_label) (pos, e) in
+       let enter_bb = begin_xact prev_bb pos scope in
+
        let body_scope = push_scope ~xaction:true pos scope in
-       let body_end_bb = process_bb body_scope xact_bb body in
-       let _, f =
-         build_fcn_call scope.fs_vars typemap pos "llvm.x86.xend" []
-       in
-       let xend_bb = make_sequential_bb ("xend." ^ pos_label) [(pos, f)] in
-       begin
-         add_next prev_bb bb;
-         add_next bb xact_bb;
-         add_next bb bb;
-         add_next body_end_bb xend_bb;
-         process_bb scope xend_bb rest
-       end
+       let body_end_bb = process_bb body_scope enter_bb body in
+
+       let leave_bb = end_xact body_end_bb pos scope in
+       process_bb scope leave_bb rest
     | IfStmt (pos, cond, then_block, else_block_maybe) :: rest ->
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
