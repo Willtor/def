@@ -54,6 +54,9 @@ let def compile_depth llvm debug cgdebug opt xact pic output libs import
   debug_symbols := debug;
   codegen_debug := cgdebug;
   opt_level := opt;
+  if xact = XACT_SOFTWARE then
+    Report.err_internal __FILE__ __LINE__
+                        "Software-only transactions not supported, yet.";
   xact_kind := xact;
   position_indep := pic;
   if output <> "" then
