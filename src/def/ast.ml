@@ -93,7 +93,6 @@ and expr =
   | ExprTypeString of position * expr
   | ExprNil of position
   | ExprWildcard of position
-  | ExprLLVMXBegin of position
 
 and vartype =
   | VarType of position * string * Types.qualifier list
@@ -333,15 +332,6 @@ let of_parsetree =
                               }
        in
        StmtExpr (c.td_pos, expr)
-    | PTS_LLVMXCommit (c, _) ->
-       let expr = ExprFcnCall { fc_pos = c.td_pos;
-                                fc_name = "llvm.x86.xend";
-                                fc_template = [];
-                                fc_args = [];
-                                fc_spawn = false
-                              }
-       in
-       StmtExpr (c.td_pos, expr)
     | PTS_Transaction (xbegin, stmts, xend) ->
        TransactionBlock (xbegin.td_pos, List.map stmt_of stmts)
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
@@ -492,7 +482,6 @@ let of_parsetree =
     | PTE_F32 (tok, value) -> ExprLit (tok.td_pos, LitF32 value)
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
     | PTE_Wildcard tok -> ExprWildcard tok.td_pos
-    | PTE_LLVMXBegin tok -> ExprLLVMXBegin tok.td_pos
     | PTE_FcnCall fcn ->
        let template = match fcn.ptfc_template with
          | None -> []
@@ -678,7 +667,6 @@ let rec pos_of_astexpr = function
   | ExprType (pos, _)
   | ExprTypeString (pos, _)
   | ExprNil pos
-  | ExprLLVMXBegin pos -> pos
   | ExprWildcard pos ->
      pos
   | ExprBinary { op_left = operand } ->
@@ -723,7 +711,6 @@ let visit_expr f =
     | ExprTypeString (_, e) -> visit e
     | ExprNil _ -> ()
     | ExprWildcard _ -> ()
-    | ExprLLVMXBegin _ -> ()
   in
   visit
 

@@ -45,7 +45,6 @@ type cfg_expr =
   | Expr_StaticArray of cfg_expr list
   | Expr_Nil
   | Expr_Wildcard
-  | Expr_LLVMXBegin
   | Expr_Atomic of atomic_op * (Types.deftype * cfg_expr) list
   | Expr_Val_Ref of string
 
@@ -504,8 +503,6 @@ let rec infer_type_from_expr typemap scope = function
      Report.err_internal __FILE__ __LINE__ "Type of nil?"
   | ExprWildcard _ ->
      Report.err_internal __FILE__ __LINE__ "Type of wildcard?"
-  | ExprLLVMXBegin _ ->
-     Report.err_internal __FILE__ __LINE__ "Misused LLVM xbegin."
 
 let global_decls decltable typemap = function
   | DeclFcn (pos, vis, name, tp)
@@ -832,13 +829,20 @@ let build_fcn_call scope typemap pos name args =
              let cast_arg = maybe_cast typemap atype ptype expr in
              match_params_with_args (cast_arg :: accum) (params, args)
         in
-        begin
+        let expr_fcncall fname =
           try
             let cast_args = match_params_with_args [] (params, args) in
-            rettp, Expr_FcnCall (decl.mappedname, cast_args)
+            rettp, Expr_FcnCall (fname, cast_args)
           with _ ->
-            Report.err_wrong_number_of_args pos decl.decl_pos name
-              (List.length params) (List.length args)
+               Report.err_wrong_number_of_args pos decl.decl_pos name
+                                               (List.length params)
+                                               (List.length args)
+        in
+        begin
+          match decl.mappedname with
+          | "__builtin_xbegin" -> expr_fcncall "llvm.x86.xbegin"
+          | "__builtin_xend" -> expr_fcncall "llvm.x86.xend"
+          | _ -> expr_fcncall decl.mappedname
         end
      | DefTypePrimitive _ -> Report.err_called_non_fcn pos decl.decl_pos name
      | DefTypePtr _ -> Report.err_internal __FILE__ __LINE__
@@ -1036,7 +1040,6 @@ let convert_expr typemap fcnscope =
        Expr_String (nm, string_of_type expr_tp)
     | ExprNil _ -> DefTypeNullPtr, Expr_Nil
     | ExprWildcard _ -> DefTypeWildcard, Expr_Wildcard
-    | ExprLLVMXBegin _ -> DefTypePrimitive (PrimI32, []), Expr_LLVMXBegin
   in convert
 
 let nonconflicting_name pos scope name =

@@ -733,10 +733,6 @@ let process_expr data llvals varmap pos_n_expr =
        Report.err_internal __FILE__ __LINE__ "static array."
     | Expr_Wildcard ->
        Report.err_internal __FILE__ __LINE__ "wildcard."
-    | Expr_LLVMXBegin ->
-       let _, _, llxb = the (lookup_symbol varmap "llvm.x86.xbegin") in
-       let ret = build_call llxb [| |] "xbegin" data.bldr in
-       ret
   in
   let _, expr = pos_n_expr in
   expr_gen true expr

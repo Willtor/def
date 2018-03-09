@@ -216,6 +216,5 @@ let return_all_paths =
   in List.map toplevel
 
 let scrub stmts =
-  let stmts = kill_dead_code stmts in
-  let stmts = return_all_paths stmts in
-  stmts
+  return_all_paths
+  @@ kill_dead_code stmts

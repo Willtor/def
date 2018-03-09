@@ -39,7 +39,7 @@ def hybrid_xbegin() -> void
 begin
 start:
     for var i i32 = 0; i < THRESHOLD; ++i do
-        if llvmxbegin == _XBEGIN_STARTED then
+        if __builtin_xbegin() == _XBEGIN_STARTED then
             while (!TAS_not_taken(&lock)) do
             od
             return;
@@ -55,7 +55,7 @@ export
 def hybrid_xend() -> void
 begin
     if TAS_not_taken(&lock) then
-        llvmxcommit;
+        __builtin_xend;
     else
         TAS_unlock(&lock);
     fi
