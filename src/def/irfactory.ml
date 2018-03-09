@@ -857,7 +857,13 @@ let process_fcn data symbols fcn =
          add_parallel_loop_metadata cond_bb
     | BB_Term (label, block) ->
        let make_xend () =
-         let _, _, xend = the @@ lookup_symbol varmap "llvm.x86.xend" in
+         let fname = match !Config.xact_kind with
+           | Config.XACT_HARDWARE -> "llvm.x86.xend"
+           | Config.XACT_HYBRID -> "hybrid_xend"
+           | Config.XACT_SOFTWARE ->
+              Report.err_internal __FILE__ __LINE__ "STM not supported, yet."
+         in
+         let _, _, xend = the @@ lookup_symbol varmap fname in
          ignore(build_call xend [| |] "" data.bldr)
        in
        let bb = get_bb label in

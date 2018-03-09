@@ -17,6 +17,7 @@
  *)
 
 open Ast
+open Config
 open Error
 open Lexing
 open Parsetree
@@ -1228,24 +1229,43 @@ let rec build_bbs name decltable typemap fcn_pos body =
 
   let begin_xact prev_bb pos scope =
     let label = label_of_pos pos in
-    let _, f = build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" [] in
-    let e = Expr_Binary (pos, OperEquals, false,
-                         DefTypePrimitive (PrimI32, [Volatile]),
-                         Expr_Literal (LitI32 (Int32.of_int (-1))), f)
-    in
-    let xact_bb = make_sequential_bb ("xact_" ^ label) [] in
-    let bb = make_conditional_bb ("xbegin_" ^ label) (pos, e) in
-    add_next prev_bb bb;
-    add_next bb xact_bb;
-    add_next bb bb;
-    xact_bb
+    match !xact_kind with
+    | XACT_HARDWARE ->
+       let _, f = build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" []
+       in
+       let e = Expr_Binary (pos, OperEquals, false,
+                            DefTypePrimitive (PrimI32, [Volatile]),
+                            Expr_Literal (LitI32 (Int32.of_int (-1))), f)
+       in
+       let xact_bb = make_sequential_bb ("xact." ^ label) [] in
+       let bb = make_conditional_bb ("xbegin." ^ label) (pos, e) in
+       begin
+         add_next prev_bb bb;
+         add_next bb xact_bb;
+         add_next bb bb;
+         xact_bb
+       end
+    | XACT_HYBRID ->
+       let _, f = build_fcn_call scope.fs_vars typemap pos "hybrid_xbegin" []
+       in
+       let xact_bb = make_sequential_bb ("hyxact." ^ label) [(pos, f)] in
+       begin
+         add_next prev_bb xact_bb;
+         xact_bb
+       end
+    | XACT_SOFTWARE ->
+       Report.err_internal __FILE__ __LINE__ "STM not yet supported."
   in
 
   let end_xact prev_bb pos scope =
     let label = label_of_pos pos in
-    let _, f =
-      build_fcn_call scope.fs_vars typemap pos "llvm.x86.xend" []
+    let fname = match !xact_kind with
+      | XACT_HARDWARE -> "llvm.x86.xend"
+      | XACT_HYBRID -> "hybrid_xend"
+      | XACT_SOFTWARE ->
+         Report.err_internal __FILE__ __LINE__ "STM not yet supported."
     in
+    let _, f = build_fcn_call scope.fs_vars typemap pos fname [] in
     let xend_bb = make_sequential_bb ("xend." ^ label) [(pos, f)] in
     add_next prev_bb xend_bb;
     xend_bb
