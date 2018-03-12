@@ -1249,7 +1249,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
          xact_bb
        end
     | XACT_HYBRID ->
-       let _, f = build_fcn_call scope.fs_vars typemap pos "hybrid_xbegin" []
+       let _, f =
+         build_fcn_call scope.fs_vars typemap pos "__defrts_hybrid_xbegin" []
        in
        let xact_bb = make_sequential_bb ("hyxact." ^ label) [(pos, f)] in
        begin
@@ -1264,7 +1265,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
     let label = label_of_pos pos in
     let fname = match !xact_kind with
       | XACT_HARDWARE -> "llvm.x86.xend"
-      | XACT_HYBRID -> "hybrid_xend"
+      | XACT_HYBRID -> "__defrts_hybrid_xend"
       | XACT_SOFTWARE ->
          Report.err_internal __FILE__ __LINE__ "STM not yet supported."
     in

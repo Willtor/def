@@ -31,7 +31,7 @@ var THRESHOLD i32 = 4;
 var _XBEGIN_STARTED i32 = -1I32;
 
 export
-def hybrid_xbegin() -> void
+def __defrts_hybrid_xbegin() -> void
 begin
 start:
     for var i i32 = 0; i < THRESHOLD; ++i do
@@ -48,7 +48,7 @@ start:
 end
 
 export
-def hybrid_xend() -> void
+def __defrts_hybrid_xend() -> void
 begin
     if TAS_not_taken(&lock) then
         __builtin_xend;
