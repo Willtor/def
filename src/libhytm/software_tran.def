@@ -1,7 +1,6 @@
 /** Repeatedly tries to set m_locked to 1,
  *  and takes the lock when m_locked is set to 1.
  */
-export
 def TAS_lock(m_locked * i32)-> void
 begin
     while __builtin_swap(&(m_locked[0]), 1) == 1 do
@@ -11,19 +10,16 @@ end
 /** Sets lock to 0, representing that the thread
  *  has released the lock.
  */
-export
 def TAS_unlock(lock * i32) -> void
 begin
     __builtin_swap (&(lock[0]), 0);
 end
 
-export
 def TAS_try_acquire_lock (m_locked * i32)-> bool
 begin
     return __builtin_swap(&(m_locked[0]), 1) != 1;
 end
 
-export
 def TAS_not_taken(lock * i32) -> bool
 begin
     return lock[0] == 0; 
