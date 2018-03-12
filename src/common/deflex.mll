@@ -107,6 +107,7 @@ rule deflex = parse
 | "esac" as tok { ESAC (get_token_data tok lexbuf) }
 | "goto" as tok { GOTO (get_token_data tok lexbuf) }
 | "break" as tok { BREAK (get_token_data tok lexbuf) }
+| "nobreak" as tok { NOBREAK (get_token_data tok lexbuf) }
 | "continue" as tok { CONTINUE (get_token_data tok lexbuf) }
 | "new" as tok { NEW (get_token_data tok lexbuf) }
 | "delete" as tok { DELETE (get_token_data tok lexbuf) }

@@ -5,19 +5,14 @@ begin
     switch array with
     case [0, 0, 0]:
         printf("three-zero prefix.\n");
-        break;
     case [0, 0]:
         printf("two-zero prefix.\n");
-        break;
     case [0]:
         printf("one-zero prefix.\n");
-        break;
     case [_, _, 0]:
         printf("unknown prefix, but third element is zero.\n");
-        break;
     case _:
         printf("no-zero prefix.\n");
-        break;
     esac
 end
 

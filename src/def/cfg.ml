@@ -1665,22 +1665,19 @@ let rec build_bbs name decltable typemap fcn_pos body =
          let cond_bb = generate_conditional case_label case_pos case_cmp
                                             succ_bb fail_bb
          in
-         let case_scope = push_scope ~break:(Some exit_bb) case_pos scope in
+         let case_scope = push_scope case_pos scope in
          let case_end = process_bb case_scope succ_bb stmts in
-         begin
-           add_next last_bb cond_bb;
-           if fallthrough_bb <> None then
-             add_next (Util.the fallthrough_bb) succ_bb;
-           match List.hd (List.rev stmts) with
-           | Return _
-           | ReturnVoid _
-           | Goto _
-           | Break _
-           | Continue _ ->
+         add_next last_bb cond_bb;
+         if fallthrough_bb <> None then
+           add_next (Util.the fallthrough_bb) succ_bb;
+         match List.hd (List.rev stmts) with
+         | NoBreak _ ->
+            fail_bb, Some case_end
+         | _ ->
+            begin
+              add_next case_end exit_bb;
               fail_bb, None
-           | _ ->
-              fail_bb, Some case_end
-         end
+            end
        in
        let last_bb, fallthrough =
          List.fold_left make_case (switch_bb, None) cases
@@ -1754,6 +1751,9 @@ let rec build_bbs name decltable typemap fcn_pos body =
           let () = add_next prev_bb bb in
           prev_bb
        end
+    | NoBreak pos :: rest ->
+       (* FIXME: Need to make sure this only occurs where it makes sense. *)
+       prev_bb
     | Continue pos :: rest ->
        begin match scope.fs_cont_bb with
        | None ->

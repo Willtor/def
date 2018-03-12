@@ -65,6 +65,7 @@ type pt_stmt =
       * tokendata * pt_type * tokendata
   | PTS_Goto of tokendata * tokendata * tokendata
   | PTS_Break of tokendata * tokendata
+  | PTS_NoBreak of tokendata * tokendata
   | PTS_Label of tokendata * tokendata
   | PTS_Continue of tokendata * tokendata
   | PTS_Sync of tokendata * tokendata

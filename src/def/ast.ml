@@ -132,6 +132,7 @@ type stmt =
   | Label of position * string
   | Goto of position * string
   | Break of position
+  | NoBreak of position
   | Continue of position
   | Sync of position
 
@@ -384,6 +385,7 @@ let of_parsetree =
        TypeDecl (typedef.td_pos, id.td_text, type_of tp, vis, opaque)
     | PTS_Goto (goto, id, _) -> Goto (goto.td_pos, id.td_text)
     | PTS_Break (break, _) -> Break break.td_pos
+    | PTS_NoBreak (nobreak, _) -> NoBreak nobreak.td_pos
     | PTS_Label (id, _) -> Label (id.td_pos, id.td_text)
     | PTS_Continue (continue, _) -> Continue continue.td_pos
     | PTS_Sync (sync, _) -> Sync sync.td_pos
@@ -746,5 +748,6 @@ let rec visit_expr_in_stmt f = function
   | Label _
   | Goto _
   | Break _
+  | NoBreak _
   | Continue _
   | Sync _ -> ()

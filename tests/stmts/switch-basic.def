@@ -7,18 +7,15 @@ begin
     switch n with
     case 0:
         printf("Zero.\n");
-        break;
     case 1:
         printf("One.\n");
-        break;
     case 2:
         printf("2a.\n");
+        nobreak;
     case 3:
         printf("2b/3.\n");
-        break;
     case _:
         printf("The rest.\n");
-        break;
     esac
 end
 

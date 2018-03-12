@@ -12,16 +12,12 @@ begin
     switch tuple(n) with
     case { 0, 0 }:
         printf("  Zero, zero.\n");
-        break;
     case { 0, _ }:
         printf("  Zero, wildcard.\n");
-        break;
     case { _, 0 }:
         printf("  Wildcard, zero.\n");
-        break;
     case _:
         printf("  Sadly, no zeroes.\n");
-        break;
     esac
 end
 

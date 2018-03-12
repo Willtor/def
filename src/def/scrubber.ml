@@ -46,6 +46,7 @@ let position_of_stmt = function
   | Label (pos, _)
   | Goto (pos, _)
   | Break pos
+  | NoBreak pos
   | Continue pos
   | Sync pos
     -> pos
@@ -108,6 +109,7 @@ let kill_dead_code =
       | (ReturnVoid _ as stmt) :: rest
       | (Goto _ as stmt) :: rest
       | (Break _ as stmt) :: rest
+      | (NoBreak _ as stmt) :: rest
       | (Continue _ as stmt) :: rest ->
          let () = match rest with
            | [] -> ()
@@ -176,6 +178,7 @@ let return_all_paths =
       | Label _ :: rest
       | Goto _ :: rest (* FIXME: Think about Goto case some more... *)
       | Break _ :: rest (* FIXME: Also the break case. *)
+      | NoBreak _ :: rest (* FIXME: Also the nobreak case. *)
       | Continue _ :: rest (* FIXME: Also, the Continue case. *)
       | Sync _ :: rest
         -> returns_p rest
