@@ -57,8 +57,6 @@ type pt_stmt =
       * tokendata * tokendata * pt_expr * tokendata
   | PTS_DeleteExpr of tokendata * pt_expr * tokendata
   | PTS_RetireExpr of tokendata * pt_expr * tokendata
-  | PTS_HybridXBegin of tokendata * tokendata
-  | PTS_HybridXCommit of tokendata * tokendata
   | PTS_Transaction of tokendata * pt_stmt list * tokendata
   | PTS_IfStmt of
       tokendata * pt_expr * tokendata * pt_stmt list

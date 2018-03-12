@@ -314,24 +314,6 @@ let of_parsetree =
                               }
        in
        StmtExpr (r.td_pos, expr)
-    | PTS_HybridXBegin (b, _) ->
-       let expr = ExprFcnCall { fc_pos = b.td_pos;
-                                fc_name = "hybrid_xbegin";
-                                fc_template = [];
-                                fc_args = [];
-                                fc_spawn = false
-                              }
-       in
-       StmtExpr (b.td_pos, expr)
-    | PTS_HybridXCommit (c, _) ->
-       let expr = ExprFcnCall { fc_pos = c.td_pos;
-                                fc_name = "hybrid_xend";
-                                fc_template = [];
-                                fc_args = [];
-                                fc_spawn = false
-                              }
-       in
-       StmtExpr (c.td_pos, expr)
     | PTS_Transaction (xbegin, stmts, xend) ->
        TransactionBlock (xbegin.td_pos, List.map stmt_of stmts)
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
