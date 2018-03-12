@@ -91,7 +91,8 @@ LIBHYTM_SRC = $(addprefix $(LIBHYTM_BUILD_DIR)/,$(LIBHYTMFILES))
 all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF) $(BINDIR)/$(DEFGHI) \
 	$(LIBDIR)/$(LIBHYTM)
 
-install: $(INSTALL_DIR)/bin/$(DEF) $(INSTALL_DIR)/bin/$(DEFGHI)
+install: $(INSTALL_DIR)/bin/$(DEF) $(INSTALL_DIR)/bin/$(DEFGHI)	\
+	$(INSTALL_DIR)/lib/$(LIBHYTM)
 
 test: $(BUILDDIR)/bin/$(DEF)
 	make -C $(TESTDIR)
@@ -105,6 +106,9 @@ $(INSTALL_DIR)/bin/$(DEF): $(BINDIR)/$(DEF)
 	ln -f -s `bash version_info.sh minor` $@
 
 $(INSTALL_DIR)/bin/$(DEFGHI): $(BINDIR)/$(DEFGHI)
+	cp $< $@
+
+$(INSTALL_DIR)/lib/$(LIBHYTM): $(LIBDIR)/$(LIBHYTM)
 	cp $< $@
 
 $(BUILDDIR):
