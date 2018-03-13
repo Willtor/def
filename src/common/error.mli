@@ -15,3 +15,6 @@ val warning : string -> unit
 
 (** Common pattern for error messages.  Make them uniform. *)
 val err_pos : string -> Lexing.position -> 'a
+
+(** Common pattern for warnings.  Make them uniform. *)
+val warn_pos : string -> Lexing.position -> unit

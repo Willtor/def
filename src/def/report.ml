@@ -274,3 +274,7 @@ let err_cant_cast pos t1 t2 =
 (** Tried to "break;" out of... nothing. *)
 let err_no_break_scope pos =
   err_pos "There is no construct that can be broken out of." pos
+
+(** Warn there is a loss of precision in an implicit conversion. *)
+let warn_loss_of_precision pos conv_str =
+  warn_pos ("Loss of precision: " ^ conv_str) pos

@@ -19,6 +19,7 @@
 open Lexing
 
 let color_red_bold = "\x1b[31;1m"
+let color_cyan_bold = "\x1b[36;1m"
 let color_yellow = "\x1b[33m"
 let color_reset = "\x1b[0m"
 
@@ -56,7 +57,8 @@ let fatal_error err =
   exit 1
 
 (** Report a non-fatal warning. *)
-let warning warn = prerr_endline ("Warning:\n" ^ warn)
+let warning warn =
+  prerr_endline (color_cyan_bold ^ "Warning:\n" ^ color_reset ^ warn)
 
 (** Common pattern for error messages.  Make them uniform. *)
 let err_pos msg pos =
@@ -65,3 +67,11 @@ let err_pos msg pos =
             ^ "  " ^ msg ^ "\n"
             ^ (show_source pos)
   in fatal_error err
+
+(** Common pattern for warnings.  Make them uniform. *)
+let warn_pos msg pos =
+  (* FIXME: Format msg to line break at 80 characters. *)
+  let warn = "At " ^ (format_position pos) ^ ":\n"
+             ^ "  " ^ msg ^ "\n"
+             ^ (show_source pos)
+  in warning warn

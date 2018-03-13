@@ -332,8 +332,12 @@ let rec convert_type defining_p array2ptr typemap = function
          | Some (LitI16 n) | Some (LitU16 n)
          | Some (LitI32 n) | Some (LitU32 n) -> Int32.to_int n
          | Some (LitI64 n) | Some (LitU64 n) ->
-            Int64.to_int n (* FIXME: Possible loss of
-                            precision. *)
+            begin
+              if (Int64.of_int32 Int32.max_int) < n then
+                Report.warn_loss_of_precision
+                  pos "64-bit --> 32-bit value (array dimension)";
+              Int64.to_int n
+            end
          | Some (LitF32 _) | Some (LitF64 _) ->
             Report.err_float_array_dim pos
          | None ->
