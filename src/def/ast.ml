@@ -752,3 +752,9 @@ let rec visit_expr_in_stmt f = function
   | Break _
   | Continue _
   | Sync _ -> ()
+
+(** Return true if the expression is clearly always true in all
+    circumstances. *)
+let provably_always_true = function
+  | ExprLit (_, LitBool true) -> true
+  | _ -> false

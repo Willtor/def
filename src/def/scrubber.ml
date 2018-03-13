@@ -123,11 +123,6 @@ let kill_dead_code =
     | stmt -> stmt
   in List.map toplevel
 
-(** Expression cannot resolve to false/0.  *)
-let expr_must_be_true = function
-  | ExprLit (_, LitBool true) -> true
-  | _ -> false
-
 let return_all_paths =
   let process can_return_void body =
     let rec contains_return = function
@@ -185,7 +180,7 @@ let return_all_paths =
       | ForLoop _ :: rest ->
          returns_p rest
       | WhileLoop (_, _, cond, body) :: rest ->
-         if expr_must_be_true cond then contains_return body
+         if provably_always_true cond then contains_return body
          else returns_p rest
       | SwitchStmt _ :: rest ->
          returns_p rest

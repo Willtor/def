@@ -214,11 +214,6 @@ let label_of_pos pos =
   pos.pos_fname ^ "_" ^ (string_of_int pos.pos_lnum)
   ^ "_" ^ (string_of_int (pos.pos_cnum - pos.pos_bol))
 
-(* FIXME: Unify with (not expr_must_be_true) in Scrubber. *)
-let loop_can_exit = function
-  | Expr_Literal (LitBool true) -> false
-  | _ -> true
-
 (* Evaluate the expression, if possible, and return a literal value. *)
 let static_eval_expr = function
   | ExprLit (_, lit) -> Some lit
@@ -1553,7 +1548,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let _, cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
        let cond_bb, fail_bb =
-         match (loop_can_exit cexpr)
+         match (not (provably_always_true cond))
                || (can_escape_forward label_bbs body) with
          | true ->
             let fail = make_sequential_bb ("fail_" ^ (label_of_pos pos)) [] in
