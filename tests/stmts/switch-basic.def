@@ -5,16 +5,15 @@ decl printf (*char, ...) -> i32;
 def simple_switch (n i32) -> void
 begin
     switch n with
-    case 0:
+    xcase 0:
         printf("Zero.\n");
-    case 1:
+    xcase 1:
         printf("One.\n");
-    case 2:
+    xcase 2:
         printf("2a.\n");
-        nobreak;
-    case 3:
+    ocase 3:
         printf("2b/3.\n");
-    case _:
+    xcase _:
         printf("The rest.\n");
     esac
 end

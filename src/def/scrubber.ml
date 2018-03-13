@@ -46,7 +46,6 @@ let position_of_stmt = function
   | Label (pos, _)
   | Goto (pos, _)
   | Break pos
-  | NoBreak pos
   | Continue pos
   | Sync pos
     -> pos
@@ -96,7 +95,7 @@ let kill_dead_code =
          let stmt = WhileLoop (pos, precheck, cond, proc [] body)
          in proc (stmt :: accum) rest
       | SwitchStmt (pos, expr, cases) :: rest ->
-         let f (cpos, ctor, stmts) = cpos, ctor, proc [] stmts in
+         let f (cpos, fall, ctor, stmts) = cpos, fall, ctor, proc [] stmts in
          let stmt = SwitchStmt (pos, expr, List.map f cases) in
          proc (stmt :: accum) rest
       | TypeDecl _ as stmt :: rest ->
@@ -109,7 +108,6 @@ let kill_dead_code =
       | (ReturnVoid _ as stmt) :: rest
       | (Goto _ as stmt) :: rest
       | (Break _ as stmt) :: rest
-      | (NoBreak _ as stmt) :: rest
       | (Continue _ as stmt) :: rest ->
          let () = match rest with
            | [] -> ()
@@ -151,7 +149,7 @@ let return_all_paths =
          if contains_return body then true
          else contains_return rest
       | SwitchStmt (_, _, cases) :: rest ->
-         let do_case res (_, _, stmts) =
+         let do_case res (_, _, _, stmts) =
            if true = res then true
            else contains_return stmts
          in
@@ -178,7 +176,6 @@ let return_all_paths =
       | Label _ :: rest
       | Goto _ :: rest (* FIXME: Think about Goto case some more... *)
       | Break _ :: rest (* FIXME: Also the break case. *)
-      | NoBreak _ :: rest (* FIXME: Also the nobreak case. *)
       | Continue _ :: rest (* FIXME: Also, the Continue case. *)
       | Sync _ :: rest
         -> returns_p rest

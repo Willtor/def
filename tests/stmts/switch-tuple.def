@@ -10,13 +10,13 @@ end
 def advanced_switch (n i32) -> void
 begin
     switch tuple(n) with
-    case { 0, 0 }:
+    xcase { 0, 0 }:
         printf("  Zero, zero.\n");
-    case { 0, _ }:
+    xcase { 0, _ }:
         printf("  Zero, wildcard.\n");
-    case { _, 0 }:
+    xcase { _, 0 }:
         printf("  Wildcard, zero.\n");
-    case _:
+    xcase _:
         printf("  Sadly, no zeroes.\n");
     esac
 end

@@ -2,11 +2,47 @@
 
 (defvar def-tab-width 4)
 
-;; Keywords.
-(setq def-keywords-open
-      (regexp-opt '("begin" "then" "do" "with" "xbegin") 'words))
-(setq def-keywords-close
-      (regexp-opt '("end" "fi" "od" "esac" "xend") 'words))
+;;;
+;;; Custom faces for keywords
+;;;
+
+(defface xcase
+  '((((class color) (min-colors 88) (background light))
+     :background "misty rose"
+     :foreground "dark red")
+    (((class color) (min-colors 88) (background dark))
+     :background "firebrick"
+     :foreground "white")
+    (((class color) (min-colors 16) (background light))
+     :background "misty rose"
+     :foreground "dark red")
+    (((class color) (min-colors 16) (background dark))
+     :background "firebrick"
+     :foreground: "white")
+    (((class color) (min-colors 8))
+     :background "red" :foreground "white")
+    (t :inverse-video t))
+  "Highlighting for the xcase keyword."
+  :group 'def-mode)
+
+(defface ocase
+  '((((class color) (min-colors 88) (background light))
+     :background "light goldenrod yellow"
+     :foreground "saddle brown")
+    (((class color) (min-colors 88) (background dark))
+     :background "gold"
+     :foreground "black")
+    (((class color) (min-colors 16) (background light))
+     :background "light goldenrod yellow"
+     :foreground "saddle brown")
+    (((class color) (min-colors 16) (background dark))
+     :background "gold"
+     :foreground: "black")
+    (((class color) (min-colors 8))
+     :background "yellow" :foreground "black")
+    (t :inverse-video t))
+  "Highlighting for the xcase keyword."
+  :group 'def-mode)
 
 ;; Font coloring.
 (setq def-font-lock-keywords
@@ -24,6 +60,12 @@
                         "switch" "with" "esac")
                       'words)
          . font-lock-keyword-face)
+        (,(regexp-opt '("xcase")
+                      'words)
+         . 'xcase)
+        (,(regexp-opt '("ocase")
+                      'words)
+         . 'ocase)
         ; Constants.
         (,(regexp-opt '("true" "false" "nil")
                       'words)
@@ -35,6 +77,16 @@
                       'words)
          . font-lock-builtin-face)
         ))
+
+;;;
+;;; Indentation
+;;;
+
+;; Keywords.
+(setq def-keywords-open
+      (regexp-opt '("begin" "then" "do" "with" "xbegin") 'words))
+(setq def-keywords-close
+      (regexp-opt '("end" "fi" "od" "esac" "xend") 'words))
 
 ; Adapted from wpdl-mode.el.
 (defun def-indent-line ()

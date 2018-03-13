@@ -3,15 +3,15 @@ decl printf (*char, ...) -> i32;
 def domatch (array *i32) -> void
 begin
     switch array with
-    case [0, 0, 0]:
+    xcase [0, 0, 0]:
         printf("three-zero prefix.\n");
-    case [0, 0]:
+    xcase [0, 0]:
         printf("two-zero prefix.\n");
-    case [0]:
+    xcase [0]:
         printf("one-zero prefix.\n");
-    case [_, _, 0]:
+    xcase [_, _, 0]:
         printf("unknown prefix, but third element is zero.\n");
-    case _:
+    xcase _:
         printf("no-zero prefix.\n");
     esac
 end

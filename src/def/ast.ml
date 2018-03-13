@@ -125,14 +125,15 @@ type stmt =
     * (position * expr) option * position * stmt list
   (* WhileLoop: start-pos * pre-check * cond * body *)
   | WhileLoop of position * bool * expr * stmt list
-  | SwitchStmt of position * expr * (position * expr * stmt list) list
+  (* SwitchStmt:
+     start-pos * expr * (case-pos * fall-through? * expr * body) list *)
+  | SwitchStmt of position * expr * (position * bool * expr * stmt list) list
   | Return of position * expr
   | ReturnVoid of position
   | TypeDecl of position * string * vartype * Types.visibility * bool
   | Label of position * string
   | Goto of position * string
   | Break of position
-  | NoBreak of position
   | Continue of position
   | Sync of position
 
@@ -368,8 +369,10 @@ let of_parsetree =
                   List.map stmt_of stmts)
     | PTS_SwitchStmt (switchtok, expr, _, cases, _) ->
        let convert_case = function
-         | PTCase (_, ctor, _, stmts) ->
-            pt_expr_pos ctor, expr_of ctor, List.map stmt_of stmts
+         | PTMatchCase (_, ctor, _, stmts) ->
+            pt_expr_pos ctor, false, expr_of ctor, List.map stmt_of stmts
+         | PTFallCase (_, ctor, _, stmts) ->
+            pt_expr_pos ctor, true, expr_of ctor, List.map stmt_of stmts
        in
        SwitchStmt (switchtok.td_pos, expr_of expr, List.map convert_case cases)
     | PTS_ReturnExpr (ret, e, _) ->
@@ -385,7 +388,6 @@ let of_parsetree =
        TypeDecl (typedef.td_pos, id.td_text, type_of tp, vis, opaque)
     | PTS_Goto (goto, id, _) -> Goto (goto.td_pos, id.td_text)
     | PTS_Break (break, _) -> Break break.td_pos
-    | PTS_NoBreak (nobreak, _) -> NoBreak nobreak.td_pos
     | PTS_Label (id, _) -> Label (id.td_pos, id.td_text)
     | PTS_Continue (continue, _) -> Continue continue.td_pos
     | PTS_Sync (sync, _) -> Sync sync.td_pos
@@ -737,7 +739,7 @@ let rec visit_expr_in_stmt f = function
      begin
        visit_expr f expr;
        List.iter
-         (fun (_, e, stmts) ->
+         (fun (_, _, e, stmts) ->
            visit_expr f e;
            List.iter (visit_expr_in_stmt f) stmts)
          cases
@@ -748,6 +750,5 @@ let rec visit_expr_in_stmt f = function
   | Label _
   | Goto _
   | Break _
-  | NoBreak _
   | Continue _
   | Sync _ -> ()
