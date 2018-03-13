@@ -113,7 +113,7 @@
             (forward-line -1)
             (if (looking-at (concat "^[ ]*" def-keywords-close))
                 (progn
-                  (setq cur-indent (+ current-indentation offset))
+                  (setq cur-indent (current-indentation))
                   (setq not-indented nil))
               (if (looking-at (concat "^.*" def-keywords-open))
                   (progn
