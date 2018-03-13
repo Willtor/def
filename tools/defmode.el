@@ -87,6 +87,8 @@
       (regexp-opt '("begin" "then" "do" "with" "xbegin") 'words))
 (setq def-keywords-close
       (regexp-opt '("end" "fi" "od" "esac" "xend") 'words))
+(setq def-keywords-case
+      (regexp-opt '("xcase" "ocase") 'words))
 
 ; Adapted from wpdl-mode.el.
 (defun def-indent-line ()
@@ -95,7 +97,11 @@
   (beginning-of-line)
   (if (bobp)
       (indent-line-to 0)
-    (let ((not-indented t) cur-indent)
+    (let ((not-indented t)
+          (offset (if (looking-at (concat "^[ ]*" def-keywords-case))
+                      (- 0 def-tab-width) 0)
+                  )
+          cur-indent)
       (if (looking-at (concat "^[ ]*" def-keywords-close))
           (progn
             (save-excursion
@@ -107,14 +113,14 @@
             (forward-line -1)
             (if (looking-at (concat "^[ ]*" def-keywords-close))
                 (progn
-                  (setq cur-indent (current-indentation))
+                  (setq cur-indent (+ current-indentation offset))
                   (setq not-indented nil))
               (if (looking-at (concat "^.*" def-keywords-open))
                   (progn
                     (setq cur-indent
                           (if (looking-at (concat "^.*" def-keywords-close))
                               (current-indentation)
-                            (+ (current-indentation) def-tab-width)))
+                            (+ (current-indentation) def-tab-width offset)))
                     (setq not-indented nil))
                 (if (bobp)
                     (setq not-indented nil)))))))
