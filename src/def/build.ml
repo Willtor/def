@@ -220,8 +220,8 @@ let generate_obj tmp_obj file =
      let () = Iropt.optimize mdl in
      if !compile_llvm then
        let outfile = outfile_name file ".bc" in
-       (* FIXME: Don't ignore bitwriter output. *)
-       (ignore(Llvm_bitwriter.write_bitcode_file mdl outfile); outfile)
+       if Llvm_bitwriter.write_bitcode_file mdl outfile then outfile
+       else Report.err_cant_generate_obj_from file
      else dump_machine_obj tmp_obj file mdl
   | ".ll" ->
      let mdl = read_ll file in

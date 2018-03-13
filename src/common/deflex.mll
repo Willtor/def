@@ -121,8 +121,9 @@ rule deflex = parse
 | "sync" as tok { SYNC (get_token_data tok lexbuf) }
 | "true" as tok { LITERALBOOL (get_token_data tok lexbuf, true) }
 | "false" as tok { LITERALBOOL (get_token_data tok lexbuf, false) }
-| ['"'][^'"']*['"'] as str { STRING (get_token_data str lexbuf,
-                                     remove_quotes str) }
+| ['"']([^'\\' '"']*(['\\']_)?)+['"'] as str
+    { STRING (get_token_data str lexbuf,
+              remove_quotes str) }
 | "_" as tok { WILDCARD (get_token_data (String.make 1 tok) lexbuf) }
 
 (* Integers. *)

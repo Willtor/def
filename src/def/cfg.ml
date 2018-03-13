@@ -155,9 +155,13 @@ let combine3 a b c =
   in
   combine [] (a, b, c)
 
-(* FIXME: Fill out the list of regular expressions. *)
-let re_set = [(regexp "\\\\n", "\n")   (* newline *)
-             ]
+let re_set =
+  [ (regexp {|\\n|}, "\n");    (* newline *)
+    (regexp {|\\r|}, "\r");    (* carriage return *)
+    (regexp {|\\t|}, "\t");    (* tab *)
+    (regexp {|\\"|}, "\"");    (* double-quote. *)
+    (regexp {|\\\\|}, "\\\\")  (* backslash: must be last. *)
+  ]
 
 (* Visit a graph, depth-first. *)
 let visit_df f bit =
