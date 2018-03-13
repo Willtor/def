@@ -54,7 +54,7 @@ let show_source pos =
     condition. *)
 let fatal_error err =
   prerr_endline (color_red_bold ^ "Error:\n" ^ color_reset ^ err);
-  exit 1
+  exit 125
 
 (** Report a non-fatal warning. *)
 let warning warn =
