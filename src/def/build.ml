@@ -56,10 +56,20 @@ let verify_extension filename =
   | ".bc" | ".o" -> ()
   | ext -> Report.err_unknown_infile_type filename ext
 
+(* Special list of system headers that should not get a full path when passed
+   to the Clang front-end. *)
+let special_case_c_headers =
+  [| "pthread.h" |]
+
+let is_special_header file =
+  Array.exists (fun header -> header = file) special_case_c_headers
+
 let findfile file relative_base pos =
   if file.[0] = '/' then
     if Sys.file_exists file then file
     else Report.err_unable_to_locate_imported_file pos file
+  else if is_special_header file then
+    file
   else
     let paths = relative_base :: !import_dirs in
     let exists_in base = Sys.file_exists (base ^ "/" ^ file) in
@@ -70,7 +80,7 @@ let findfile file relative_base pos =
     path ^ "/" ^ file
 
 let full_path file =
-  if file.[0] = '/' then file
+  if file.[0] = '/' || is_special_header file then file
   else (Unix.getcwd ()) ^ "/" ^ file
 
 let add_builtin_fcns stmts =

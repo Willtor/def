@@ -150,10 +150,14 @@ private:
             Store_field(ret, 0, pos);
             Store_field(ret, 1, pointee);
             return ret;
-        } else if (type->isFunctionType()) {
+        } else if (type->isFunctionNoProtoType()) {
+            // FIXME: don't know what to do with this.
+            outs() <<
+                "internal error: Hit a FunctionNoProtoType in cimport.cpp.\n";
+            exit(125);
+        } else if (type->isFunctionProtoType()) {
             // CT_Function
-            const FunctionProtoType *ftype =
-                static_cast<const FunctionProtoType*>(type);
+            const FunctionProtoType *ftype = type->castAs<FunctionProtoType>();
 
             value param_list = Val_int(0);
             for (const QualType param : ftype->param_types()) {
