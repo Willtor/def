@@ -69,6 +69,10 @@ let findfile file relative_base pos =
     in
     path ^ "/" ^ file
 
+let full_path file =
+  if file.[0] = '/' then file
+  else (Unix.getcwd ()) ^ "/" ^ file
+
 let add_builtin_fcns stmts =
   let pos = { pos_fname = "builtin";
               pos_lnum = 1;
@@ -134,24 +138,44 @@ let parse_def_file file =
   close_in infile;
   parsetree
 
-let parse_c_file file =
-  let fcns = import_c_file file !import_dirs in fcns
-
-let rec recursive_parse_def_file file =
-  let proc parsetree = function
-    | PTS_Import (_, (tok, str), _) ->
-       let subfile = findfile str (Filename.dirname file) tok.td_pos in
-       (recursive_parse_def_file subfile) @ parsetree
-    | _ -> parsetree
+let recursive_parse_def_file file =
+  let cfiles = Hashtbl.create 8 in
+  let rec do_parse file pos =
+    let proc parsetree = function
+      | PTS_Import (_, (tok, str), _) ->
+         let subfile = findfile str (Filename.dirname file) tok.td_pos in
+         (do_parse subfile tok.td_pos) @ parsetree
+      | _ -> parsetree
+    in
+    match extension file with
+    | ".def" | ".defi" ->
+       let parsetree = parse_def_file file in
+       List.fold_left proc (Ast.of_parsetree parsetree) parsetree
+    | ".h" ->
+       let full_path_to_file = full_path file in
+       let () = Hashtbl.add cfiles full_path_to_file pos in []
+    | _ -> Report.err_internal __FILE__ __LINE__
+                               "Need appropriate error message."
   in
-  match extension file with
-  | ".def" | ".defi" ->
-     let parsetree = parse_def_file file in
-     List.fold_left proc (Ast.of_parsetree parsetree) parsetree
-  | ".h" ->
-     Ast.of_cimport @@ parse_c_file file
-  | _ -> Report.err_internal __FILE__ __LINE__
-                             "Need appropriate error message."
+  let def_ast = do_parse file Util.faux_pos in
+  let cfile_str =
+    Hashtbl.fold
+      (fun f p accum ->
+        "#line " ^ (string_of_int p.pos_lnum) ^ " \"" ^ p.pos_fname ^ "\"\n"
+        ^ "#include \"" ^ f ^ "\"\n"
+        ^ accum
+      ) cfiles ""
+  in
+  let cimport_ast =
+    if cfile_str = "" then []
+    else
+      let tmpfile = "/tmp/def-include" ^ (random_hex ()) ^ ".c" in
+      let os = open_out tmpfile in
+      let () = output_string os cfile_str in
+      let () = close_out_noerr os in
+      Ast.of_cimport @@ import_c_file tmpfile !import_dirs
+  in
+  List.rev_append cimport_ast def_ast
 
 let llmodule_of_ast infile ast =
   let expanded_ast = Templates.expand ast in
@@ -160,7 +184,6 @@ let llmodule_of_ast infile ast =
   let mdl = process_cfg infile prog in
   let () = Iropt.optimize mdl in
   mdl
-
 
 let dump_machine_asm file mdl =
   let outfile = outfile_name file ".s" in

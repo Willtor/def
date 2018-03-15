@@ -1,6 +1,7 @@
 // Smoke test for importing stdio.h.
 
 import "stdio.h";
+import "stddef.h";
 
 export
 def main () -> i32
