@@ -546,7 +546,7 @@ let of_cimport =
     | "struct" :: rest
     | "union" :: rest
     | rest ->
-       String.concat "_" rest
+       String.concat " " rest
   in
   let rec type_of = function
     | CT_TypeName (pos, tp) ->
@@ -565,14 +565,16 @@ let of_cimport =
                 pos, ret
             end
          | vartype ->
-            pos, CVarType (pos, tp, [])
+            pos, CVarType (pos, vartype, [])
        end
     | CT_Pointer (pos, tp) ->
        let _, t = type_of tp in pos, PtrType (pos, t, [])
     | CT_Record (kind, fields) ->
        let ast_fields =
-         List.map (fun (pos, nm, tp) -> let _, t = type_of tp in pos, nm, t)
-                  fields
+         List.map
+           (fun (pos, nm, tp) ->
+             let _, t = type_of tp in pos, sanitize_ident nm, t)
+           fields
        in
        let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
        let tp = match kind with
@@ -609,16 +611,15 @@ let of_cimport =
        convert (decl :: accum) rest
     | CV_Typedecl (pos, name, maybe_tp) :: rest ->
        let name = sanitize_ident name in
-       begin
+       let decl_n_accum =
          try
            begin match Hashtbl.find no_duplicates name with
            | OpaqueType _ ->
-              let accum =
-                if maybe_tp = None then accum
-                else let _, t = type_of @@ Util.the maybe_tp
-                     in (TypeDecl (pos, name, t, VisLocal, false)) :: accum
-              in
-              convert accum rest
+              if maybe_tp = None then accum
+              else let _, t = type_of @@ Util.the maybe_tp in
+                   let () = Hashtbl.replace no_duplicates name t in
+                   let decl = (TypeDecl (pos, name, t, VisLocal, false)) in
+                   decl :: accum
            | _ ->
               (* This is a strange case - that the struct has already been
                  defined and it seems to be redefined.  It's an artifact of
@@ -629,7 +630,7 @@ let of_cimport =
                  caught it.
 
                  So we just ignore the apparent redefinition, here. *)
-              convert accum rest
+              accum
            end
          with _ ->
            let tp =
@@ -638,8 +639,9 @@ let of_cimport =
            in
            let () = Hashtbl.replace no_duplicates name tp in
            let decl = TypeDecl (pos, name, tp, VisLocal, false) in
-           convert (decl :: accum) rest
-       end
+           decl :: accum
+       in
+       convert decl_n_accum rest
     | CV_Variable (pos, name, ctype, extern) :: rest ->
        let faux_tokendata = [ { td_pos = pos;
                                 td_text = name;

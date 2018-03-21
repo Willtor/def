@@ -50,7 +50,7 @@ type deftype =
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
   | DefTypeNamedUnion of string
-  | DefTypeLiteralUnion of int * deftype list * string list
+  | DefTypeLiteralUnion of deftype list * string list
   | DefTypeVAList
   | DefTypeWildcard
   | DefTypeLLVMToken
@@ -268,8 +268,12 @@ let rec size_of typemap = function
      List.fold_left (fun accum t -> accum + (size_of typemap t))
        0 members
   | DefTypeNamedUnion nm -> size_of typemap (the (lookup_symbol typemap nm))
-  | DefTypeLiteralUnion (sz, _, _) ->
-     sz
+  | DefTypeLiteralUnion (members, _) ->
+     let select_max curr m =
+       let candidate = size_of typemap m in if curr > candidate then curr
+                                            else candidate
+     in
+     List.fold_left select_max 0 members
   | DefTypeVAList ->
      Report.err_internal __FILE__ __LINE__ "Can't get size of a va_list."
   | DefTypeWildcard ->
@@ -281,8 +285,12 @@ let rec size_of typemap = function
 let rec string_of_type = function
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
-  | DefTypeOpaque (_, nm) -> nm
+  | DefTypeOpaque (_, nm) -> "<opaque> " ^ nm
   | DefTypePrimitive (t, _) -> primitive2string t (* FIXME: qualifiers *)
+  | DefTypeFcn (params, ret, is_va) ->
+     "(" ^ (String.concat ", " (List.map string_of_type params))
+     ^ (if is_va then ", ...) -> " else ") -> ")
+     ^ string_of_type ret
   | DefTypePtr (t, _) -> "*" ^ (string_of_type t) (* FIXME: qualifiers *)
   | DefTypeArray (tp, n) ->
      "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)
@@ -290,6 +298,10 @@ let rec string_of_type = function
   | DefTypeNamedStruct nm -> "struct " ^ nm
   | DefTypeLiteralStruct (members, _) ->
      "{ "
+     ^ (String.concat ", " (List.map string_of_type members))
+     ^ " }"
+  | DefTypeLiteralUnion (members, _) ->
+     "union { "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
   | DefTypeStaticStruct members ->
@@ -434,10 +446,10 @@ let most_general_type pos typemap =
        generalizing_error ()
     | DefTypeNamedUnion u, DefTypeNamedUnion v ->
        if u = v then t1 else generalizing_error ()
-    | DefTypeNamedUnion u, DefTypeLiteralUnion (_, tplist1, _)
-    | DefTypeLiteralUnion (_, tplist1, _), DefTypeNamedUnion u ->
+    | DefTypeNamedUnion u, DefTypeLiteralUnion (tplist1, _)
+    | DefTypeLiteralUnion (tplist1, _), DefTypeNamedUnion u ->
        begin match get_literal_union u with
-       | DefTypeLiteralUnion (_, tplist2, _) ->
+       | DefTypeLiteralUnion (tplist2, _) ->
           let _ = reconcile_member_types tplist1 tplist2 in
           DefTypeNamedUnion u
        | _ ->

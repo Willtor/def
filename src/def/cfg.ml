@@ -270,7 +270,7 @@ let rec get_field_types typemap = function
   | DefTypeStaticStruct types -> types
   | DefTypeNamedUnion nm ->
      get_field_types typemap (Util.the @@ lookup_symbol typemap nm)
-  | DefTypeLiteralUnion (_, types, _) -> types
+  | DefTypeLiteralUnion (types, _) -> types
   | _ -> Report.err_internal __FILE__ __LINE__ "Unable to get field types."
 
 let check_native_c_type =
@@ -302,7 +302,17 @@ let rec convert_type defining_p array2ptr typemap = function
        | Some t -> t
      end
   | OpaqueType (pos, name) ->
-     DefTypeOpaque (pos, name)
+     begin
+       match lookup_symbol typemap name with
+       | Some (DefTypeLiteralStruct _) ->
+          (* Prevent deep recursive definitions. *)
+          DefTypeNamedStruct name
+       | Some (DefTypeLiteralUnion _) ->
+          (* Prevent deep recursive definitions. *)
+          DefTypeNamedUnion name
+       | Some t -> t
+       | None -> DefTypeOpaque (pos, name)
+     end
   | CVarType (pos, name, qlist) ->
      begin try check_native_c_type name
            with _ -> convert_type defining_p array2ptr typemap
@@ -334,12 +344,7 @@ let rec convert_type defining_p array2ptr typemap = function
         (convert_type defining_p array2ptr typemap tp) :: deftypes)
      in
      let names, deftypes = List.fold_left process ([], []) elements in
-     let select_max curr m =
-       let candidate = size_of typemap m in if curr > candidate then curr
-                                            else candidate
-     in
-     let sz = List.fold_left select_max 0 deftypes in
-     DefTypeLiteralUnion (sz, List.rev deftypes, List.rev names)
+     DefTypeLiteralUnion (List.rev deftypes, List.rev names)
   | ArrayType (pos, dim_expr, tp) ->
      if array2ptr then
        DefTypePtr (convert_type defining_p array2ptr typemap tp, [])
@@ -403,7 +408,9 @@ let resolve_type typemap typename oldtp =
        begin match lookup_symbol typemap name with
        | Some (DefTypeLiteralStruct _) -> DefTypeNamedStruct name
        | Some (DefTypeLiteralUnion _) -> DefTypeNamedUnion name
-       | Some (DefTypeUnresolved (_, name2)) -> Report.err_internal __FILE__ __LINE__ ("Recursive badness: " ^ name ^ ", " ^ name2)
+       | Some (DefTypeUnresolved (_, name2)) ->
+          Report.err_internal __FILE__ __LINE__
+                              ("Recursive badness: " ^ name ^ ", " ^ name2)
        | Some tp -> v tp
        | None -> (* Unresolved type name. *)
           Report.err_unknown_typename pos name
@@ -411,7 +418,15 @@ let resolve_type typemap typename oldtp =
     | DefTypeNamedStruct _ as tp -> tp
     | DefTypeNamedUnion _ as tp -> tp
     | DefTypeVoid as tp -> tp
-    | DefTypeOpaque _ as tp -> tp
+    | DefTypeOpaque (pos, nm) ->
+       (* Sometimes we think a type if opaque if the parent type was resolved
+          before the child. *)
+       begin match lookup_symbol typemap nm with
+       | Some (DefTypeLiteralStruct _) -> DefTypeNamedStruct nm
+       | Some (DefTypeLiteralUnion _) -> DefTypeNamedUnion nm
+       | Some tp -> tp
+       | None -> DefTypeOpaque (pos, nm)
+       end
     | DefTypePrimitive _ as tp -> tp
     | DefTypeFcn (params, ret, variadic) ->
        let params = List.map v params
@@ -424,8 +439,8 @@ let resolve_type typemap typename oldtp =
        DefTypeLiteralStruct (List.map v fields, names)
     | DefTypeStaticStruct members ->
        DefTypeStaticStruct (List.map v members)
-    | DefTypeLiteralUnion (sz, fields, names) ->
-       DefTypeLiteralUnion (sz, List.map v fields, names)
+    | DefTypeLiteralUnion (fields, names) ->
+       DefTypeLiteralUnion (List.map v fields, names)
     | DefTypeVAList -> DefTypeVAList
     | DefTypeWildcard -> DefTypeWildcard
     | DefTypeLLVMToken -> DefTypeLLVMToken
@@ -687,14 +702,14 @@ let check_castability pos typemap ltype rtype =
        List.iter similar (List.combine lmembers smembers)
     | DefTypeLiteralStruct (lhs, _), DefTypeLiteralStruct (rhs, _) ->
        List.iter similar (List.combine lhs rhs)
-    | DefTypeNamedUnion nm, DefTypeLiteralUnion (_, smembers, _) ->
+    | DefTypeNamedUnion nm, DefTypeLiteralUnion (smembers, _) ->
        begin match lookup_symbol typemap nm with
-       | Some DefTypeLiteralUnion (_, lmembers, _) ->
+       | Some DefTypeLiteralUnion (lmembers, _) ->
           List.iter similar (List.combine lmembers smembers)
        | _ -> Report.err_internal __FILE__ __LINE__ "Unknown union type."
        end
-    | DefTypeLiteralUnion (_, lmembers, _),
-      DefTypeLiteralUnion (_, smembers, _) ->
+    | DefTypeLiteralUnion (lmembers, _),
+      DefTypeLiteralUnion (smembers, _) ->
        List.iter similar (List.combine lmembers smembers)
     | DefTypePrimitive _, _ ->
        Report.err_internal __FILE__ __LINE__ (format_position pos)
@@ -1660,7 +1675,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
          | DefTypeStaticStruct mtypes -> mtypes
          | DefTypeNamedUnion nm ->
             get_member_types (Util.the @@ lookup_symbol typemap nm)
-         | DefTypeLiteralUnion (_, mtypes, _) -> mtypes
+         | DefTypeLiteralUnion (mtypes, _) -> mtypes
          | _ -> Report.err_internal __FILE__ __LINE__ "No members"
        in
        let get_array_type = function

@@ -61,7 +61,7 @@ let get_fcntype = function
   | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
   | _ -> Report.err_internal __FILE__ __LINE__ "Expected a DefTypeFcn."
 
-let deftype2llvmtype ctx typemap =
+let convert_deftype2llvmtype ctx typemap deftypemap =
   let rec convert wrap_fcn_ptr = function
     | DefTypeUnresolved (_, name) ->
        Report.err_internal __FILE__ __LINE__
@@ -101,9 +101,10 @@ let deftype2llvmtype ctx typemap =
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
        struct_type ctx (Array.of_list llvm_members)
-    | DefTypeLiteralUnion (sz, members, _) ->
+    | DefTypeLiteralUnion _ as u ->
        (* FIXME: This should take alignment into account.  There're going to
           be troubles if we don't. *)
+       let sz = Types.size_of deftypemap u in
        let array = array_type (the @@ lookup_symbol typemap "i8") sz
        in struct_type ctx [| array |]
     | DefTypeVAList ->
@@ -113,8 +114,12 @@ let deftype2llvmtype ctx typemap =
        Report.err_internal __FILE__ __LINE__ "convert wildcard."
   in convert
 
+let deftype2llvmtype data =
+  convert_deftype2llvmtype data.ctx data.typemap data.prog.deftypemap
+
 let build_types ctx deftypes =
   let typemap = make_symtab () in
+  let do_convert = convert_deftype2llvmtype ctx typemap deftypes true in
   let forward_declare_structs name deftype =
     match lookup_symbol typemap name with
     | Some _ -> ()
@@ -126,12 +131,12 @@ let build_types ctx deftypes =
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypePrimitive _
        | DefTypePtr _ ->
-          add_symbol typemap name (deftype2llvmtype ctx typemap true deftype)
+          add_symbol typemap name (do_convert deftype)
        | DefTypeOpaque (_, name) ->
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypeFcn (params, ret, is_variadic) ->
-          let llparams = List.map (deftype2llvmtype ctx typemap true) params in
-          let llret = deftype2llvmtype ctx typemap true ret in
+          let llparams = List.map do_convert params in
+          let llret = do_convert ret in
           let lltype =
             (if is_variadic then var_arg_function_type
              else function_type)
@@ -164,7 +169,7 @@ let build_types ctx deftypes =
        | DefTypeNamedStruct s ->
           Report.err_internal __FILE__ __LINE__ ("named struct type: " ^ s)
        | DefTypeArray (atype, sz) ->
-          let elements = deftype2llvmtype ctx typemap true atype in
+          let elements = do_convert atype in
           add_symbol typemap name (array_type elements sz)
        | DefTypeUnresolved (pos, s) ->
           Report.err_internal __FILE__ __LINE__
@@ -178,10 +183,11 @@ let build_types ctx deftypes =
   let build_structs name = function
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members =
-         List.map (deftype2llvmtype ctx typemap true) members in
+         List.map do_convert members in
        let llvm_struct = the (lookup_symbol typemap name) in
        struct_set_body llvm_struct (Array.of_list llvm_members) false
-    | DefTypeLiteralUnion (sz, _, _) ->
+    | DefTypeLiteralUnion _ as u ->
+       let sz = Types.size_of deftypes u in
        let array = array_type (the @@ lookup_symbol typemap "i8") sz in
        let llvm_struct = the (lookup_symbol typemap name) in
        struct_set_body llvm_struct [| array |] false
@@ -927,7 +933,7 @@ let process_fcn data symbols fcn =
   let llparams = params llfcn in
   List.iteri (fun i ((pos, n), tp) ->
     let alloc =
-      build_alloca (deftype2llvmtype data.ctx data.typemap true tp) n data.bldr
+      build_alloca (deftype2llvmtype data true tp) n data.bldr
     in begin
       add_symbol varmap n (pos, tp, alloc);
       ignore (build_store llparams.(i) alloc data.bldr);
@@ -936,7 +942,7 @@ let process_fcn data symbols fcn =
   (* Space for local variables. *)
   List.iter (fun (name, decl) ->
     let alloc = build_alloca
-      (deftype2llvmtype data.ctx data.typemap true decl.tp) name data.bldr
+      (deftype2llvmtype data true decl.tp) name data.bldr
     in add_symbol varmap name (decl.decl_pos, decl.tp, alloc))
     fcn.local_vars;
 
@@ -980,7 +986,7 @@ let zero_llval data = function
   | _ -> Report.err_internal __FILE__ __LINE__ "Unknown zero val"
 
 let declare_globals data symbols initializers name decl =
-  let lltp = deftype2llvmtype data.ctx data.typemap false decl.tp in
+  let lltp = deftype2llvmtype data false decl.tp in
   let llval = match decl.tp with
     | DefTypeFcn _ ->
        let llfcn = declare_function decl.mappedname lltp data.mdl in

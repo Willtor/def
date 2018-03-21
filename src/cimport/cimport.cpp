@@ -263,12 +263,13 @@ private:
         SourceLocation loc = decl->getLocStart();
 
         if (name == "") {
-            // FIXME: records without names are typically part of a typedecl
-            // and we should find a way to deal with this.
             name = fund_types[loc];
             if (name == "") {
-                outs() << "internal error: "
-                       << "found an unnamed (unreferenced?) struct.\n";
+                // FIXME: getting a record shouldn't be this difficult,
+                // and I must be doing something wrong, here.
+
+                // For now, ignore records like this.
+                return;
             }
         }
         value pos = position_of_SourceLocation(loc);
