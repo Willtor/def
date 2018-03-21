@@ -100,6 +100,7 @@ and vartype =
   | CVarType of position * string * Types.qualifier list
   | FcnType of (position * string * vartype) list * vartype
   | StructType of (position * string * vartype) list
+  | UnionType of (position * string * vartype) list
   | ArrayType of position * expr * vartype
   | PtrType of position * vartype * Types.qualifier list
   | Ellipsis of position
@@ -538,31 +539,47 @@ let of_parsetree =
   List.map stmt_of
 
 let of_cimport =
+  let recordish_regex = Str.regexp {|^\(union \)\|\(struct \)|} in
   let no_duplicates = Hashtbl.create 16 in
+  let sanitize_ident name =
+    match String.split_on_char ' ' name with
+    | "struct" :: rest
+    | "union" :: rest
+    | rest ->
+       String.concat "_" rest
+  in
   let rec type_of = function
     | CT_TypeName (pos, tp) ->
        begin
-         match String.split_on_char ' ' tp with
-         | [ "struct"; t ] ->
+         match sanitize_ident tp with
+         | "__builtin_va_list" -> pos, VAList pos
+         | vartype when Str.string_match recordish_regex tp 0 ->
+            (* Record: struct/union.  Make sure there are no duplicates. *)
             begin
-              try pos, Hashtbl.find no_duplicates t
+              try
+                let nodup = Hashtbl.find no_duplicates vartype in
+                pos, nodup
               with _ ->
-                let ret = OpaqueType (pos, t) in
-                let () = Hashtbl.replace no_duplicates t ret in
+                let ret = OpaqueType (pos, vartype) in
+                let () = Hashtbl.replace no_duplicates vartype ret in
                 pos, ret
             end
-         | [ "__builtin_va_list" ] -> pos, VAList pos
-         | _ -> pos, CVarType(pos, tp, [])
+         | vartype ->
+            pos, CVarType (pos, tp, [])
        end
     | CT_Pointer (pos, tp) ->
        let _, t = type_of tp in pos, PtrType (pos, t, [])
-    | CT_Struct fields ->
+    | CT_Record (kind, fields) ->
        let ast_fields =
          List.map (fun (pos, nm, tp) -> let _, t = type_of tp in pos, nm, t)
                   fields
        in
        let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
-       p, StructType ast_fields
+       let tp = match kind with
+         | CR_Struct -> StructType ast_fields
+         | CR_Union -> UnionType ast_fields
+       in
+       p, tp
     | CT_Function (pos, params, is_variadic, ret) ->
        let ast_params =
          (List.map (fun p -> let pos, t = type_of p in pos, "", t) params)
@@ -591,6 +608,7 @@ let of_cimport =
        let decl = DeclFcn (pos, Types.VisExported pos, name, ftype) in
        convert (decl :: accum) rest
     | CV_Typedecl (pos, name, maybe_tp) :: rest ->
+       let name = sanitize_ident name in
        begin
          try
            begin match Hashtbl.find no_duplicates name with

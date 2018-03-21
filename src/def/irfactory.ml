@@ -69,7 +69,7 @@ let deftype2llvmtype ctx typemap =
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
     | DefTypeOpaque (_, nm) ->
-       the (lookup_symbol typemap nm)
+       Util.the @@ lookup_symbol typemap nm
     | DefTypeFcn (args, ret, variadic) ->
        let llvmargs = List.map (fun argtp -> convert true argtp) args in
        let fbuild = if variadic then var_arg_function_type else function_type
@@ -94,12 +94,18 @@ let deftype2llvmtype ctx typemap =
        array_type (convert wrap_fcn_ptr tp) dim
     | DefTypeNullPtr ->
        Report.err_internal __FILE__ __LINE__ "convert null pointer."
-    | DefTypeNamedStruct name ->
+    | DefTypeNamedStruct name
+    | DefTypeNamedUnion name ->
        the (lookup_symbol typemap name)
     | DefTypeStaticStruct members
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
        struct_type ctx (Array.of_list llvm_members)
+    | DefTypeLiteralUnion (sz, members, _) ->
+       (* FIXME: This should take alignment into account.  There're going to
+          be troubles if we don't. *)
+       let array = array_type (the @@ lookup_symbol typemap "i8") sz
+       in struct_type ctx [| array |]
     | DefTypeVAList ->
        Util.the @@ lookup_symbol typemap va_list_tag
     | DefTypeLLVMToken -> token_type ctx
@@ -115,6 +121,8 @@ let build_types ctx deftypes =
     | None ->
        begin match deftype with
        | DefTypeLiteralStruct _ ->
+          add_symbol typemap name (named_struct_type ctx name)
+       | DefTypeLiteralUnion _ ->
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypePrimitive _
        | DefTypePtr _ ->
@@ -155,8 +163,9 @@ let build_types ctx deftypes =
           Report.err_internal __FILE__ __LINE__ "null pointer type."
        | DefTypeNamedStruct s ->
           Report.err_internal __FILE__ __LINE__ ("named struct type: " ^ s)
-       | DefTypeArray _ ->
-          Report.err_internal __FILE__ __LINE__ "array type."
+       | DefTypeArray (atype, sz) ->
+          let elements = deftype2llvmtype ctx typemap true atype in
+          add_symbol typemap name (array_type elements sz)
        | DefTypeUnresolved (pos, s) ->
           Report.err_internal __FILE__ __LINE__
                               ("unresolved type " ^ s ^ " from: "
@@ -172,6 +181,10 @@ let build_types ctx deftypes =
          List.map (deftype2llvmtype ctx typemap true) members in
        let llvm_struct = the (lookup_symbol typemap name) in
        struct_set_body llvm_struct (Array.of_list llvm_members) false
+    | DefTypeLiteralUnion (sz, _, _) ->
+       let array = array_type (the @@ lookup_symbol typemap "i8") sz in
+       let llvm_struct = the (lookup_symbol typemap name) in
+       struct_set_body llvm_struct [| array |] false
     | _ -> ()
   in
   List.iter

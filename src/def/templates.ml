@@ -63,6 +63,9 @@ let instantiate templates non_templates =
          | StructType members ->
             let f (pos, s, vt) = pos, s, map_type vt in
             StructType (List.map f members)
+         | UnionType members ->
+            let f (pos, s, vt) = pos, s, map_type vt in
+            UnionType (List.map f members)
          | ArrayType (pos, e, vt) ->
             ArrayType (pos, e, map_type vt)
          | PtrType (pos, vt, qlist) ->

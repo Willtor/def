@@ -27,6 +27,8 @@ type deftype =
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
+  | DefTypeNamedUnion of string
+  | DefTypeLiteralUnion of int * deftype list * string list
   | DefTypeVAList
   | DefTypeWildcard
   | DefTypeLLVMToken

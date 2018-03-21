@@ -16,10 +16,14 @@
    02110-1301, USA.
  *)
 
+type record_kind =
+  | CR_Struct
+  | CR_Union
+
 type ctype =
   | CT_TypeName of Lexing.position * string
   | CT_Pointer of Lexing.position * ctype
-  | CT_Struct of (Lexing.position * string * ctype) list
+  | CT_Record of record_kind * (Lexing.position * string * ctype) list
   | CT_Function of Lexing.position * ctype list * bool * ctype
   | CT_Array of Lexing.position * ctype * int
 

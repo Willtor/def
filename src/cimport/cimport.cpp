@@ -34,6 +34,7 @@
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
+#include <map>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -44,6 +45,7 @@ using namespace llvm;
 using namespace std;
 
 static vector<value> cvalues;
+static map<SourceLocation, string> fund_types;
 
 static value reverse_list (value list)
 {
@@ -82,7 +84,7 @@ public:
                 declareFunction(decl);
                 break;
             case Decl::Record:
-                declareStruct(decl);
+                declareRecord(decl);
                 break;
             case Decl::Typedef:
                 declareTypedef(decl);
@@ -125,7 +127,9 @@ private:
 
     value readFundamentalType (QualType qtype, SourceLocation loc)
     {
-        value tname = caml_copy_string(qtype.getAsString().c_str());
+        string t = qtype.getAsString();
+        fund_types[loc] = t;
+        value tname = caml_copy_string(t.c_str());
         value pos = position_of_SourceLocation(loc);
         value ret = caml_alloc(2, 0);
         Store_field(ret, 0, pos);
@@ -253,16 +257,21 @@ private:
         cvalues.push_back(fcn);
     }
 
-    void declareStruct (NamedDecl *decl)
+    void declareRecord (NamedDecl *decl)
     {
-        std::string name = decl->getNameAsString();
+        string name = decl->getNameAsString();
+        SourceLocation loc = decl->getLocStart();
 
         if (name == "") {
-            // FIXME: structs without names are typically part of a typedecl
+            // FIXME: records without names are typically part of a typedecl
             // and we should find a way to deal with this.
-            return;
+            name = fund_types[loc];
+            if (name == "") {
+                outs() << "internal error: "
+                       << "found an unnamed (unreferenced?) struct.\n";
+            }
         }
-        value pos = position_of_SourceLocation(decl->getLocStart());
+        value pos = position_of_SourceLocation(loc);
         value sname = caml_copy_string(name.c_str());
         value type_opt;
 
@@ -270,6 +279,8 @@ private:
         RecordDecl *defn = record->getDefinition();
         if (NULL != defn) {
             // Read the record's fields.
+            value rec_kind = Val_int(defn->getTypeForDecl()->isUnionType()
+                                     ? 1 : 0);
             value fields = Val_int(0);
             for (const FieldDecl *field : defn->fields()) {
                 value fpos = position_of_SourceLocation(field->getLocStart());
@@ -288,8 +299,9 @@ private:
                 Store_field(fields, 0, frec);
                 Store_field(fields, 1, tmp);
             }
-            value struct_def = caml_alloc(1, 2);
-            Store_field(struct_def, 0, reverse_list(fields));
+            value struct_def = caml_alloc(2, 2);
+            Store_field(struct_def, 0, rec_kind);
+            Store_field(struct_def, 1, reverse_list(fields));
             type_opt = caml_alloc(1, 0); // OCaml: Some t
             Store_field(type_opt, 0, struct_def);
         } else {
