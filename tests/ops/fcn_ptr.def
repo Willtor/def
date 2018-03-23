@@ -1,0 +1,21 @@
+// Unit test for passing and calling a trivial function pointer.
+
+decl printf (*char, ...) -> i32;
+
+def fcn () -> void
+begin
+    printf("Hi.\n");
+end
+
+def call_fcn (f () -> void) -> void
+begin
+    f();
+end
+
+export
+def main () -> i32
+begin
+    call_fcn(fcn);
+    printf("done.\n");
+    return 0;
+end
