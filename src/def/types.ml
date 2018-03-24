@@ -300,12 +300,13 @@ let rec string_of_type = function
      "{ "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
-  | DefTypeLiteralUnion (members, _) ->
-     "union { "
-     ^ (String.concat ", " (List.map string_of_type members))
-     ^ " }"
   | DefTypeStaticStruct members ->
      "<static>{ "
+     ^ (String.concat ", " (List.map string_of_type members))
+     ^ " }"
+  | DefTypeNamedUnion nm -> "union " ^ nm
+  | DefTypeLiteralUnion (members, _) ->
+     "union { "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
   | DefTypeWildcard -> "_"

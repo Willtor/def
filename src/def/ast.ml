@@ -548,51 +548,72 @@ let of_cimport =
     | rest ->
        String.concat " " rest
   in
-  let rec type_of = function
-    | CT_TypeName (pos, tp) ->
-       begin
-         match sanitize_ident tp with
-         | "__builtin_va_list" -> pos, VAList pos
-         | vartype when Str.string_match recordish_regex tp 0 ->
-            (* Record: struct/union.  Make sure there are no duplicates. *)
-            begin
-              try
-                let nodup = Hashtbl.find no_duplicates vartype in
-                pos, nodup
-              with _ ->
-                let ret = OpaqueType (pos, vartype) in
-                let () = Hashtbl.replace no_duplicates vartype ret in
-                pos, ret
-            end
-         | vartype ->
-            pos, CVarType (pos, vartype, [])
-       end
-    | CT_Pointer (pos, tp) ->
-       let _, t = type_of tp in pos, PtrType (pos, t, [])
-    | CT_Record (kind, fields) ->
-       let ast_fields =
-         List.map
-           (fun (pos, nm, tp) ->
-             let _, t = type_of tp in pos, sanitize_ident nm, t)
-           fields
-       in
-       let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
-       let tp = match kind with
-         | CR_Struct -> StructType ast_fields
-         | CR_Union -> UnionType ast_fields
-       in
-       p, tp
-    | CT_Function (pos, params, is_variadic, ret) ->
-       let ast_params =
-         (List.map (fun p -> let pos, t = type_of p in pos, "", t) params)
-         @ (if is_variadic then [ Util.faux_pos, "", Ellipsis Util.faux_pos ]
-            else [])
-       in
-       let _, rtype = type_of ret in
-       pos, FcnType (ast_params, rtype)
-    | CT_Array (pos, subtype, sz) ->
-       pos, ArrayType (pos, ExprLit (pos, LitI32 (Int32.of_int sz)),
-                       let _, t = type_of subtype in t)
+  let type_of t =
+    (* Remove extraneous pointer types from functions. *)
+    let rec deptr_fcns = function
+      | FcnType (params, ret) ->
+         FcnType (List.map pst_deptr_apply params, deptr_fcns ret)
+      | StructType members ->
+         StructType (List.map pst_deptr_apply members)
+      | UnionType members ->
+         StructType (List.map pst_deptr_apply members)
+      | ArrayType (p, e, t) -> ArrayType (p, e, deptr_fcns t)
+      | PtrType (_, (FcnType _ as f), _) ->
+         (* THE IMPORTANT CASE: *)
+         deptr_fcns f
+      | PtrType (p, t, q) -> PtrType (p, deptr_fcns t, q)
+      | t -> t
+    and pst_deptr_apply (p, s, t) = p, s, deptr_fcns t
+    in
+    (* Literally convert Clang AST types to DEF AST types. *)
+    let rec tof = function
+      | CT_TypeName (pos, tp) ->
+         begin
+           match sanitize_ident tp with
+           | "__builtin_va_list" -> pos, VAList pos
+           | vartype when Str.string_match recordish_regex tp 0 ->
+              (* Record: struct/union.  Make sure there are no duplicates. *)
+              begin
+                try
+                  let nodup = Hashtbl.find no_duplicates vartype in
+                  pos, nodup
+                with _ ->
+                  let ret = OpaqueType (pos, vartype) in
+                  let () = Hashtbl.replace no_duplicates vartype ret in
+                  pos, ret
+              end
+           | vartype ->
+              pos, CVarType (pos, vartype, [])
+         end
+      | CT_Pointer (pos, tp) ->
+         let _, t = tof tp in pos, PtrType (pos, t, [])
+      | CT_Record (kind, fields) ->
+         let ast_fields =
+           List.map
+             (fun (pos, nm, tp) ->
+               let _, t = tof tp in pos, sanitize_ident nm, t)
+             fields
+         in
+         let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
+         let tp = match kind with
+           | CR_Struct -> StructType ast_fields
+           | CR_Union -> UnionType ast_fields
+         in
+         p, tp
+      | CT_Function (pos, params, is_variadic, ret) ->
+         let ast_params =
+           (List.map (fun p -> let pos, t = tof p in pos, "", t) params)
+           @ (if is_variadic then [ Util.faux_pos, "", Ellipsis Util.faux_pos ]
+              else [])
+         in
+         let _, rtype = tof ret in
+         pos, FcnType (ast_params, rtype)
+      | CT_Array (pos, subtype, sz) ->
+         pos, ArrayType (pos, ExprLit (pos, LitI32 (Int32.of_int sz)),
+                         let _, t = tof subtype in t)
+    in
+    let p, converted = tof t in
+    p, deptr_fcns converted
   in
   let rec convert accum = function
     | [] -> List.rev accum

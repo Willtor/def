@@ -460,11 +460,17 @@ let process_expr data llvals varmap pos_n_expr =
           ^ (operator2string op))
 
   and make_llvm_tp = function
+    | DefTypeFcn (params, ret, is_va) ->
+       let llparams = Array.of_list @@ List.map make_llvm_tp params
+       and llret = make_llvm_tp ret in
+       if is_va then var_arg_function_type llret llparams
+       else function_type llret llparams
     | DefTypePtr (t, _) ->
        pointer_type (make_llvm_tp t)
     | DefTypePrimitive (pt, _) ->
        the (lookup_symbol data.typemap (primitive2string pt))
-    | DefTypeNamedStruct nm ->
+    | DefTypeNamedStruct nm
+    | DefTypeNamedUnion nm ->
        the (lookup_symbol data.typemap nm)
     | DefTypeVoid ->
        the (lookup_symbol data.typemap "i8")
