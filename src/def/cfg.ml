@@ -797,7 +797,8 @@ let binary_reconcile typemap =
          maybe_cast typemap rtype primbool rexpr
        end
     | OperAssign
-    | OperPlusAssign | OperMinusAssign ->
+    | OperPlusAssign | OperMinusAssign
+    | OperMultAssign | OperDivAssign ->
        begin
          (* FIXME: Do automatic casting of static structs to named or literal
             structs, if possible.  Otherwise, casting doesn't work.  Literal

@@ -343,10 +343,12 @@ let process_expr data llvals varmap pos_n_expr =
       else
         fcn lhs rhs name bldr
     in
-    let maybe_atomic_op nonatomic_fcn atomic_op name =
+    let maybe_atomic_op nonatomic_fcn m_atomic_op name =
+
       let rhs = expr_gen true right in
       let left_addr = expr_gen false left in
       if is_atomic then
+        let atomic_op = Util.the m_atomic_op in
         let atomic_val =
           build_atomicrmw atomic_op left_addr rhs
                           AtomicOrdering.AcqiureRelease
@@ -442,18 +444,22 @@ let process_expr data llvals varmap pos_n_expr =
           ^ ") on float operands.  This should have been caught earlier.")
     | OperPlusAssign, _ ->
        maybe_atomic_op (if integer_math then build_add else build_fadd)
-                       AtomicRMWBinOp.Add
+                       (Some AtomicRMWBinOp.Add)
                        "pluseq"
     | OperMinusAssign, _ ->
        maybe_atomic_op (if integer_math then build_sub else build_fsub)
-                       AtomicRMWBinOp.Sub
+                       (Some AtomicRMWBinOp.Sub)
                        "minuseq"
+    | OperMultAssign, _ ->
+       maybe_atomic_op (if integer_math then build_mul else build_fmul)
+                       None (* atomic not implemented, yet. *)
+                       "mult_eq"
     | OperBAndAssign, true ->
-       maybe_atomic_op build_and AtomicRMWBinOp.And "andeq"
+       maybe_atomic_op build_and (Some AtomicRMWBinOp.And) "andeq"
     | OperBOrAssign, true ->
-       maybe_atomic_op build_or AtomicRMWBinOp.Or "oreq"
+       maybe_atomic_op build_or (Some AtomicRMWBinOp.Or) "oreq"
     | OperBXorAssign, true ->
-       maybe_atomic_op build_xor AtomicRMWBinOp.Xor "oreq"
+       maybe_atomic_op build_xor (Some AtomicRMWBinOp.Xor) "oreq"
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_operator not fully implemented: operator "
