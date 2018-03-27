@@ -623,39 +623,45 @@ let rec make_size_expr typemap p = function
 let rec maybe_cast typemap orig cast_as expr =
   if orig = cast_as || orig = DefTypeWildcard then expr
   else match cast_as with
-  | DefTypeNamedStruct nm ->
-     begin match the (lookup_symbol typemap nm) with
-     | DefTypeLiteralStruct (tplist, _) ->
-        begin match expr with
-        | Expr_StaticStruct (_, exprmembers) ->
-           let castmembers =
-             List.map2
-               (fun to_tp (from_tp, e) ->
-                 to_tp, (maybe_cast typemap from_tp to_tp e))
-               tplist
-               exprmembers
-           in
-           Expr_StaticStruct (Some nm, castmembers)
-        | _ ->
-           Report.err_internal __FILE__ __LINE__ "Non-struct type struct."
-        end
-     | _ -> Report.err_internal __FILE__ __LINE__ "Non-struct type struct."
-     end
-  | DefTypePrimitive (p1, p1q) ->
-     begin match orig with
-     | DefTypePrimitive (p2, p2q) ->
-        (* FIXME: Removing qualifiers should generate warnings/errors. *)
-        if p1 = p2 then expr
-        else Expr_Cast (orig, cast_as, expr)
-     | _ -> Expr_Cast (orig, cast_as, expr)
-     end
-  | _ ->
-     if expr = Expr_Nil then
-       let zero = Expr_Literal (LitU64 (Int64.of_int 0)) in
-       let tp = DefTypePrimitive (PrimU64, []) in
-       if tp = cast_as then zero
-       else Expr_Cast (tp, cast_as, zero)
-     else Expr_Cast (orig, cast_as, expr)
+       | DefTypeNamedStruct nm ->
+          begin match the (lookup_symbol typemap nm) with
+          | DefTypeLiteralStruct (tplist, _) ->
+             begin match expr with
+             | Expr_StaticStruct (_, exprmembers) ->
+                let castmembers =
+                  List.map2
+                    (fun to_tp (from_tp, e) ->
+                      to_tp, (maybe_cast typemap from_tp to_tp e))
+                    tplist
+                    exprmembers
+                in
+                Expr_StaticStruct (Some nm, castmembers)
+             | _ ->
+                let () = prerr_endline (string_of_type orig) in
+                let () = prerr_endline (string_of_type cast_as) in
+                Report.err_internal __FILE__ __LINE__
+                                    "Non-struct type struct 1."
+             end
+          | _ ->
+             let () = prerr_endline (string_of_type orig) in
+             let () = prerr_endline (string_of_type cast_as) in
+             Report.err_internal __FILE__ __LINE__ "Non-struct type struct 2."
+          end
+       | DefTypePrimitive (p1, p1q) ->
+          begin match orig with
+          | DefTypePrimitive (p2, p2q) ->
+             (* FIXME: Removing qualifiers should generate warnings/errors. *)
+             if p1 = p2 then expr
+             else Expr_Cast (orig, cast_as, expr)
+          | _ -> Expr_Cast (orig, cast_as, expr)
+          end
+       | _ ->
+          if expr = Expr_Nil then
+            let zero = Expr_Literal (LitU64 (Int64.of_int 0)) in
+            let tp = DefTypePrimitive (PrimU64, []) in
+            if tp = cast_as then zero
+            else Expr_Cast (tp, cast_as, zero)
+          else Expr_Cast (orig, cast_as, expr)
 
 (** Determine whether one type can be cast as another.  This function returns
     unit, as it only reports an error if it fails. *)
