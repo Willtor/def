@@ -557,7 +557,7 @@ let global_decls decltable typemap = function
           { decl_pos = pos;
             mappedname = name;
             vis = vis;
-            tp = convert_type false false typemap tp;
+            tp = convert_type false true typemap tp;
             params = param_pos_names tp
           }
         in
