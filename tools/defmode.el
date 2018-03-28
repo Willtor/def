@@ -55,7 +55,8 @@
         ; Keywords
         (,(regexp-opt '("def" "decl" "begin" "end" "do" "od" "while" "for"
                         "parfor" "xbegin" "xend"
-                        "if" "then" "elif" "else" "fi" "return" "var" "export"
+                        "if" "then" "elif" "else" "fi" "return"
+                        "var" "global" "export"
                         "continue" "typedef" "goto" "type"
                         "switch" "with" "esac")
                       'words)
