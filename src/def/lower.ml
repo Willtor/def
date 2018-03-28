@@ -35,6 +35,7 @@ let lift_lhs_static_structs program =
          let decl = { decl_pos = pos;
                       mappedname = "__defstatic"; (* FIXME: unique name. *)
                       vis = VisLocal;
+                      is_tls = false;
                       tp = DefTypeStaticStruct mtypes;
                       params = [];
                      } in
@@ -60,6 +61,7 @@ let lift_lhs_static_structs program =
          let decl = { decl_pos = pos;
                       mappedname = "__defstatic"; (* FIXME: unique name. *)
                       vis = VisLocal;
+                      is_tls = false;
                       tp = DefTypeLiteralStruct (mtypes, mnames);
                       params = [];
                     } in

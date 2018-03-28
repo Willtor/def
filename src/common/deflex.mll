@@ -90,6 +90,7 @@ rule deflex = parse
 | "def" as tok { DEF (get_token_data tok lexbuf) }
 | "decl" as tok { DECL (get_token_data tok lexbuf) }
 | "var" as tok { VAR (get_token_data tok lexbuf) }
+| "global" as tok { GLOBAL (get_token_data tok lexbuf) }
 | "return" as tok { RETURN (get_token_data tok lexbuf) }
 | "if" as tok { IF (get_token_data tok lexbuf) }
 | "then" as tok { THEN (get_token_data tok lexbuf) }

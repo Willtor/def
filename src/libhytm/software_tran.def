@@ -25,10 +25,10 @@ begin
     return lock[0] == 0; 
 end
 
-var lock i32 = 0;
-var THRESHOLD i32 = 4;
+global lock i32 = 0;
+global THRESHOLD i32 = 4;
 // should be u32 but def can't compare u32?
-var _XBEGIN_STARTED i32 = -1I32;
+global _XBEGIN_STARTED i32 = -1I32;
 
 export
 def __defrts_hybrid_xbegin() -> void

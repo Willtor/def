@@ -156,11 +156,12 @@ let instantiate templates non_templates =
        let rec do_replace = function
          | StmtExpr (pos, e) -> StmtExpr (pos, do_replace_expr e)
          | Block (pos, body) -> Block (pos, List.map do_replace body)
-         | VarDecl (vars, exprs, tp, vis) ->
-            VarDecl (vars, List.map do_replace_expr exprs, map_type tp, vis)
-         | InlineStructVarDecl (pos, members, (ipos, init)) ->
+         | VarDecl (decl, vars, exprs, tp, vis) ->
+            VarDecl (decl, vars, List.map do_replace_expr exprs,
+                     map_type tp, vis)
+         | InlineStructVarDecl (decl, members, (ipos, init)) ->
             let member_replace (p, nm, tp) = p, nm, map_type tp in
-            InlineStructVarDecl (pos,
+            InlineStructVarDecl (decl,
                                  List.map member_replace members,
                                  (ipos, do_replace_expr init))
          | IfStmt (pos, cond, tblock, eblock_opt) ->

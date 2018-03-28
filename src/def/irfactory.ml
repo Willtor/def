@@ -1005,7 +1005,7 @@ let declare_globals data symbols initializers name decl =
        (if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
         llfcn)
     | _ ->
-       begin
+       let llglobal =
          try
            let init = match Hashtbl.find initializers decl.mappedname with
              | Expr_Binary (_, OperAssign, _, _, _, rhs) ->
@@ -1021,7 +1021,9 @@ let declare_globals data symbols initializers name decl =
              llglobal
            else
              define_global decl.mappedname (zero_llval data decl.tp) data.mdl
-       end
+       in
+       let () = if decl.is_tls then set_thread_local true llglobal in
+       llglobal
   in
   add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 

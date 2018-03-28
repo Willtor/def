@@ -98,6 +98,7 @@ and decl =
   { decl_pos   : Lexing.position;
     mappedname : string;
     vis        : Types.visibility;
+    is_tls     : bool;
     tp         : Types.deftype;
     params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
   }
@@ -162,6 +163,11 @@ let re_set =
     (regexp {|\\"|}, "\"");    (* double-quote. *)
     (regexp {|\\\\|}, "\\\\")  (* backslash: must be last. *)
   ]
+
+let get_tls_ness = function
+  | "global" -> false
+  | "var" -> true
+  | s -> Report.err_internal __FILE__ __LINE__ ("unknown declarator: " ^ s)
 
 (* Visit a graph, depth-first. *)
 let visit_df f bit =
@@ -557,13 +563,14 @@ let global_decls decltable typemap = function
           { decl_pos = pos;
             mappedname = name;
             vis = vis;
+            is_tls = false;
             tp = convert_type false true typemap tp;
             params = param_pos_names tp
           }
         in
         add_symbol decltable name fcn
      end
-  | VarDecl (vars, inits, tp, vis) ->
+  | VarDecl (decl, vars, inits, tp, vis) ->
      let f (tok, init) = match lookup_symbol decltable tok.td_text with
        | Some decl ->
           Report.err_redefined_var tok.td_pos decl.decl_pos tok.td_text
@@ -579,6 +586,7 @@ let global_decls decltable typemap = function
             { decl_pos = tok.td_pos;
               mappedname = tok.td_text;
               vis = vis;
+              is_tls = get_tls_ness decl.td_text;
               tp = convtp;
               params = []
             }
@@ -1130,6 +1138,7 @@ let make_decl pos fcnscope nm tp =
   { decl_pos = pos;
     mappedname = nonconflicting_name pos vars nm;
     vis = VisLocal;
+    is_tls = false;
     tp = tp;
     params = []
   }
@@ -1210,6 +1219,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
       { decl_pos = pos;
         mappedname = name;
         vis = VisLocal;
+        is_tls = false;
         tp = tp;
         params = [] })
     param_types
@@ -1449,7 +1459,10 @@ let rec build_bbs name decltable typemap fcn_pos body =
                             ^ ": local functions not yet implemented.")
     | DefTemplateFcn _ :: _ ->
        Report.err_internal __FILE__ __LINE__ "DefTemplateFcn not supported."
-    | VarDecl (vars, inits, tp, _) :: rest ->
+    | VarDecl (decl, vars, inits, tp, _) :: rest ->
+       let () = if decl.td_text = "global" then
+                  Report.err_global_local_var_decl decl.td_pos
+       in
        let t = match tp with
          | InferredType ->
             (* Get the type from the rhs. *)
@@ -1473,7 +1486,11 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let () = List.iter declare vars in
        let bb = List.fold_left initialize prev_bb inits in
        process_bb scope bb rest
-    | InlineStructVarDecl (p, vars, (epos, expr)) :: rest ->
+    | InlineStructVarDecl (decl, vars, (epos, expr)) :: rest ->
+       let p = if decl.td_text = "global" then
+                 Report.err_global_local_var_decl decl.td_pos
+               else decl.td_pos
+       in
        let temp_struct_nm = "inline_struct." ^ (unique_id ()) in
        let target_tp = infer_type_from_expr typemap scope.fs_vars expr in
        let target_struct = make_decl p scope temp_struct_nm target_tp
@@ -1892,12 +1909,13 @@ let verify_cfg name =
   visit_df verify true ()
 
 let build_global_vars decltable typemap globals = function
-  | VarDecl (vars, inits, _, _) ->
+  | VarDecl (decl, vars, inits, _, _) ->
      let procvar accum (var, init) =
        if init = None then accum
        else
          let decl = Util.the (lookup_symbol decltable var.td_text) in
-         let scope = make_fcn_scope (ScopeGlobal decl.decl_pos) decltable in
+         let decl_scope = ScopeGlobal decl.decl_pos in
+         let scope = make_fcn_scope decl_scope decltable in
          let etp, expr = convert_expr typemap scope (Util.the init) in
          (decl.mappedname, maybe_cast typemap etp decl.tp expr) :: accum
      in
@@ -2010,10 +2028,10 @@ let resolve_builtins stmts typemap =
     | Block (p, stmts) -> Block (p, List.map process_stmt stmts)
     | DefFcn (p, doc, vis, name, tp, stmts) ->
        DefFcn(p, doc, vis, name, tp, List.map process_stmt stmts)
-    | VarDecl (vars, inits, tp, vis) ->
-       VarDecl (vars, List.map process_expr inits, tp, vis)
-    | InlineStructVarDecl (p, vars, (epos, expr)) ->
-       InlineStructVarDecl (p, vars, (epos, process_expr expr))
+    | VarDecl (decl, vars, inits, tp, vis) ->
+       VarDecl (decl, vars, List.map process_expr inits, tp, vis)
+    | InlineStructVarDecl (decl, vars, (epos, expr)) ->
+       InlineStructVarDecl (decl, vars, (epos, process_expr expr))
     | IfStmt (p, cond, tstmts, estmts_maybe) ->
        IfStmt (p, process_expr cond,
                List.map process_stmt tstmts,

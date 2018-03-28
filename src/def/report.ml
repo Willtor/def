@@ -88,6 +88,12 @@ let err_var_decl_list_length_mismatch pos vars inits =
            ^ ") and initializers (" ^ (string_of_int inits) ^ ").")
           pos
 
+(** Local variable(s) was/were declared "global." *)
+let err_global_local_var_decl pos =
+  err_pos ("Global variable declaration in a local scope.  Use \"var\" to"
+           ^ "declare local variables.")
+          pos
+
 (** User specified a variable with no type and no intializer. *)
 let err_no_init_on_inferred_type pos =
   err_pos "Cannot infer variable type without an initializer." pos

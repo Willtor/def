@@ -69,6 +69,7 @@ and decl =
   { decl_pos   : Lexing.position;
     mappedname : string;
     vis        : Types.visibility;
+    is_tls     : bool;
     tp         : Types.deftype;
     params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
   }

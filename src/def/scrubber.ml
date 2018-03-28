@@ -33,8 +33,8 @@ let position_of_stmt = function
   | DeclFcn (pos, _, _, _)
   | DefFcn (pos, _, _, _, _, _)
   | DefTemplateFcn (pos, _, _, _, _, _, _)
-  | VarDecl ({td_pos = pos} :: _, _, _, _)
-  | InlineStructVarDecl (pos, _, _)
+  | VarDecl ({td_pos = pos}, _, _, _, _)
+  | InlineStructVarDecl ({td_pos = pos}, _, _)
   | TransactionBlock (pos, _)
   | IfStmt (pos, _, _, _)
   | ForLoop (pos, _, _, _, _, _, _)
@@ -50,8 +50,6 @@ let position_of_stmt = function
   | Sync pos
     -> pos
   | Import (tok, _) -> tok.td_pos
-  | VarDecl _ ->
-     Report.err_internal __FILE__ __LINE__ "VarDecl with no declarations."
 
 let kill_dead_code =
   let report_dead_code fcn pos =

@@ -116,9 +116,11 @@ type stmt =
     * stmt list
   | DefTemplateFcn of position * pt_template * string option * Types.visibility
     * string * vartype * stmt list
-  | VarDecl of Parsetree.tokendata list * expr list * vartype * Types.visibility
-  | InlineStructVarDecl of position * (position * string * vartype) list
-    * (position * expr)
+  | VarDecl of Parsetree.tokendata * Parsetree.tokendata list
+               * expr list * vartype * Types.visibility
+  | InlineStructVarDecl of Parsetree.tokendata
+                           * (position * string * vartype) list
+                           * (position * expr)
   | TransactionBlock of position * stmt list
   | IfStmt of position * expr * stmt list * (Lexing.position * stmt list) option
   (* ForLoop: start-pos * is_parallel * init * cond * iter * body *)
@@ -137,6 +139,18 @@ type stmt =
   | Break of position
   | Continue of position
   | Sync of position
+
+let faux_var =
+  { td_pos = Util.faux_pos;
+    td_text = "var";
+    td_noncode = []
+  }
+
+let faux_global =
+  { td_pos = Util.faux_pos;
+    td_text = "global";
+    td_noncode = []
+  }
 
 let operator2string = function
   | OperIncr -> "++"
@@ -275,9 +289,9 @@ let of_parsetree =
        DeclFcn (decl.td_pos, VisExported decl.td_pos, id.td_text, type_of tp)
     | PTS_Expr (e, _) ->
        StmtExpr (pt_expr_pos e, expr_of e)
-    | PTS_Var (_, ids, tp, _) ->
-       VarDecl (ids, [], type_of tp, VisLocal)
-    | PTS_VarInit (var, ids, tp_opt, eq, elist, _) ->
+    | PTS_Var (decl, ids, tp, _) ->
+       VarDecl (decl, ids, [], type_of tp, VisLocal)
+    | PTS_VarInit (decl, ids, tp_opt, eq, elist, _) ->
        let asttp = if tp_opt = None then InferredType
                    else type_of (Util.the tp_opt) in
        let initify id expr =
@@ -288,17 +302,17 @@ let of_parsetree =
                       op_atomic = false;
                     }
        in
-       VarDecl (ids, List.map2 initify ids elist, asttp, VisLocal)
-    | PTS_VarInlineStruct (var, _, vlist, _, _, e, _) ->
+       VarDecl (decl, ids, List.map2 initify ids elist, asttp, VisLocal)
+    | PTS_VarInlineStruct (decl, _, vlist, _, _, e, _) ->
        let cvlist =
          List.map (fun (id, tp) -> id.td_pos, id.td_text, type_of tp) vlist
        in
-       InlineStructVarDecl (var.td_pos, cvlist, (pt_expr_pos e, expr_of e))
-    | PTS_VarInlineStructInferred (var, _, vlist, _, _, e, _) ->
+       InlineStructVarDecl (decl, cvlist, (pt_expr_pos e, expr_of e))
+    | PTS_VarInlineStructInferred (decl, _, vlist, _, _, e, _) ->
        let cvlist =
          List.map (fun id -> id.td_pos, id.td_text, InferredType) vlist
        in
-       InlineStructVarDecl (var.td_pos, cvlist, (pt_expr_pos e, expr_of e))
+       InlineStructVarDecl (decl, cvlist, (pt_expr_pos e, expr_of e))
     | PTS_DeleteExpr (d, e, _) ->
        let expr = ExprFcnCall { fc_pos = d.td_pos;
                                 fc_name = "forkscan_free";
@@ -350,7 +364,7 @@ let of_parsetree =
               | Some t -> type_of t
               | None -> InferredType
             in
-            Some (VarDecl ([id], [init], tp, VisLocal))
+            Some (VarDecl (faux_var, [id], [init], tp, VisLocal))
          | Some (PTForInit_Expr e) ->
             Some (StmtExpr (pt_expr_pos e, expr_of e))
        in
@@ -671,7 +685,7 @@ let of_cimport =
                             ]
        in
        let _, tp = type_of ctype in
-       let decl = VarDecl (faux_tokendata, [], tp,
+       let decl = VarDecl (faux_global, faux_tokendata, [], tp,
                            if extern then VisExternal else VisLocal)
        in
        convert (decl :: accum) rest
@@ -750,7 +764,7 @@ let rec visit_expr_in_stmt f = function
   | DeclFcn _
   | DefTemplateFcn _ ->
      Report.err_internal __FILE__ __LINE__ "not implemented."
-  | VarDecl (_, exprs, _, _) -> List.iter (visit_expr f) exprs
+  | VarDecl (_, _, exprs, _, _) -> List.iter (visit_expr f) exprs
   | InlineStructVarDecl (_, _, (_, expr)) -> visit_expr f expr
   | TransactionBlock (_, stmts) -> List.iter (visit_expr_in_stmt f) stmts
   | IfStmt (_, cond, then_stmts, else_stmts_maybe) ->
