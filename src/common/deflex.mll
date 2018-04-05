@@ -83,6 +83,7 @@ rule deflex = parse
 | "import" as tok { IMPORT (get_token_data tok lexbuf) }
 | "type" as tok { TYPE (get_token_data tok lexbuf) }
 | "typedef" as tok { TYPEDEF (get_token_data tok lexbuf) }
+| "enum" as tok { ENUM (get_token_data tok lexbuf) }
 | "begin" as tok { BEGIN (get_token_data tok lexbuf) }
 | "end" as tok { END (get_token_data tok lexbuf) }
 | "export" as tok { EXPORT (get_token_data tok lexbuf) }

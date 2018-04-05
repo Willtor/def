@@ -24,6 +24,7 @@ type deftype =
   | DefTypePtr of deftype * qualifier list
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
+  | DefTypeEnum of string list
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list

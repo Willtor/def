@@ -337,6 +337,8 @@ let rec convert_type defining_p array2ptr typemap = function
      DefTypeFcn (converted_params,
                  convert_type defining_p array2ptr typemap ret,
                  variadic)
+  | EnumType (tok, variants) ->
+     DefTypeEnum (List.map (fun t -> t.td_text) variants)
   | StructType elements ->
      let process (names, deftypes) (_, name, tp) =
        (name :: names,
@@ -391,6 +393,7 @@ let param_pos_names = function
   | CVarType _
   | ArrayType _
   | PtrType _
+  | EnumType _
   | StructType _
   | UnionType _
   | Ellipsis _
@@ -401,11 +404,28 @@ let param_pos_names = function
      Report.err_internal __FILE__ __LINE__
                          "Should not have inferred types in parameters."
 
-let global_types typemap = function
+let global_types typemap defined_syms = function
   | TypeDecl (pos, name, tp, _, _) ->
      (* FIXME: When structs get added, check tp to see if it's a struct
         and add a symbolic reference, first, before converting the type. *)
-     add_symbol typemap name (convert_type true false typemap tp)
+     let converted_tp = convert_type true false typemap tp in
+     let () = match converted_tp with
+       | DefTypeEnum variants ->
+          let sz = size_of typemap converted_tp in
+          let variant_conversion =
+            match sz with
+            | 1 -> (fun n -> LitU8 (Char.chr n))
+            | 2 -> (fun n -> LitU16 (Int32.of_int n))
+            | 4 -> (fun n -> LitU32 (Int32.of_int n))
+            | _ -> Report.err_internal __FILE__ __LINE__
+                                       "unexpected size of enum"
+          in
+          List.iteri (fun n sym -> add_symbol defined_syms sym
+                                              (variant_conversion n, tp))
+                     variants
+       | _ -> ()
+     in
+     add_symbol typemap name converted_tp
   | _ -> ()
 
 let resolve_type typemap typename oldtp =
@@ -441,6 +461,7 @@ let resolve_type typemap typename oldtp =
     | DefTypePtr (tp, q) -> DefTypePtr (v tp, q)
     | DefTypeArray (tp, n) -> DefTypeArray (v tp, n)
     | DefTypeNullPtr -> DefTypeNullPtr
+    | DefTypeEnum _ as tp -> tp
     | DefTypeLiteralStruct (fields, names) ->
        DefTypeLiteralStruct (List.map v fields, names)
     | DefTypeStaticStruct members ->
@@ -496,6 +517,8 @@ let rec infer_type_from_expr typemap scope = function
      end
   | ExprLit (_, literal) ->
      typeof_literal literal
+  | ExprEnum (_, _, _, tp) ->
+     convert_type false false typemap tp
   | ExprCast (_, vt, _) ->
      convert_type false false typemap vt
   | ExprIndex (_, base, _, _) ->
@@ -735,10 +758,12 @@ let check_castability pos typemap ltype rtype =
     | (DefTypeArray _ as t1), (DefTypeArray _ as t2) ->
        Report.err_cant_cast pos (string_of_type t1) (string_of_type t2)
     | t1, t2 ->
-       Report.err_internal __FILE__ __LINE__
-                           ("incomplete cast for " ^ (string_of_type t1)
-                            ^ " to " ^ (string_of_type t2) ^ ": "
-                            ^ (format_position pos))
+       if t1 = t2 then ()
+       else
+         Report.err_internal __FILE__ __LINE__
+                             ("incomplete cast for " ^ (string_of_type t1)
+                              ^ " to " ^ (string_of_type t2) ^ ": "
+                              ^ (format_position pos))
   and identical (ltype, rtype) =
     if ltype = rtype then ()
     else match get_struct_defn ltype, get_struct_defn rtype with
@@ -926,6 +951,8 @@ let build_fcn_call scope typemap pos name args =
         "Tried to call an array."
      | DefTypeNullPtr -> Report.err_internal __FILE__ __LINE__
         "Tried to call nil."
+     | DefTypeEnum _ -> Report.err_internal __FILE__ __LINE__
+        "Tried to call an enum."
      | DefTypeLiteralStruct _
      | DefTypeStaticStruct _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call a struct."
@@ -1040,6 +1067,8 @@ let convert_expr typemap fcnscope =
        end
     | ExprLit (pos, literal) ->
        (typeof_literal literal), Expr_Literal literal
+    | ExprEnum (pos, name, lit, tp) ->
+       convert_type false false typemap tp, Expr_Literal lit
     | ExprIndex (bpos, base, ipos, idx) ->
        let btype, converted_base = convert base
        and itype, converted_idx = convert idx
@@ -1951,7 +1980,7 @@ let builtin_types () =
     Types.map_builtin_types;
   map
 
-let resolve_builtins stmts typemap =
+let resolve_builtins stmts typemap defined_syms =
   let rec process_expr = function
     | ExprFcnCall f ->
        begin match f.fc_name with
@@ -2021,6 +2050,17 @@ let resolve_builtins stmts typemap =
        ExprStaticStruct (p, List.map (fun (p, e) -> p, process_expr e) elist)
     | ExprStaticArray (p, elements) ->
        ExprStaticArray (p, List.map (fun (p, e) -> p, process_expr e) elements)
+    | ExprVar (p, name) ->
+       begin
+         match lookup_symbol defined_syms name with
+
+           (* FIXME: WORKING HERE!  Need to capture something of the original
+              type in the revised literal.  defined_syms should keep the enum.
+            *)
+
+         | Some (v, t) -> ExprEnum (p, name, v, t)
+         | None -> ExprVar (p, name)
+       end
     | e -> e
   in
   let rec process_stmt = function
@@ -2066,9 +2106,12 @@ let resolve_builtins stmts typemap =
 let of_ast stmts =
   let typemap = builtin_types () in
   let decltable = make_symtab () in
-  List.iter (global_types typemap) stmts;
+  (* defined_syms are symbols that were interpreted as variables by the parser
+     but actually have other values, like enums. *)
+  let defined_syms = make_symtab () in
+  List.iter (global_types typemap defined_syms) stmts;
   let typemap = symtab_filter (resolve_type typemap) typemap in
-  let sanitized_stmts = resolve_builtins stmts typemap in
+  let sanitized_stmts = resolve_builtins stmts typemap defined_syms in
   List.iter (global_decls decltable typemap) sanitized_stmts;
   let global_vars =
     List.fold_left (build_global_vars decltable typemap) [] sanitized_stmts

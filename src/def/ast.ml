@@ -84,6 +84,7 @@ and expr =
   | ExprPostUnary of operation
   | ExprVar of position * string
   | ExprLit of position * literal
+  | ExprEnum of position * string * literal * vartype
   | ExprCast of position * vartype * expr
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * field_id
@@ -99,6 +100,7 @@ and vartype =
   | OpaqueType of position * string
   | CVarType of position * string * Types.qualifier list
   | FcnType of (position * string * vartype) list * vartype
+  | EnumType of position * Parsetree.tokendata list
   | StructType of (position * string * vartype) list
   | UnionType of (position * string * vartype) list
   | ArrayType of position * expr * vartype
@@ -444,6 +446,8 @@ let of_parsetree =
        in
        let cparams = List.map param_convert params in
        FcnType (cparams, type_of ret)
+    | PTT_Enum (enum, variants) ->
+       EnumType (enum.td_pos, variants)
   and expr_of = function
     | PTE_New (newtok, tp, init_p) ->
        let init = match init_p with
@@ -700,6 +704,7 @@ let rec pos_of_astexpr = function
   | ExprPostUnary { op_pos = pos }
   | ExprVar (pos, _)
   | ExprLit (pos, _)
+  | ExprEnum (pos, _, _, _)
   | ExprCast (pos, _, _)
   | ExprIndex (pos, _, _, _)
   | ExprSelectField (pos, _, _, _)
@@ -737,6 +742,7 @@ let visit_expr f =
     | ExprPostUnary op -> visit op.op_left
     | ExprVar _ -> ()
     | ExprLit _ -> ()
+    | ExprEnum _ -> ()
     | ExprCast (_, _, e) -> visit e
     | ExprIndex (_, base, _, idx) ->
        begin

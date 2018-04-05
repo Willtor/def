@@ -46,6 +46,7 @@ type deftype =
   | DefTypePtr of deftype * qualifier list
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
+  | DefTypeEnum of string list
   | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
@@ -194,6 +195,7 @@ let is_integer_type = function
      | PrimI64 | PrimU64 -> true
      | PrimF32 | PrimF64 -> false
      end
+  | DefTypeEnum _ -> true
   | _ -> false
 
 (** Return true iff the type is a signed integer. *)
@@ -261,6 +263,11 @@ let rec size_of typemap = function
   | DefTypePtr _ -> ptr_size
   | DefTypeArray (tp, n) -> n * (size_of typemap tp)
   | DefTypeNullPtr -> ptr_size
+  | DefTypeEnum variants ->
+     let len = List.length variants in
+     if len < 256 then 1
+     else if len < 65536 then 2
+     else 4
   | DefTypeNamedStruct nm -> size_of typemap (the (lookup_symbol typemap nm))
   | DefTypeLiteralStruct (members, _)
   | DefTypeStaticStruct members ->
@@ -295,6 +302,7 @@ let rec string_of_type = function
   | DefTypeArray (tp, n) ->
      "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)
   | DefTypeNullPtr -> "nil"
+  | DefTypeEnum variants -> "enum | " ^ (String.concat " | " variants)
   | DefTypeNamedStruct nm -> "struct " ^ nm
   | DefTypeLiteralStruct (members, _) ->
      "{ "
@@ -396,6 +404,11 @@ let most_general_type pos typemap =
     | DefTypeNullPtr, DefTypePtr _ -> t2
     | DefTypePtr _, _
     | _, DefTypePtr _ ->
+       generalizing_error ()
+    | DefTypeEnum vlist1, DefTypeEnum vlist2 ->
+       if t1 = t2 then t1 else generalizing_error ()
+    | DefTypeEnum _, _
+    | _, DefTypeEnum _ ->
        generalizing_error ()
     | DefTypeArray (st1, n), DefTypeArray (st2, m) ->
        let subtype = generalize st1 st2 in

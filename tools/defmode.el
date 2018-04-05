@@ -57,7 +57,7 @@
                         "parfor" "xbegin" "xend"
                         "if" "then" "elif" "else" "fi" "return"
                         "var" "global" "export"
-                        "continue" "typedef" "goto" "type"
+                        "continue" "typedef" "enum" "goto" "type"
                         "switch" "with" "esac")
                       'words)
          . font-lock-keyword-face)

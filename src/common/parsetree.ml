@@ -105,6 +105,7 @@ and pt_type =
   | PTT_Array of tokendata * pt_expr option * tokendata * pt_type
   | PTT_Struct of tokendata * (tokendata * pt_type) list * tokendata
   | PTT_StructUnnamed of tokendata * pt_type list * tokendata
+  | PTT_Enum of tokendata * tokendata list
 
 and pt_param =
   | PTP_Var of tokendata * pt_type
@@ -169,7 +170,8 @@ let pt_type_pos = function
   | PTT_Ptr (tok, _)
   | PTT_Array (tok, _, _, _)
   | PTT_Struct (tok, _, _)
-  | PTT_StructUnnamed (tok, _, _) ->
+  | PTT_StructUnnamed (tok, _, _)
+  | PTT_Enum (tok, _) ->
      tok.td_pos
 
 let rec pt_expr_pos = function

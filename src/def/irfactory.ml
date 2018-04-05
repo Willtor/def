@@ -94,6 +94,9 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
        array_type (convert wrap_fcn_ptr tp) dim
     | DefTypeNullPtr ->
        Report.err_internal __FILE__ __LINE__ "convert null pointer."
+    | DefTypeEnum _ as t ->
+       let sz = size_of deftypemap t in
+       integer_type ctx (sz * 8)
     | DefTypeNamedStruct name
     | DefTypeNamedUnion name ->
        the (lookup_symbol typemap name)
@@ -166,6 +169,10 @@ let build_types ctx deftypes =
           compilation. *)
        | DefTypeNullPtr ->
           Report.err_internal __FILE__ __LINE__ "null pointer type."
+       | DefTypeEnum _ ->
+          let sz = size_of deftypes deftype in
+          let tp = integer_type ctx (sz * 8) in
+          add_symbol typemap name tp
        | DefTypeNamedStruct s ->
           Report.err_internal __FILE__ __LINE__ ("named struct type: " ^ s)
        | DefTypeArray (atype, sz) ->

@@ -29,7 +29,7 @@
 %token <Parsetree.tokendata * float> LITERALF32 LITERALF64
 %token <Parsetree.tokendata> IDENT
 %token <Parsetree.tokendata * string> STRING
-%token <Parsetree.tokendata> IMPORT TYPE TYPEDEF
+%token <Parsetree.tokendata> IMPORT TYPE TYPEDEF ENUM
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR GLOBAL RETURN BEGIN END
 %token <Parsetree.tokendata> IF THEN ELIF ELSE FI
 %token <Parsetree.tokendata> FOR PARFOR WHILE DO OD SWITCH
@@ -175,6 +175,8 @@ deftype:
 | LSQUARE expr? RSQUARE deftype { PTT_Array ($1, $2, $3, $4) }
 | LCURLY structcontents RCURLY { PTT_Struct ($1, $2, $3) }
 | LCURLY unnamedplist RCURLY { PTT_StructUnnamed ($1, $2, $3) }
+| ENUM nonempty_list(pair(VBAR, IDENT))
+    { PTT_Enum ($1, List.map (fun (vbar, id) -> id) $2) }
 | fcntype { $1 }
 
 structcontents:

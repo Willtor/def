@@ -88,6 +88,7 @@ and pt_type =
   | PTT_Array of tokendata * pt_expr option * tokendata * pt_type
   | PTT_Struct of tokendata * (tokendata * pt_type) list * tokendata
   | PTT_StructUnnamed of tokendata * pt_type list * tokendata
+  | PTT_Enum of tokendata * tokendata list
 
 and pt_param =
   | PTP_Var of tokendata * pt_type

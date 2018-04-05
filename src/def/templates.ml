@@ -60,6 +60,8 @@ let instantiate templates non_templates =
          | FcnType (params, ret) ->
             let f (pos, s, vt) = pos, s, map_type vt in
             FcnType (List.map f params, map_type ret)
+         | EnumType (pos, variants) ->
+            EnumType (pos, variants)
          | StructType members ->
             let f (pos, s, vt) = pos, s, map_type vt in
             StructType (List.map f members)
