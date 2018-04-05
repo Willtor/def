@@ -557,12 +557,13 @@ let of_parsetree =
   List.map stmt_of
 
 let of_cimport =
-  let recordish_regex = Str.regexp {|^\(union \)\|\(struct \)|} in
+  let nonbasic_regex = Str.regexp {|^\(union \)\|\(struct \)\|\(enum \)|} in
   let no_duplicates = Hashtbl.create 16 in
   let sanitize_ident name =
     match String.split_on_char ' ' name with
     | "struct" :: rest
     | "union" :: rest
+    | "enum" :: rest
     | rest ->
        String.concat " " rest
   in
@@ -589,8 +590,9 @@ let of_cimport =
          begin
            match sanitize_ident tp with
            | "__builtin_va_list" -> pos, VAList pos
-           | vartype when Str.string_match recordish_regex tp 0 ->
-              (* Record: struct/union.  Make sure there are no duplicates. *)
+           | vartype when Str.string_match nonbasic_regex tp 0 ->
+              (* Non-basic type: struct/union/enum.  Make sure there are no
+                 duplicates. *)
               begin
                 try
                   let nodup = Hashtbl.find no_duplicates vartype in

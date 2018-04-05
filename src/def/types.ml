@@ -165,7 +165,7 @@ let map_builtin_types =
     ("f32", DefTypePrimitive (PrimF32, []), float_type,
      ["float"], 64, DW_ATE_FLOAT);
     ("f64", DefTypePrimitive (PrimF64, []), double_type,
-     ["double"], 64, DW_ATE_FLOAT);
+     ["double"; "long double"], 64, DW_ATE_FLOAT);
     ("llvm.token", DefTypeLLVMToken, token_type,
      [], 0, DW_INVALID)
   ]
