@@ -434,7 +434,7 @@ let resolve_type typemap typename oldtp =
        begin match lookup_symbol typemap name with
        | Some (DefTypeLiteralStruct _) -> DefTypeNamedStruct name
        | Some (DefTypeLiteralUnion _) -> DefTypeNamedUnion name
-       | Some (DefTypeUnresolved (_, name2)) ->
+       | Some (DefTypeUnresolved (_, name2)) when name = name2 ->
           Report.err_internal __FILE__ __LINE__
                               ("Recursive badness: " ^ name ^ ", " ^ name2)
        | Some tp -> v tp
