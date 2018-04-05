@@ -81,6 +81,10 @@ let rec output_deftype oc name depth tp =
        in
        let body = List.fold_left proc_member "" members in
        "struct\n" ^ depth ^ "{\n" ^ body ^ depth ^ "};\n"
+    | PTT_Enum (_, opts) ->
+       let opt_strings = List.map (fun tok -> tok.td_text) opts in
+       "enum { " ^ (String.concat ", " opt_strings)
+       ^ " } " ^ accum ^ ";\n"
   in
   let str = build_string name depth tp in
   output_string oc str

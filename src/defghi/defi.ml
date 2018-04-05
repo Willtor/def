@@ -86,6 +86,15 @@ let rec output_deftype oc =
                   members);
          output_string oc "}"
        end
+    | PTT_Enum (_, opts) ->
+       let bigwidth = width ^ "  " in
+       begin
+         output_string oc "enum\n";
+         List.iter (fun opt ->
+            output_string oc (bigwidth ^ "| " ^ opt.td_text ^ "\n"))
+                   opts;
+         output_string oc bigwidth
+       end
   in
   print_type
 
