@@ -138,3 +138,11 @@ let find_path_to ?follow_symlinks:(follow_symlinks=false) file dirlist =
   in
   if follow_symlinks then read_symlinks f
   else f
+
+(** Convert a string to a list of chars. *)
+let explode_string s =
+  let rec explode n accum =
+    if n < 0 then accum
+    else explode (n - 1) (s.[n] :: accum)
+  in
+  explode ((String.length s) - 1) [Char.chr 0]

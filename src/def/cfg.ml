@@ -1769,6 +1769,18 @@ let rec build_bbs name decltable typemap fcn_pos body =
                   elements
               in
               make_ands equals
+           | (ltype, lexpr), (rtype, Expr_String (_, str)) ->
+              let subtype = get_array_type rtype in
+              let equals =
+                List.mapi
+                  (fun n char ->
+                    let expr_n = Expr_Literal (LitI32 (Int32.of_int n)) in
+                    let el_n = Expr_Index (lexpr, expr_n, subtype, true, false)
+                    and str_n = Expr_Literal (LitI8 char) in
+                    reconcile pos (subtype, el_n) (subtype, str_n))
+                  (explode_string str)
+              in
+              make_ands equals
            | (ltype, lexpr), (rtype, rexpr) ->
               reconcile pos (ltype, lexpr) (rtype, rexpr)
          in

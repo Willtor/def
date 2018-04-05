@@ -53,3 +53,6 @@ val faux_pos : Lexing.position
     specified file given the list of directories.  Optionally follow symbolic
     links. *)
 val find_path_to : ?follow_symlinks:bool -> string -> string list -> string
+
+(** Convert a string to a list of chars. *)
+val explode_string : string -> char list
