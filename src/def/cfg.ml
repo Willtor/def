@@ -477,11 +477,21 @@ let rec infer_type_from_expr typemap scope = function
   | ExprNew (_, vt, _) ->
      DefTypePtr (convert_type false false typemap vt, [])
   | ExprFcnCall f ->
-     let fdecl = match lookup_symbol scope f.fc_name with
-       | Some fdecl -> fdecl
-       | None -> Report.err_unknown_fcn_call f.fc_pos f.fc_name
+     let tp = match lookup_symbol scope f.fc_name with
+       | Some fdecl -> fdecl.tp
+       | None ->
+          begin
+            (* FIXME: Need to recode this with a table of builtins. *)
+            match f.fc_name with
+            | "__builtin_cas" ->
+               (* FIXME: Obviously, this is not the correct type, since CAS
+                  takes various types for its parameters. *)
+               DefTypeFcn ([], DefTypePrimitive (PrimBool, []), false)
+            | _ ->
+               Report.err_unknown_fcn_call f.fc_pos f.fc_name
+          end
      in
-     begin match fdecl.tp with
+     begin match tp with
      | DefTypeFcn (_, ret, _) -> ret
      | _ -> Report.err_internal __FILE__ __LINE__
                                 "Function w/o function type."
