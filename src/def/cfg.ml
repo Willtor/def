@@ -477,7 +477,10 @@ let rec infer_type_from_expr typemap scope = function
   | ExprNew (_, vt, _) ->
      DefTypePtr (convert_type false false typemap vt, [])
   | ExprFcnCall f ->
-     let fdecl = Util.the (lookup_symbol scope f.fc_name) in
+     let fdecl = match lookup_symbol scope f.fc_name with
+       | Some fdecl -> fdecl
+       | None -> Report.err_unknown_fcn_call f.fc_pos f.fc_name
+     in
      begin match fdecl.tp with
      | DefTypeFcn (_, ret, _) -> ret
      | _ -> Report.err_internal __FILE__ __LINE__
