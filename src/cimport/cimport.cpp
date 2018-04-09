@@ -402,6 +402,11 @@ value cimport_file (const char *filename, int argc, const char **argv)
     }
     cv_list = reverse_list(cv_list);
 
+    // Empty the cvalues and fund_types sets in case this function gets called
+    // again.  It would be "very bad" to have stale data lying around.
+    cvalues.clear();
+    fund_types.clear();
+
     return cv_list;
 }
 
