@@ -374,6 +374,7 @@ let process_expr data llvals varmap pos_n_expr =
     let is_wildcard v = if v = Expr_Wildcard then true else false in
 
     let integer_math = (is_integer_type tp) || (is_pointer_type tp) in
+    let is_signed = if is_integer_type tp then signed_p tp else false in
     match op, integer_math with
     (* FIXME: Distinguish between signed/unsigned integers. *)
     | OperMult, true -> standard_op build_mul "def_mult"
@@ -390,13 +391,21 @@ let process_expr data llvals varmap pos_n_expr =
     | OperPlus, false -> standard_op build_fadd "def_add_f"
     | OperMinus, true -> standard_op build_sub "def_sub"
     | OperMinus, false -> standard_op build_fsub "def_sub_f"
-    | OperLT, true -> standard_op (build_icmp Icmp.Slt) "def_lt"
+    | OperLT, true ->
+       let icmp = if is_signed then Icmp.Slt else Icmp.Ult in
+       standard_op (build_icmp icmp) "def_lt"
     | OperLT, false -> standard_op (build_fcmp Fcmp.Olt) "def_lt_f"
-    | OperLTE, true -> standard_op (build_icmp Icmp.Sle) "def_le"
+    | OperLTE, true ->
+       let icmp = if is_signed then Icmp.Sle else Icmp.Ule in
+       standard_op (build_icmp icmp) "def_le"
     | OperLTE, false -> standard_op (build_fcmp Fcmp.Ole) "def_le_f"
-    | OperGT, true -> standard_op (build_icmp Icmp.Sgt) "def_gt"
+    | OperGT, true ->
+       let icmp = if is_signed then Icmp.Sgt else Icmp.Ugt in
+       standard_op (build_icmp icmp) "def_gt"
     | OperGT, false -> standard_op (build_fcmp Fcmp.Ogt) "def_gt_f"
-    | OperGTE, true -> standard_op (build_icmp Icmp.Sge) "def_ge"
+    | OperGTE, true ->
+       let icmp = if is_signed then Icmp.Sge else Icmp.Uge in
+       standard_op (build_icmp icmp) "def_ge"
     | OperGTE, false -> standard_op (build_fcmp Fcmp.Oge) "def_ge_f"
     | OperEquals, true ->
        if is_wildcard left || is_wildcard right then data.one_i8

@@ -70,6 +70,7 @@ let signed_p = function
      | _ -> Report.err_internal __FILE__ __LINE__
                                 "signed_p of non-integer type."
      end
+  | DefTypeEnum _ -> false
   | _ -> Report.err_internal __FILE__ __LINE__
                              "Assumed something was a primitive."
 
