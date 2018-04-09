@@ -115,10 +115,10 @@ let output_exported_type oc = function
        dump_doc oc export;
        output_string oc ("typedef " ^ typename.td_text);
        if opacity = None && tp_opt <> None then
-         let _, deftype = the tp_opt in
          begin
+           let _, deftype = the tp_opt in
            output_string oc " = ";
-           output_deftype oc "  " deftype;
+           output_deftype oc "  " deftype
          end;
        output_string oc ";\n\n"
      end
