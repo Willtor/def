@@ -93,8 +93,7 @@ let output_exported_typedef oc = function
   | PTS_Type (Some (export, opacity),
               _,
               typename,
-              _,
-              PTT_Struct _,
+              Some (_, PTT_Struct _),
               _) ->
      begin
        if opacity <> None then
@@ -106,8 +105,7 @@ let output_exported_typedef oc = function
   | PTS_Type (Some (export, opacity),
               _,
               typename,
-              _,
-              deftype,
+              Some (_, deftype),
               _) ->
        if opacity <> None then
          dump_doc oc export;
@@ -122,8 +120,7 @@ let output_exported_type oc = function
   | PTS_Type (Some (export, None),
               _,
               typename,
-              _,
-              (PTT_Struct (_, members, _) as tp),
+              Some (_, (PTT_Struct (_, members, _) as tp)),
               _) ->
      begin
        dump_doc oc export;

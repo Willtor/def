@@ -101,17 +101,21 @@ let rec output_deftype oc =
 and output_expr oc width = function
   | _ -> Error.fatal_error "don't support expressions, yet."
 
+let the = function
+  | Some v -> v
+  | None -> Error.fatal_error "internal error: defi.ml's 'the' function."
+
 let output_exported_type oc = function
   | PTS_Type (Some (export, opacity),
               _,
               typename,
-              _,
-              deftype,
+              tp_opt,
               _) ->
      begin
        dump_doc oc export;
        output_string oc ("typedef " ^ typename.td_text);
-       if opacity = None then
+       if opacity = None && tp_opt <> None then
+         let _, deftype = the tp_opt in
          begin
            output_string oc " = ";
            output_deftype oc "  " deftype;

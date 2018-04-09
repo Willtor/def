@@ -62,7 +62,7 @@ type pt_stmt =
   | PTS_Return of tokendata * tokendata
   | PTS_Type of
       (tokendata * tokendata option) option * tokendata * tokendata
-      * tokendata * pt_type * tokendata
+      * (tokendata * pt_type) option * tokendata
   | PTS_Goto of tokendata * tokendata * tokendata
   | PTS_Break of tokendata * tokendata
   | PTS_Label of tokendata * tokendata

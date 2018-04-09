@@ -396,13 +396,17 @@ let of_parsetree =
        Return (pt_expr_pos e, expr_of e)
     | PTS_Return (ret, _) ->
        ReturnVoid ret.td_pos
-    | PTS_Type (vis_p, typedef, id, _, tp, _) ->
+    | PTS_Type (vis_p, typedef, id, tp_opt, _) ->
        let vis, opaque = match vis_p with
          | None -> VisLocal, false
          | Some (exp, None) -> VisExported exp.td_pos, false
          | Some (exp, Some _) -> VisExported exp.td_pos, true
        in
-       TypeDecl (typedef.td_pos, id.td_text, type_of tp, vis, opaque)
+       let tp = match tp_opt with
+         | None -> OpaqueType (id.td_pos, id.td_text)
+         | Some (_, t) -> type_of t
+       in
+       TypeDecl (typedef.td_pos, id.td_text, tp, vis, opaque)
     | PTS_Goto (goto, id, _) -> Goto (goto.td_pos, id.td_text)
     | PTS_Break (break, _) -> Break break.td_pos
     | PTS_Label (id, _) -> Label (id.td_pos, id.td_text)
