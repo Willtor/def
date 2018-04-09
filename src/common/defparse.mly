@@ -176,6 +176,12 @@ deftype:
 | LCURLY structcontents RCURLY { PTT_Struct ($1, $2, $3) }
 | LCURLY unnamedplist RCURLY { PTT_StructUnnamed ($1, $2, $3) }
 | ENUM nonempty_list(pair(VBAR, IDENT))
+    (* FIXME: shift/reduce conflict since "type enum | foo" can appear
+       as part of an expression where the vbar can be interpreted as
+       part of the enum or as a part of the expression.  How to disallow
+       the latter when reading a "type" which can't perform that kind of
+       operation?  Maybe move "type" into a separate rule that can only
+       appear in certain kinds of subexpressions? *)
     { PTT_Enum ($1, List.map (fun (vbar, id) -> id) $2) }
 | fcntype { $1 }
 
