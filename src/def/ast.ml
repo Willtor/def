@@ -560,7 +560,7 @@ let of_parsetree =
   in
   List.map stmt_of
 
-let of_cimport =
+let of_cimport cimport =
   let nonbasic_regex = Str.regexp {|^\(union \)\|\(struct \)\|\(enum \)|} in
   let no_duplicates = Hashtbl.create 16 in
   let sanitize_ident name =
@@ -700,7 +700,7 @@ let of_cimport =
        in
        convert (decl :: accum) rest
   in
-  convert []
+  convert [] cimport
 
 let rec pos_of_astexpr = function
   | ExprNew (pos, _, _)
