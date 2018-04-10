@@ -178,7 +178,7 @@ let err_redeclared_variable pos orig_pos var =
     ^ "  Redeclared variable \"" ^ var ^ "\".\n"
     ^ (show_source pos) ^ "\n"
     ^ "  Originally declared at " ^ (format_position orig_pos) ^ "\n"
-    ^ (show_source pos)
+    ^ (show_source orig_pos)
   in fatal_error err
 
 (** User specified an unknown or undeclared type. *)
