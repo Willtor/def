@@ -499,6 +499,9 @@ let process_expr data llvals varmap pos_n_expr =
        else function_type llret llparams
     | DefTypePtr (t, _) ->
        pointer_type (make_llvm_tp t)
+    | DefTypeEnum _ as enum ->
+       let sz = size_of data.prog.deftypemap enum in
+       integer_type data.ctx (sz * 8)
     | DefTypePrimitive (pt, _) ->
        the (lookup_symbol data.typemap (primitive2string pt))
     | DefTypeNamedStruct nm
