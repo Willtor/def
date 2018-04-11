@@ -421,6 +421,16 @@ let process_expr data llvals varmap pos_n_expr =
     | OperLogicalAnd, true -> standard_op build_and "def_land" (* FIXME!!! *)
     | OperAssign, _ ->
        begin match left, right with
+       | Expr_StaticStruct (_, members), _ ->
+          let rhs = expr_gen false right in
+          let member_assign n (_, expr) =
+            let lhs = expr_gen false expr in
+            let field_name = "field_" ^ (string_of_int n) in
+            let right_value = build_extractvalue rhs n field_name bldr in
+            ignore (build_store right_value lhs bldr)
+          in
+          let () = List.iteri member_assign members in
+          rhs
        | _, Expr_Cast (_, _, Expr_StaticStruct (_, members))
        | _, Expr_StaticStruct (_, members) ->
           let base = expr_gen false left in
