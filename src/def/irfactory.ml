@@ -735,9 +735,10 @@ let process_expr data llvals varmap pos_n_expr =
     | Expr_Cast (from_tp, to_tp, expr) ->
        let e = expr_gen true expr in
        build_cast from_tp to_tp e
-    | Expr_Index (base, idx, tp, deref_base, array) ->
+    | Expr_Index (base, idx, tp, deref_base, array, is_volatile) ->
        let i = expr_gen true idx in
        let b = expr_gen deref_base base in
+       let () = if is_volatile then set_volatile true b in
        let addr =
          if not array then build_gep b [|i|] "addr" data.bldr
          else build_in_bounds_gep b [|data.zero_i32; i|] "addr" data.bldr
@@ -749,7 +750,7 @@ let process_expr data llvals varmap pos_n_expr =
        let addr = build_struct_gep base n "maddr" data.bldr in
        if rvalue_p then
          let instr = build_load addr "mval" data.bldr in
-         let () = if is_volatile then set_volatile true instr else () in
+         let () = if is_volatile then set_volatile true instr in
          instr
        else addr
     | Expr_StaticStruct (None, members) ->

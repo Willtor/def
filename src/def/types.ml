@@ -289,6 +289,13 @@ let rec size_of typemap = function
   | DefTypeLLVMToken ->
      Report.err_internal __FILE__ __LINE__ "Shouldn't need size of LLVM token."
 
+let string_of_qlist =
+  let rec conv accum = function
+    | [] -> accum
+    | Volatile :: rest -> conv (accum ^ "volatile ") rest
+  in
+  conv ""
+
 (** Convert the type into its string representation. *)
 let rec string_of_type = function
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
@@ -299,7 +306,9 @@ let rec string_of_type = function
      "(" ^ (String.concat ", " (List.map string_of_type params))
      ^ (if is_va then ", ...) -> " else ") -> ")
      ^ string_of_type ret
-  | DefTypePtr (t, _) -> "*" ^ (string_of_type t) (* FIXME: qualifiers *)
+  | DefTypePtr (t, qlist) ->
+     (string_of_qlist qlist)
+     ^ "*" ^ (string_of_type t) (* FIXME: qualifiers *)
   | DefTypeArray (tp, n) ->
      "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)
   | DefTypeNullPtr -> "nil"

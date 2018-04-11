@@ -40,6 +40,7 @@ type cfg_expr =
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
   | Expr_Index of cfg_expr * cfg_expr * Types.deftype
                   * (*deref_base=*)bool * (*array=*)bool
+                  * (*is_volatile=*)bool
   | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_StaticArray of cfg_expr list
@@ -155,6 +156,14 @@ let combine3 a b c =
        Report.err_internal __FILE__ __LINE__ "Inconsistent list lengths"
   in
   combine [] (a, b, c)
+
+let contains v =
+  let rec test = function
+    | [] -> false
+    | cmp :: _ when cmp = v -> true
+    | _ :: rest -> test rest
+  in
+  test
 
 let re_set =
   [ (regexp {|\\n|}, "\n");    (* newline *)
@@ -1090,13 +1099,15 @@ let convert_expr typemap fcnscope =
        | DefTypeArray (deref_type, _) ->
           if is_integer_type itype then
             deref_type,
-            Expr_Index (converted_base, converted_idx, deref_type, false, true)
+            Expr_Index (converted_base, converted_idx, deref_type,
+                        false, true, (*FIXME: volatile?*)false)
           else
             Report.err_non_integer_index ipos
-       | DefTypePtr (deref_type, _) ->
+       | DefTypePtr (deref_type, qlist) ->
           if is_integer_type itype then
             deref_type,
-            Expr_Index (converted_base, converted_idx, deref_type, true, false)
+            Expr_Index (converted_base, converted_idx, deref_type,
+                        true, false, contains Volatile qlist)
           else
             Report.err_non_integer_index ipos
        | _ -> Report.err_index_non_ptr ipos
@@ -1132,10 +1143,11 @@ let convert_expr typemap fcnscope =
             record_select obj (the (lookup_symbol typemap sname))
          | DefTypeNamedUnion sname ->
             record_select obj (the (lookup_symbol typemap sname))
-         | DefTypePtr (p, _) ->
+         | DefTypePtr (p, qlist) ->
             let idx = LitI32 (Int32.of_int 0) in
             let derefed_obj =
-              Expr_Index (obj, Expr_Literal idx, p, true, false) in
+              Expr_Index (obj, Expr_Literal idx, p,
+                          true, false, contains Volatile qlist) in
             record_select derefed_obj p
          | _ -> Report.err_non_struct_member_access dpos
        in
@@ -1777,7 +1789,9 @@ let rec build_bbs name decltable typemap fcn_pos body =
                 List.mapi
                   (fun n element ->
                     let expr_n = Expr_Literal (LitI32 (Int32.of_int n)) in
-                    let el_n = Expr_Index (lexpr, expr_n, subtype, true, false) in
+                    let el_n = Expr_Index (lexpr, expr_n, subtype,
+                                           true, false, false)
+                    in
                     wildcards ((subtype, el_n), (subtype, element)))
                   elements
               in
@@ -1788,7 +1802,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
                 List.mapi
                   (fun n char ->
                     let expr_n = Expr_Literal (LitI32 (Int32.of_int n)) in
-                    let el_n = Expr_Index (lexpr, expr_n, subtype, true, false)
+                    let el_n = Expr_Index (lexpr, expr_n, subtype,
+                                           true, false, false)
                     and str_n = Expr_Literal (LitI8 char) in
                     reconcile pos (subtype, el_n) (subtype, str_n))
                   (explode_string str)

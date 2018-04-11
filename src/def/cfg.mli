@@ -11,6 +11,7 @@ type cfg_expr =
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
   | Expr_Index of cfg_expr * cfg_expr * Types.deftype
                   * (*deref_base=*)bool * (*array=*)bool
+                  * (*is_volatile=*)bool
   | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
   | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
   | Expr_StaticArray of cfg_expr list
