@@ -29,14 +29,14 @@ let lift_lhs_static_structs program =
       | Expr_Binary (pos,
                      OperAssign,
                      is_atomic,
-                     DefTypeStaticStruct mtypes,
+                     ({ bare = DefTypeStaticStruct mtypes } as dtp),
                      Expr_StaticStruct (_, members),
                      rhs) ->
          let decl = { decl_pos = pos;
                       mappedname = "__defstatic"; (* FIXME: unique name. *)
                       vis = VisLocal;
                       is_tls = false;
-                      tp = DefTypeStaticStruct mtypes;
+                      tp = dtp;
                       params = [];
                      } in
          let vars = ("__defstatic", decl) in
@@ -51,18 +51,18 @@ let lift_lhs_static_structs program =
          in
          [ vars ],
          (pos, Expr_Binary (pos, OperAssign, is_atomic,
-                            DefTypeStaticStruct mtypes,
+                            dtp,
                             Expr_Variable "__defstatic", rhs)) :: exprs
       | Expr_Binary (pos, OperAssign,
                      is_atomic,
-                     DefTypeLiteralStruct (mtypes, mnames),
+                     ({ bare = DefTypeLiteralStruct (mtypes, mnames) } as dtp),
                      Expr_StaticStruct (_, members),
                      rhs) ->
          let decl = { decl_pos = pos;
                       mappedname = "__defstatic"; (* FIXME: unique name. *)
                       vis = VisLocal;
                       is_tls = false;
-                      tp = DefTypeLiteralStruct (mtypes, mnames);
+                      tp = dtp;
                       params = [];
                     } in
          let vars = ("__defstatic", decl) in
@@ -77,7 +77,7 @@ let lift_lhs_static_structs program =
          in
          [ vars ],
          (pos, Expr_Binary (pos, OperAssign, is_atomic,
-                            DefTypeLiteralStruct (mtypes, mnames),
+                            dtp,
                             Expr_Variable "__defstatic", rhs)) :: exprs
       (* FIXME: Need something for static arrays, I think. *)
       | _ -> [], [ (pos, expr) ]

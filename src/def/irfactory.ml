@@ -62,7 +62,8 @@ let get_fcntype = function
   | _ -> Report.err_internal __FILE__ __LINE__ "Expected a DefTypeFcn."
 
 let convert_deftype2llvmtype ctx typemap deftypemap =
-  let rec convert wrap_fcn_ptr = function
+  let rec convert wrap_fcn_ptr tp =
+    match tp.bare with
     | DefTypeUnresolved (_, name) ->
        Report.err_internal __FILE__ __LINE__
          ("Tried to convert a placeholder type: " ^ name)
@@ -80,10 +81,10 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
     | DefTypePrimitive (prim, _) ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
-    | DefTypePtr (DefTypeVoid, _) ->
+    | DefTypePtr ({ bare = DefTypeVoid }, _) ->
        (* Void pointer isn't natively supported by LLVM.  Use char* instead. *)
        pointer_type (the (lookup_symbol typemap "i8"))
-    | DefTypePtr (DefTypeOpaque _, _) ->
+    | DefTypePtr ({ bare = DefTypeOpaque _ }, _) ->
        (* Opaque struct pointers are just i8 pointers, as far as we're
           concerned.  As long as an opaque type remains opaque, it doesn't
           matter. *)
@@ -94,8 +95,8 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
        array_type (convert wrap_fcn_ptr tp) dim
     | DefTypeNullPtr ->
        Report.err_internal __FILE__ __LINE__ "convert null pointer."
-    | DefTypeEnum _ as t ->
-       let sz = size_of deftypemap t in
+    | DefTypeEnum _ ->
+       let sz = size_of deftypemap tp in
        integer_type ctx (sz * 8)
     | DefTypeNamedStruct name
     | DefTypeNamedUnion name ->
@@ -104,10 +105,10 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
        struct_type ctx (Array.of_list llvm_members)
-    | DefTypeLiteralUnion _ as u ->
+    | DefTypeLiteralUnion _ ->
        (* FIXME: This should take alignment into account.  There're going to
           be troubles if we don't. *)
-       let sz = Types.size_of deftypemap u in
+       let sz = Types.size_of deftypemap tp in
        let array = array_type (the @@ lookup_symbol typemap "i8") sz
        in struct_type ctx [| array |]
     | DefTypeVAList ->
@@ -127,7 +128,7 @@ let build_types ctx deftypes =
     match lookup_symbol typemap name with
     | Some _ -> ()
     | None ->
-       begin match deftype with
+       begin match deftype.bare with
        | DefTypeLiteralStruct _ ->
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypeLiteralUnion _ ->
@@ -187,14 +188,15 @@ let build_types ctx deftypes =
                               "Some unknown type was found."
        end
   in
-  let build_structs name = function
+  let build_structs name tp =
+    match tp.bare with
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members =
          List.map do_convert members in
        let llvm_struct = the (lookup_symbol typemap name) in
        struct_set_body llvm_struct (Array.of_list llvm_members) false
-    | DefTypeLiteralUnion _ as u ->
-       let sz = Types.size_of deftypes u in
+    | DefTypeLiteralUnion _ ->
+       let sz = Types.size_of deftypes tp in
        let array = array_type (the @@ lookup_symbol typemap "i8") sz in
        let llvm_struct = the (lookup_symbol typemap name) in
        struct_set_body llvm_struct [| array |] false
@@ -230,7 +232,8 @@ let process_literal typemap lit = match lit with
   | LitF64 n ->
      const_float (the (lookup_symbol typemap "f64")) n
 
-let bytes = function
+let bytes tp =
+  match tp.bare with
   | DefTypePrimitive (p, _) ->
      begin match p with
      | PrimBool | PrimI8 | PrimU8 -> 1
@@ -491,7 +494,8 @@ let process_expr data llvals varmap pos_n_expr =
          ("llvm_operator not fully implemented: operator "
           ^ (operator2string op))
 
-  and make_llvm_tp = function
+  and make_llvm_tp deftp =
+    match deftp.bare with
     | DefTypeFcn (params, ret, is_va) ->
        let llparams = Array.of_list @@ List.map make_llvm_tp params
        and llret = make_llvm_tp ret in
@@ -499,8 +503,8 @@ let process_expr data llvals varmap pos_n_expr =
        else function_type llret llparams
     | DefTypePtr (t, _) ->
        pointer_type (make_llvm_tp t)
-    | DefTypeEnum _ as enum ->
-       let sz = size_of data.prog.deftypemap enum in
+    | DefTypeEnum _ ->
+       let sz = size_of data.prog.deftypemap deftp in
        integer_type data.ctx (sz * 8)
     | DefTypePrimitive (pt, _) ->
        the (lookup_symbol data.typemap (primitive2string pt))
@@ -509,8 +513,8 @@ let process_expr data llvals varmap pos_n_expr =
        the (lookup_symbol data.typemap nm)
     | DefTypeVoid ->
        the (lookup_symbol data.typemap "i8")
-    | t -> Report.err_internal __FILE__ __LINE__
-       ("make_llvm_tp incomplete: " ^ (string_of_type t))
+    | _ -> Report.err_internal __FILE__ __LINE__
+       ("make_llvm_tp incomplete: " ^ (string_of_type deftp))
 
   and build_cast from_tp to_tp e =
     let build_primitive_cast t1 t2 =
@@ -626,7 +630,7 @@ let process_expr data llvals varmap pos_n_expr =
       in
       f e llvm_to_tp "cast" data.bldr
     in
-    match from_tp, to_tp with
+    match from_tp.bare, to_tp.bare with
     | DefTypePrimitive (prim1, _), DefTypePrimitive (prim2, _) ->
        (* FIXME: qualifiers. *)
        build_primitive_cast prim1 prim2
@@ -644,7 +648,7 @@ let process_expr data llvals varmap pos_n_expr =
          "What's the deal with casting floats to ptrs?"
     | DefTypeStaticStruct _, DefTypeNamedStruct s
     | DefTypeLiteralStruct _, DefTypeNamedStruct s ->
-       build_bitcast e (make_llvm_tp (DefTypeNamedStruct s)) "scast" data.bldr
+       build_bitcast e (make_llvm_tp to_tp) "scast" data.bldr
     | DefTypeStaticStruct _, _
     | DefTypeLiteralStruct _, _ ->
        (* FIXME: I think this might be correct, actually, but need to think
@@ -664,8 +668,10 @@ let process_expr data llvals varmap pos_n_expr =
        let llsz = expr_gen true sz in
        let _, _, alloc = the (lookup_symbol varmap "forkscan_malloc") in
        let mem = build_call alloc [| llsz |] "new" data.bldr in
-       let obj = build_cast (DefTypePtr (DefTypeVoid, []))
-                            (DefTypePtr (tp, [])) mem in
+       let obj = build_cast (makeptr (makebare DefTypeVoid))
+                            (makeptr tp)
+                            mem
+       in
        let () = List.iter (fun (n, e) ->
                     let addr = build_struct_gep obj n "member" data.bldr in
                     let v = expr_gen true e in
@@ -681,8 +687,8 @@ let process_expr data llvals varmap pos_n_expr =
          | ValueKind.Function -> var
          | _ -> build_load_wrapper var tp "callee" data.bldr
        in
-       let retname = match tp with
-         | DefTypeFcn (_, DefTypeVoid, _) -> ""
+       let retname = match tp.bare with
+         | DefTypeFcn (_, { bare = DefTypeVoid }, _) -> ""
          | _ -> "def_call"
        in
        build_call callee (Array.of_list arg_vals) retname data.bldr
@@ -695,8 +701,8 @@ let process_expr data llvals varmap pos_n_expr =
          | ValueKind.Function -> var
          | _ -> build_load_wrapper var tp "callee" data.bldr
        in
-       let retname = match tp with
-         | DefTypeFcn (_, DefTypeVoid, _) -> ""
+       let retname = match tp.bare with
+         | DefTypeFcn (_, { bare = DefTypeVoid }, _) -> ""
          | _ -> "def_call"
        in
        build_call callee (Array.of_list arg_vals) retname data.bldr
@@ -710,14 +716,14 @@ let process_expr data llvals varmap pos_n_expr =
        begin match lookup_symbol varmap name with
        | None -> Report.err_internal __FILE__ __LINE__
           ("Failed to find variable " ^ name ^ ".")
-       | Some (_, DefTypeFcn _, llvar) ->
+       | Some (_, { bare = DefTypeFcn _ }, llvar) ->
           if not rvalue_p then llvar
           else begin match classify_value llvar with
                | ValueKind.Function -> llvar
                | _ -> build_load llvar "deref_fcn" data.bldr
                                  (* FIXME: volatile ptr? *)
                end
-       | Some (_, DefTypeArray _, llvar) ->
+       | Some (_, { bare = DefTypeArray _ }, llvar) ->
           (* Arrays need to be treated differently from pointers - they
              should not be dereferenced here.  The array llvar _is_ the
              pointer to the memory, not a pointer to the pointer. *)
@@ -810,7 +816,7 @@ let get_debug_type =
            Hashtbl.add debug_types tp t;
            t
          in
-         match tp with
+         match tp.bare with
          | DefTypeFcn (params, ret, (*variadic:*)_) ->
             let plist = List.map lookup_type params in
             let r = lookup_type ret in
@@ -971,7 +977,7 @@ let process_fcn data symbols fcn =
   position_at_end entry data.bldr;
 
   (* Arguments. *)
-  let (args, _, _) = get_fcntype profile.tp in
+  let (args, _, _) = get_fcntype profile.tp.bare in
   let llparams = params llfcn in
   List.iteri (fun i ((pos, n), tp) ->
     let alloc =
@@ -1029,7 +1035,7 @@ let zero_llval data = function
 
 let declare_globals data symbols initializers name decl =
   let lltp = deftype2llvmtype data false decl.tp in
-  let llval = match decl.tp with
+  let llval = match decl.tp.bare with
     | DefTypeFcn _ ->
        let llfcn = declare_function decl.mappedname lltp data.mdl in
        (if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
@@ -1050,7 +1056,9 @@ let declare_globals data symbols initializers name decl =
              let () = set_externally_initialized true llglobal in
              llglobal
            else
-             define_global decl.mappedname (zero_llval data decl.tp) data.mdl
+             define_global decl.mappedname
+                           (zero_llval data decl.tp.bare)
+                           data.mdl
        in
        let () = if decl.is_tls then set_thread_local true llglobal in
        llglobal

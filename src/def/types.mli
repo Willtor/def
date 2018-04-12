@@ -15,7 +15,7 @@ type visibility =
   | VisExported of Lexing.position
   | VisExternal
 
-type deftype =
+type baretype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
   | DefTypeOpaque of Lexing.position * string
@@ -33,6 +33,10 @@ type deftype =
   | DefTypeVAList
   | DefTypeWildcard
   | DefTypeLLVMToken
+
+and deftype =
+  { bare : baretype
+  }
 
 (** Return whether the given integer type is signed. *)
 val signed_p : deftype -> bool
@@ -82,3 +86,9 @@ val contains_wildcard : deftype -> bool
 
 (** Get the dwarf type of a primitive type. *)
 val dwarf_of : deftype -> (int * Llvmext.dwarf_type)
+
+(** Make a deftype from a bare type. *)
+val makebare : baretype -> deftype
+
+(** Make a pointer type. *)
+val makeptr : deftype -> deftype

@@ -37,7 +37,7 @@ type visibility =
   | VisExported of Lexing.position
   | VisExternal
 
-type deftype =
+type baretype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
   | DefTypeOpaque of Lexing.position * string
@@ -56,12 +56,16 @@ type deftype =
   | DefTypeWildcard
   | DefTypeLLVMToken
 
+and deftype =
+  { bare : baretype
+  }
+
 type primitive_kind =
   | KindInteger
   | KindFloat
 
 (** Return whether the given integer type is signed. *)
-let signed_p = function
+let signed_p t = match t.bare with
   | DefTypePrimitive (p, _) ->
      begin match p with
      | PrimBool -> true
@@ -127,7 +131,7 @@ let generalize_primitives p1 p2 =
     the types are identical and non-zero indicates non-identical. *)
 let compare t1 t2 =
   let compare_primitives p1 p2 = if p1 == p2 then 0 else 1 in
-  match t1, t2 with
+  match t1.bare, t2.bare with
   | DefTypePrimitive (p1, _), DefTypePrimitive (p2, _) ->
      (* FIXME: Need to resolve qualifiers (volatile, const, etc.). *)
      compare_primitives p1 p2
@@ -137,37 +141,38 @@ let compare t1 t2 =
 
 (** name, type, llvm type constructor, C type(s), bitwidth, dwarf type *)
 let map_builtin_types =
-  [ ("void", DefTypeVoid, void_type,
+  let makebare bare = { bare = bare } in
+  [ ("void", makebare DefTypeVoid, void_type,
      ["void"], 0, DW_INVALID);
-    ("bool", DefTypePrimitive (PrimBool, []), i1_type,
+    ("bool", makebare (DefTypePrimitive (PrimBool, [])), i1_type,
      ["char"], 1, DW_ATE_BOOLEAN);
-    ("char", DefTypePrimitive (PrimI8, []), i8_type,
+    ("char", makebare (DefTypePrimitive (PrimI8, [])), i8_type,
      ["char"],
      8, DW_ATE_SIGNED_CHAR);
-    ("uchar", DefTypePrimitive (PrimU8, []), i8_type,
+    ("uchar", makebare (DefTypePrimitive (PrimU8, [])), i8_type,
      ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
-    ("i8",  DefTypePrimitive (PrimI8, []),  i8_type,
+    ("i8", makebare (DefTypePrimitive (PrimI8, [])),  i8_type,
      ["char"; "signed char"], 8, DW_ATE_SIGNED_CHAR);
-    ("u8",  DefTypePrimitive (PrimU8, []),  i8_type,
+    ("u8", makebare (DefTypePrimitive (PrimU8, [])),  i8_type,
      ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
-    ("i16", DefTypePrimitive (PrimI16, []), i16_type,
+    ("i16", makebare (DefTypePrimitive (PrimI16, [])), i16_type,
      ["short"; "signed short"], 16, DW_ATE_SIGNED);
-    ("u16", DefTypePrimitive (PrimU16, []), i16_type,
+    ("u16", makebare (DefTypePrimitive (PrimU16, [])), i16_type,
      ["unsigned short"], 16, DW_ATE_UNSIGNED);
-    ("i32", DefTypePrimitive (PrimI32, []), i32_type,
+    ("i32", makebare (DefTypePrimitive (PrimI32, [])), i32_type,
      ["int"; "signed int"], 32, DW_ATE_SIGNED);
-    ("u32", DefTypePrimitive (PrimU32, []), i32_type,
+    ("u32", makebare (DefTypePrimitive (PrimU32, [])), i32_type,
      ["unsigned int"], 32, DW_ATE_UNSIGNED);
-    ("i64", DefTypePrimitive (PrimI64, []), i64_type,
+    ("i64", makebare (DefTypePrimitive (PrimI64, [])), i64_type,
      ["long long"; "signed long long"; "long"; "signed long"],
      64, DW_ATE_SIGNED);
-    ("u64", DefTypePrimitive (PrimU64, []), i64_type,
+    ("u64", makebare (DefTypePrimitive (PrimU64, [])), i64_type,
      ["unsigned long long"; "unsigned long"], 64, DW_ATE_UNSIGNED);
-    ("f32", DefTypePrimitive (PrimF32, []), float_type,
+    ("f32", makebare (DefTypePrimitive (PrimF32, [])), float_type,
      ["float"], 64, DW_ATE_FLOAT);
-    ("f64", DefTypePrimitive (PrimF64, []), double_type,
+    ("f64", makebare (DefTypePrimitive (PrimF64, [])), double_type,
      ["double"; "long double"], 64, DW_ATE_FLOAT);
-    ("llvm.token", DefTypeLLVMToken, token_type,
+    ("llvm.token", makebare DefTypeLLVMToken, token_type,
      [], 0, DW_INVALID)
   ]
 
@@ -186,7 +191,7 @@ let primitive2string = function
   | PrimF64 -> "f64"
 
 (** Return true iff the given type is an integer type. *)
-let is_integer_type = function
+let is_integer_type t = match t.bare with
   | DefTypePrimitive (prim, _) ->
      begin match prim with
      | PrimBool
@@ -200,7 +205,7 @@ let is_integer_type = function
   | _ -> false
 
 (** Return true iff the type is a signed integer. *)
-let is_sinteger_type = function
+let is_sinteger_type t = match t.bare with
   | DefTypePrimitive (prim, _) ->
      begin match prim with
      | PrimBool
@@ -217,7 +222,7 @@ let is_sinteger_type = function
   | _ -> false
 
 (** Return true iff the type is an unsigned integer. *)
-let is_uinteger_type = function
+let is_uinteger_type t = match t.bare with
   | DefTypePrimitive (prim, _) ->
      begin match prim with
      | PrimU8
@@ -234,14 +239,14 @@ let is_uinteger_type = function
   | _ -> false
 
 (** Return true iff the type is a pointer. *)
-let is_pointer_type = function
+let is_pointer_type t = match t.bare with
   | DefTypePtr _ -> true
   | _ -> false
 
 let ptr_size = 8
 
 (** Return the size of the given type in bytes. *)
-let rec size_of typemap = function
+let rec size_of typemap t = match t.bare with
   | DefTypeUnresolved _ ->
      Report.err_internal __FILE__ __LINE__
        "size_of called on an unresolved type."
@@ -297,7 +302,7 @@ let string_of_qlist =
   conv ""
 
 (** Convert the type into its string representation. *)
-let rec string_of_type = function
+let rec string_of_type t = match t.bare with
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
   | DefTypeOpaque (_, nm) -> "<opaque> " ^ nm
@@ -331,7 +336,7 @@ let rec string_of_type = function
   | _ -> "other"
 
 (** Return true iff the type is volatile. *)
-let dt_is_volatile = function
+let dt_is_volatile t = match t.bare with
   | DefTypePrimitive (_, qualifiers) ->
      List.exists (fun q -> q = Volatile) qualifiers
   | _ -> false (* FIXME: Implement. *)
@@ -340,8 +345,8 @@ let dt_is_volatile = function
 let most_general_type pos typemap =
   let rec get_literal_struct nm =
     match lookup_symbol typemap nm with
-    | Some (DefTypeLiteralStruct _ as t) -> t
-    | Some (DefTypeNamedStruct nm2) -> get_literal_struct nm2
+    | Some ({ bare = DefTypeLiteralStruct _ } as t) -> t
+    | Some ({ bare = DefTypeNamedStruct nm2 }) -> get_literal_struct nm2
     | None -> Report.err_internal __FILE__ __LINE__
                                   ("struct " ^ nm ^ "undefined.")
     | _ -> Report.err_internal __FILE__ __LINE__
@@ -349,8 +354,8 @@ let most_general_type pos typemap =
   in
   let rec get_literal_union nm =
     match lookup_symbol typemap nm with
-    | Some (DefTypeLiteralUnion _ as t) -> t
-    | Some (DefTypeNamedUnion nm2) -> get_literal_union nm2
+    | Some ({ bare = DefTypeLiteralUnion _ } as t) -> t
+    | Some ({ bare = DefTypeNamedUnion nm2 }) -> get_literal_union nm2
     | None -> Report.err_internal __FILE__ __LINE__
                                   ("union " ^ nm ^ "undefined.")
     | _ -> Report.err_internal __FILE__ __LINE__
@@ -370,7 +375,7 @@ let most_general_type pos typemap =
       try List.map2 generalize tplist1 tplist2
       with _ -> generalizing_error ()
     in
-    match t1, t2 with
+    match t1.bare, t2.bare with
     | DefTypeWildcard, _ -> t2
     | _, DefTypeWildcard -> t1
     | DefTypeVAList, DefTypeVAList -> t1
@@ -389,27 +394,28 @@ let most_general_type pos typemap =
     | _, DefTypeOpaque _ ->
        generalizing_error ()
     | DefTypePrimitive (p1, q1), DefTypePrimitive (p2, q2) ->
-       DefTypePrimitive (generalize_primitives p1 p2,
-                         generalize_qualifiers q1 q2)
+       { bare = DefTypePrimitive (generalize_primitives p1 p2,
+                                  generalize_qualifiers q1 q2)
+       }
     | DefTypePrimitive _, _
     | _, DefTypePrimitive _ ->
        generalizing_error ()
     | DefTypeFcn (params1, ret1, var1), DefTypeFcn (params2, ret2, var2) ->
        if params1 = params2 && ret1 = ret2 && var1 = var2 then
-         DefTypeFcn(params1, ret1, var1)
+         { bare = DefTypeFcn(params1, ret1, var1) }
        else
          generalizing_error ()
     | DefTypeFcn _, _
     | _, DefTypeFcn _ ->
        generalizing_error ()
-    | DefTypePtr _, DefTypePtr (DefTypeVoid, _) -> t1
-    | DefTypePtr (DefTypeVoid, _), DefTypePtr _ -> t2
+    | DefTypePtr _, DefTypePtr ({ bare = DefTypeVoid }, _) -> t1
+    | DefTypePtr ({ bare = DefTypeVoid }, _), DefTypePtr _ -> t2
     | DefTypePtr (st1, q1), DefTypeArray (st2, _) ->
-       DefTypePtr (generalize st1 st2, q1)
+       { bare = DefTypePtr (generalize st1 st2, q1) }
     | DefTypePtr (st1, q1), DefTypePtr (st2, q2) ->
-       DefTypePtr (generalize st1 st2, generalize_qualifiers q1 q2)
+       { bare = DefTypePtr (generalize st1 st2, generalize_qualifiers q1 q2) }
     | DefTypeArray (st1, _), DefTypePtr (st2, q2) ->
-       DefTypePtr (generalize st1 st2, q2)
+       { bare = DefTypePtr (generalize st1 st2, q2) }
     | DefTypePtr _, DefTypeNullPtr -> t1
     | DefTypeNullPtr, DefTypePtr _ -> t2
     | DefTypePtr _, _
@@ -422,14 +428,14 @@ let most_general_type pos typemap =
        generalizing_error ()
     | DefTypeArray (st1, n), DefTypeArray (st2, m) ->
        let subtype = generalize st1 st2 in
-       if n = m then DefTypeArray (subtype, n)
-       else DefTypePtr (subtype, [])
-    | DefTypeArray (st1, _), DefTypeNullPtr -> DefTypePtr (st1, [])
-    | DefTypeNullPtr, DefTypeArray (st2, _) -> DefTypePtr (st2, [])
+       if n = m then { bare = DefTypeArray (subtype, n) }
+       else { bare = DefTypePtr (subtype, []) }
+    | DefTypeArray (st1, _), DefTypeNullPtr -> { bare = DefTypePtr (st1, []) }
+    | DefTypeNullPtr, DefTypeArray (st2, _) -> { bare = DefTypePtr (st2, []) }
     | DefTypeArray _, _
     | _, DefTypeArray _ ->
        generalizing_error ()
-    | DefTypeNullPtr, DefTypeNullPtr -> DefTypeNullPtr
+    | DefTypeNullPtr, DefTypeNullPtr -> t1
     | DefTypeNullPtr, _
     | _, DefTypeNullPtr ->
        generalizing_error ()
@@ -441,9 +447,9 @@ let most_general_type pos typemap =
     | DefTypeNamedStruct s, DefTypeStaticStruct tplist1
     | DefTypeStaticStruct tplist1, DefTypeNamedStruct s ->
        begin match get_literal_struct s with
-       | DefTypeLiteralStruct (tplist2, _) ->
+       | { bare = DefTypeLiteralStruct (tplist2, _) } ->
           let _ = reconcile_member_types tplist1 tplist2 in
-          DefTypeNamedStruct s
+          { bare = DefTypeNamedStruct s }
        | _ ->
           Report.err_internal __FILE__ __LINE__
                               "Named struct was actually not a struct."
@@ -456,15 +462,15 @@ let most_general_type pos typemap =
        else generalizing_error ()
     | DefTypeLiteralStruct (tplist1, _), DefTypeStaticStruct tplist2 ->
        let reconciled = reconcile_member_types tplist1 tplist2 in
-       DefTypeStaticStruct reconciled
+       { bare = DefTypeStaticStruct reconciled }
     | DefTypeStaticStruct tplist1, DefTypeLiteralStruct (tplist2, _) ->
        let reconciled = reconcile_member_types tplist1 tplist2 in
-       DefTypeStaticStruct reconciled
+       { bare = DefTypeStaticStruct reconciled }
     | DefTypeLiteralStruct _, _
     | _, DefTypeLiteralStruct _ ->
        generalizing_error ()
     | DefTypeStaticStruct tplist1, DefTypeStaticStruct tplist2 ->
-       DefTypeStaticStruct (reconcile_member_types tplist1 tplist2)
+       { bare = DefTypeStaticStruct (reconcile_member_types tplist1 tplist2) }
     | DefTypeStaticStruct _, _
     | _, DefTypeStaticStruct _ ->
        generalizing_error ()
@@ -473,9 +479,9 @@ let most_general_type pos typemap =
     | DefTypeNamedUnion u, DefTypeLiteralUnion (tplist1, _)
     | DefTypeLiteralUnion (tplist1, _), DefTypeNamedUnion u ->
        begin match get_literal_union u with
-       | DefTypeLiteralUnion (tplist2, _) ->
+       | { bare = DefTypeLiteralUnion (tplist2, _) } ->
           let _ = reconcile_member_types tplist1 tplist2 in
-          DefTypeNamedUnion u
+          { bare = DefTypeNamedUnion u }
        | _ ->
           Report.err_internal __FILE__ __LINE__
                               "Named union was actually not a union."
@@ -492,7 +498,7 @@ let most_general_type pos typemap =
        t1
   in
   let rec most_general = function
-    | [] -> DefTypeUnresolved (Util.faux_pos, "<unknown array>")
+    | [] -> { bare = DefTypeUnresolved (Util.faux_pos, "<unknown array>") }
     | [ t ] -> t
     | t1 :: t2 :: rest ->
        most_general ((generalize t1 t2) :: rest)
@@ -500,7 +506,7 @@ let most_general_type pos typemap =
   most_general
 
 (** Return true iff the given type contains a wildcard. *)
-let rec contains_wildcard = function
+let rec contains_wildcard t = match t.bare with
   | DefTypeWildcard -> true
   | DefTypeLiteralStruct (tps, _)
   | DefTypeStaticStruct tps -> List.exists contains_wildcard tps
@@ -512,3 +518,9 @@ let dwarf_of =
   List.iter (fun (_, p, _, _, sz, d) -> Hashtbl.add dwarf p (sz, d))
             map_builtin_types;
   Hashtbl.find dwarf
+
+(** Make a deftype from a bare type. *)
+let makebare bare = { bare = bare }
+
+(** Make a bare pointer type. *)
+let makeptr tp = makebare (DefTypePtr (tp, []))
