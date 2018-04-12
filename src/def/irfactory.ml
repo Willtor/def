@@ -511,6 +511,7 @@ let process_expr data llvals varmap pos_n_expr =
     | DefTypeNamedStruct nm
     | DefTypeNamedUnion nm ->
        the (lookup_symbol data.typemap nm)
+    | DefTypeOpaque _
     | DefTypeVoid ->
        the (lookup_symbol data.typemap "i8")
     | _ -> Report.err_internal __FILE__ __LINE__
