@@ -17,7 +17,7 @@ output=$1.out
 echo
 echo "### Correctness Test: $1 ###"
 
-sleep 0.2
+sleep 0.1
 eval $prog > $output
 code=$?
 

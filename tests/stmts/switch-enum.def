@@ -1,0 +1,28 @@
+// Unit test for enum switch statements.
+
+typedef enum_t = enum
+    | alt_1
+    | alt_2
+    | alt_3
+    ;
+
+decl puts (*char) -> i32;
+
+def enum_switch (e enum_t) -> void
+begin
+    switch e with
+    xcase alt_1: puts("alt_1");
+    xcase alt_2: puts("alt_2");
+    xcase _: puts("alt_3");
+    esac
+end
+
+export
+def main () -> i32
+begin
+    enum_switch(alt_1);
+    enum_switch(alt_2);
+    enum_switch(alt_3);
+    puts("done.");
+    return 0;
+end
