@@ -1,3 +1,4 @@
+// Unit test for the code generation on the volatile keyword.
 
 export
 def vol_ptr (ptr volatile *i32) -> i32
