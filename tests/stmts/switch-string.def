@@ -1,0 +1,42 @@
+// Unit test for string switch statements.
+
+typedef opt_t = enum
+    | OPT_HELP
+    | OPT_OBJECT
+    | OPT_UNKNOWN
+    ;
+
+decl printf (*char, ...) -> i32;
+
+def string_switch (str *char) -> opt_t
+begin
+    switch str with
+    xcase "-h":
+    ocase "--help":
+        return OPT_HELP;
+    xcase "-c":
+    ocase "--object":
+        return OPT_OBJECT;
+    xcase _:
+        return OPT_UNKNOWN;
+    esac
+    return OPT_UNKNOWN; // FIXME: Need to detect unreachable after switch.
+end
+
+export
+def main () -> i32
+begin
+    if string_switch("-h") != OPT_HELP
+       || string_switch("--help") != OPT_HELP then
+        printf("failed the help case.\n");
+    fi
+    if string_switch("-c") != OPT_OBJECT
+       || string_switch("--object") != OPT_OBJECT then
+        printf("failed the object case.\n");
+    fi
+    if string_switch("foo") != OPT_UNKNOWN then
+        printf("failed the unknown case.\n");
+    fi
+    printf("done.\n");
+    return 0;
+end

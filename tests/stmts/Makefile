@@ -1,7 +1,7 @@
 include ../common.mk
 
 UNIT = type-inference for-generic while-generic global_vars static-array switch-basic \
-	switch-tuple switch-array switch-enum while-break
+	switch-tuple switch-array switch-enum switch-string while-break
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 
