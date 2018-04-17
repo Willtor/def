@@ -136,6 +136,8 @@ type function_scope =
     fs_scope_pos  : cfg_scope
   }
 
+let volatility v tp = if v then volatile_of tp else tp
+
 (** Basic types. *)
 let bool_type = maketype None @@ DefTypePrimitive PrimBool
 let char_type = maketype None @@ DefTypePrimitive PrimI8
@@ -1126,7 +1128,7 @@ let convert_expr typemap fcnscope =
             Report.err_non_integer_index ipos
        | DefTypePtr deref_type ->
           if is_integer_type itype then
-            deref_type,
+            volatility btype.dtvolatile deref_type,
             Expr_Index (converted_base, converted_idx, deref_type,
                         true, false, btype.dtvolatile)
           else
@@ -1152,7 +1154,7 @@ let convert_expr typemap fcnscope =
                get_field 0 fields
             in
             let tp = List.nth mtypes id in
-            tp,
+            volatility tp.dtvolatile tp,
             Expr_SelectField (obj, id, tp.dtvolatile)
          | DefTypeLiteralUnion _ ->
             Report.err_internal __FILE__ __LINE__
