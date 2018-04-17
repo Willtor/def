@@ -22,6 +22,7 @@ open Lexing
 open Llvm
 open Llvmext (* build_cmpxchg, token_type *)
 open Llvm_target
+open Operator
 open Types
 open Util
 
@@ -339,7 +340,8 @@ let process_expr data llvals varmap pos_n_expr =
        build_not llvm_expr "lnot" bldr
     | _ ->
        Report.err_internal __FILE__ __LINE__
-         ("llvm_unop not fully implemented: operator " ^ (operator2string op))
+                           ("llvm_unop not fully implemented: operator "
+                            ^ (string_of_operator op))
   and llvm_binop pos op is_atomic tp left right bldr =
     let standard_op fcn name =
       let lhs = expr_gen true left in
@@ -469,8 +471,10 @@ let process_expr data llvals varmap pos_n_expr =
     | OperBitwiseOr, false
     | OperBitwiseXor, false ->
        Report.err_internal __FILE__ __LINE__
-         ("tried to perform an operation \"" ^ (operator2string op)
-          ^ ") on float operands.  This should have been caught earlier.")
+                           ("tried to perform an operation \""
+                            ^ (string_of_operator op)
+                            ^ ") on float operands.  "
+                            ^ "This should have been caught earlier.")
     | OperPlusAssign, _ ->
        maybe_atomic_op (if integer_math then build_add else build_fadd)
                        (Some AtomicRMWBinOp.Add)
@@ -492,7 +496,7 @@ let process_expr data llvals varmap pos_n_expr =
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("llvm_operator not fully implemented: operator "
-          ^ (operator2string op))
+          ^ (string_of_operator op))
 
   and make_llvm_tp deftp =
     match deftp.bare with

@@ -17,9 +17,10 @@
  *)
 
 open Cimportext
-open Types
 open Lexing
+open Operator
 open Parsetree
+open Types
 
 type literal =
   | LitBool of bool
@@ -34,23 +35,6 @@ type literal =
   | LitF32 of float
   | LitF64 of float
 
-type operator =
-  | OperIncr | OperDecr | OperAddrOf
-  | OperMinus | OperPlus
-  | OperLogicalNot | OperBitwiseNot
-  | OperMult | OperDiv | OperRemainder
-  | OperLShift | OperRShift
-  | OperLT | OperGT | OperLTE
-  | OperGTE | OperEquals | OperNEquals
-  | OperBitwiseAnd | OperBitwiseXor | OperBitwiseOr
-  | OperLogicalAnd | OperLogicalOr
-  | OperEllipsis
-  | OperAssign | OperPlusAssign
-  | OperMinusAssign | OperMultAssign
-  | OperDivAssign | OperRemAssign
-  | OperLShiftAssign | OperRShiftAssign
-  | OperBAndAssign | OperBXorAssign | OperBOrAssign
-
 type fcn_call =
   { fc_pos      : position;
     fc_name     : string;
@@ -61,7 +45,7 @@ type fcn_call =
 
 and operation =
   { op_pos : position;
-    op_op : operator;
+    op_op : Operator.t;
     op_left : expr;
     op_right : expr option;
     op_atomic : bool
@@ -153,43 +137,6 @@ let faux_global =
     td_text = "global";
     td_noncode = []
   }
-
-let operator2string = function
-  | OperIncr -> "++"
-  | OperDecr -> "--"
-  | OperAddrOf -> "&"
-  | OperMinus -> "-"
-  | OperPlus -> "+"
-  | OperLogicalNot -> "!"
-  | OperBitwiseNot -> "~"
-  | OperMult -> "*"
-  | OperDiv -> "/"
-  | OperRemainder -> "%"
-  | OperLShift -> "<<"
-  | OperRShift -> ">>"
-  | OperLT -> "<"
-  | OperGT -> ">"
-  | OperLTE -> "<="
-  | OperGTE -> ">="
-  | OperEquals -> "=="
-  | OperNEquals -> "!="
-  | OperBitwiseAnd -> "&"
-  | OperBitwiseXor -> "^"
-  | OperBitwiseOr -> "|"
-  | OperLogicalAnd -> "&&"
-  | OperLogicalOr -> "||"
-  | OperEllipsis -> "..."
-  | OperAssign -> "="
-  | OperPlusAssign -> "+="
-  | OperMinusAssign -> "-="
-  | OperMultAssign -> "*="
-  | OperDivAssign -> "/="
-  | OperRemAssign -> "%="
-  | OperLShiftAssign -> "<<="
-  | OperRShiftAssign -> ">>="
-  | OperBAndAssign -> "&="
-  | OperBXorAssign -> "^="
-  | OperBOrAssign -> "|="
 
 let literal2primitive = function
   | LitBool _ -> PrimBool

@@ -54,6 +54,8 @@ DEFFILES = 		\
 	main.mli	\
 	Makefile	\
 	metadata.cpp	\
+	operator.ml	\
+	operator.mli	\
 	osspecific.ml	\
 	osspecific.mli	\
 	report.ml	\

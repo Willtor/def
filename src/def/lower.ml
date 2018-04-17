@@ -18,6 +18,7 @@
 
 open Ast
 open Cfg
+open Operator
 open Types
 
 let lift_lhs_static_structs program =

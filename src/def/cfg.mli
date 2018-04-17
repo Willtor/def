@@ -3,9 +3,9 @@ type cfg_expr =
   | Expr_FcnCall of string * cfg_expr list
   | Expr_FcnCall_Refs of string * (*args=*)string list
   | Expr_String of string * string (* label, contents *)
-  | Expr_Binary of Lexing.position * Ast.operator * bool * Types.deftype
+  | Expr_Binary of Lexing.position * Operator.t * bool * Types.deftype
                    * cfg_expr * cfg_expr
-  | Expr_Unary of Ast.operator * Types.deftype * cfg_expr * (*pre_p*)bool
+  | Expr_Unary of Operator.t * Types.deftype * cfg_expr * (*pre_p*)bool
   | Expr_Literal of Ast.literal
   | Expr_Variable of string
   | Expr_Cast of Types.deftype * Types.deftype * cfg_expr
