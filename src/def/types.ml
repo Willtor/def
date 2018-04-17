@@ -38,10 +38,10 @@ type visibility =
   | VisExternal
 
 type baretype =
-  | DefTypeUnresolved of Lexing.position * string
+  | DefTypeUnresolved of string
   | DefTypeVoid
   | DefTypeNamed of string
-  | DefTypeOpaque of Lexing.position * string
+  | DefTypeOpaque of string
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype * qualifier list
@@ -289,7 +289,7 @@ let rec size_of typemap t = match t.bare with
      Report.err_internal __FILE__ __LINE__
        "size_of called on a void type."
   | DefTypeNamed nm -> size_of typemap (the (lookup_symbol typemap nm))
-  | DefTypeOpaque (_, nm) ->
+  | DefTypeOpaque nm ->
      Report.err_internal __FILE__ __LINE__
                          ("size_of called on opaque type: " ^ nm)
   | DefTypePrimitive (p, _) ->
@@ -337,10 +337,10 @@ let string_of_qlist =
 
 (** Convert the type into its string representation. *)
 let rec string_of_type t = match t.bare with
-  | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
+  | DefTypeUnresolved nm -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
   | DefTypeNamed nm -> "<named> " ^ nm
-  | DefTypeOpaque (_, nm) -> "<opaque> " ^ nm
+  | DefTypeOpaque nm -> "<opaque> " ^ nm
   | DefTypePrimitive (t, _) -> primitive2string t (* FIXME: qualifiers *)
   | DefTypeFcn (params, ret, is_va) ->
      "(" ^ (String.concat ", " (List.map string_of_type params))
@@ -406,7 +406,7 @@ let most_general_type pos typemap =
        generalize (Util.the @@ lookup_symbol typemap nm) t2
     | _, DefTypeNamed nm ->
        generalize t1 (Util.the @@ lookup_symbol typemap nm)
-    | DefTypeOpaque (_, nm1), DefTypeOpaque (_, nm2) ->
+    | DefTypeOpaque nm1, DefTypeOpaque nm2 ->
        if nm1 = nm2 then t1
        else generalizing_error ()
     | DefTypeOpaque _, _
@@ -499,7 +499,7 @@ let most_general_type pos typemap =
   in
   let rec most_general = function
     | [] ->
-       let bare = DefTypeUnresolved (Util.faux_pos, "<unknown array>") in
+       let bare = DefTypeUnresolved "<unknown array>" in
        maketype None bare
     | [ t ] -> t
     | t1 :: t2 :: rest ->

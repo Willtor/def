@@ -65,14 +65,14 @@ let get_fcntype = function
 let convert_deftype2llvmtype ctx typemap deftypemap =
   let rec convert wrap_fcn_ptr tp =
     match tp.bare with
-    | DefTypeUnresolved (_, name) ->
+    | DefTypeUnresolved name ->
        Report.err_internal __FILE__ __LINE__
          ("Tried to convert a placeholder type: " ^ name)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
     | DefTypeNamed nm ->
        the (lookup_symbol typemap nm)
-    | DefTypeOpaque (_, nm) ->
+    | DefTypeOpaque nm ->
        Util.the @@ lookup_symbol typemap nm
     | DefTypeFcn (args, ret, variadic) ->
        let llvmargs = List.map (fun argtp -> convert true argtp) args in
@@ -138,7 +138,7 @@ let build_types ctx deftypes =
           add_symbol typemap name (do_convert deftype)
        | DefTypeNamed nm ->
           Report.err_internal __FILE__ __LINE__ ("named type: " ^ nm)
-       | DefTypeOpaque (_, name) ->
+       | DefTypeOpaque name ->
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypeFcn (params, ret, is_variadic) ->
           let llparams = List.map do_convert params in
@@ -179,10 +179,11 @@ let build_types ctx deftypes =
        | DefTypeArray (atype, sz) ->
           let elements = do_convert atype in
           add_symbol typemap name (array_type elements sz)
-       | DefTypeUnresolved (pos, s) ->
+       | DefTypeUnresolved s ->
           Report.err_internal __FILE__ __LINE__
                               ("unresolved type " ^ s ^ " from: "
-                               ^ (Error.format_position pos))
+                               ^ (Error.format_position
+                                    (Util.the deftype.dtpos)))
        | _ ->
           Report.err_internal __FILE__ __LINE__
                               "Some unknown type was found."

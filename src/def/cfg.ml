@@ -319,7 +319,7 @@ let rec convert_type defining_p array2ptr typemap asttype =
           (* If we're defining a type, this type may not yet have been
              declared.  If we aren't, then the type hasn't been declared
              at all and that's an error. *)
-          if defining_p then deft pos (DefTypeUnresolved (pos, name))
+          if defining_p then deft pos (DefTypeUnresolved name)
           else Report.err_unknown_typename pos name
        | Some ({ bare = DefTypeLiteralStruct _ }) ->
           (* Prevent deep recursive definitions. *)
@@ -341,7 +341,7 @@ let rec convert_type defining_p array2ptr typemap asttype =
           (* Prevent deep recursive definitions. *)
           deft pos (DefTypeNamed name)
        | Some t -> t
-       | None -> deft pos (DefTypeOpaque (pos, name))
+       | None -> deft pos (DefTypeOpaque name)
      end
   | CVarType (pos, name, qlist) ->
      let conv_type = try check_native_c_type name
@@ -471,29 +471,29 @@ let resolve_type typemap typename oldtp =
   in
   let rec v t =
     match t.bare with
-    | DefTypeUnresolved (pos, name) ->
+    | DefTypeUnresolved name ->
        begin match bared (lookup_symbol typemap name) with
        | Some (DefTypeLiteralStruct _)
        | Some (DefTypeLiteralUnion _) ->
-          type_definition pos (DefTypeNamed name)
-       | Some (DefTypeUnresolved (_, name2)) when name = name2 ->
+          maketype t.dtpos (DefTypeNamed name)
+       | Some (DefTypeUnresolved name2) when name = name2 ->
           Report.err_internal __FILE__ __LINE__
                               ("Recursive badness: " ^ name ^ ", " ^ name2)
-       | Some tp -> v @@ type_definition pos tp
+       | Some tp -> v @@ maketype t.dtpos tp
        | None -> (* Unresolved type name. *)
-          Report.err_unknown_typename pos name
+          Report.err_unknown_typename (Util.the t.dtpos) name
        end
     | DefTypeNamed _ -> t
     | DefTypeVoid -> t
-    | DefTypeOpaque (pos, nm) ->
+    | DefTypeOpaque nm ->
        (* Sometimes we think a type if opaque if the parent type was resolved
           before the child. *)
        begin match bared (lookup_symbol typemap nm) with
        | Some (DefTypeLiteralStruct _)
        | Some (DefTypeLiteralUnion _) ->
-          type_definition pos (DefTypeNamed nm)
-       | Some tp -> type_definition pos tp
-       | None -> type_definition pos (DefTypeOpaque (pos, nm))
+          maketype t.dtpos (DefTypeNamed nm)
+       | Some tp -> maketype t.dtpos tp
+       | None -> maketype t.dtpos (DefTypeOpaque nm)
        end
     | DefTypePrimitive _ -> t
     | DefTypeFcn (params, ret, variadic) ->

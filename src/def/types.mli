@@ -16,10 +16,10 @@ type visibility =
   | VisExternal
 
 type baretype =
-  | DefTypeUnresolved of Lexing.position * string
+  | DefTypeUnresolved of string
   | DefTypeVoid
   | DefTypeNamed of string
-  | DefTypeOpaque of Lexing.position * string
+  | DefTypeOpaque of string
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
   | DefTypePtr of deftype * qualifier list
