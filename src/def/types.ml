@@ -56,8 +56,9 @@ type baretype =
   | DefTypeLLVMToken
 
 and deftype =
-  { dtpos : Lexing.position option;
-    bare  : baretype
+  { dtpos      : Lexing.position option;
+    bare       : baretype;
+    dtvolatile : bool
   }
 
 type primitive_kind =
@@ -66,12 +67,20 @@ type primitive_kind =
 
 (** Make a deftype from a position (option) and a bare type. *)
 let maketype dtpos bare =
-  { dtpos = dtpos;
-    bare = bare
+  { dtpos      = dtpos;
+    bare       = bare;
+    dtvolatile = false;
   }
 
 (** Make a bare pointer type. *)
 let makeptr tp = maketype None (DefTypePtr (tp, []))
+
+(** Return a volatile version of the given type. *)
+let volatile_of tp =
+  { dtpos      = tp.dtpos;
+    bare       = tp.bare;
+    dtvolatile = true
+  }
 
 (** Return whether the given integer type is signed. *)
 let signed_p t = match t.bare with
@@ -360,10 +369,7 @@ let rec string_of_type t = match t.bare with
   | _ -> "other"
 
 (** Return true iff the type is volatile. *)
-let dt_is_volatile t = match t.bare with
-  | DefTypePrimitive (_, qualifiers) ->
-     List.exists (fun q -> q = Volatile) qualifiers
-  | _ -> false (* FIXME: Implement. *)
+let dt_is_volatile t = t.dtvolatile
 
 (** Return the most general of the list of types. *)
 let most_general_type pos typemap =

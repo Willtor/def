@@ -139,6 +139,7 @@ type function_scope =
 (** Basic types. *)
 let bool_type = maketype None @@ DefTypePrimitive (PrimBool, [])
 let char_type = maketype None @@ DefTypePrimitive (PrimI8, [])
+let i32_type = maketype None @@ DefTypePrimitive (PrimI32, [])
 let i64_type = maketype None @@ DefTypePrimitive (PrimI64, [])
 let string_type =
   makeptr @@ maketype None (DefTypePrimitive (PrimI8, []))
@@ -343,10 +344,12 @@ let rec convert_type defining_p array2ptr typemap asttype =
        | None -> deft pos (DefTypeOpaque (pos, name))
      end
   | CVarType (pos, name, qlist) ->
-     begin try check_native_c_type name
-           with _ -> convert_type defining_p array2ptr typemap
-                                  (VarType (pos, name, qlist))
-     end
+     let conv_type = try check_native_c_type name
+                     with _ -> convert_type defining_p array2ptr typemap
+                                            (VarType (pos, name, qlist))
+     in
+     if contains Volatile qlist then volatile_of conv_type
+     else conv_type
   | FcnType (params, ret) ->
      let rec pconvert accum = function
        | [] -> false, List.rev accum
@@ -403,9 +406,13 @@ let rec convert_type defining_p array2ptr typemap asttype =
          pos
          (DefTypeArray (convert_type defining_p array2ptr typemap tp, dim))
   | PtrType (pos, tp, qlist) ->
-     deft
-       pos
-       (DefTypePtr (convert_type defining_p array2ptr typemap tp, qlist))
+     let conv_tp =
+       deft
+         pos
+         (DefTypePtr (convert_type defining_p array2ptr typemap tp, qlist))
+     in
+     if contains Volatile qlist then volatile_of conv_tp
+     else conv_tp
   | Ellipsis pos ->
      Report.err_internal __FILE__ __LINE__
                          ("Found an ellipsis at an unexpected location: "
@@ -1395,10 +1402,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
     | XACT_HARDWARE ->
        let _, f = build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" []
        in
-       let volatile_i32 =
-         type_definition pos (DefTypePrimitive (PrimI32, [Volatile])) in
        let e = Expr_Binary (pos, OperEquals, false,
-                            volatile_i32,
+                            volatile_of i32_type,
                             Expr_Literal (LitI32 (Int32.of_int (-1))), f)
        in
        let xact_bb = make_sequential_bb ("xact." ^ label) [] in

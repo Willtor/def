@@ -34,8 +34,9 @@ type baretype =
   | DefTypeLLVMToken
 
 and deftype =
-  { dtpos : Lexing.position option;
-    bare  : baretype
+  { dtpos      : Lexing.position option;
+    bare       : baretype;
+    dtvolatile : bool
   }
 
 (** Make a deftype from a position (option) and a bare type. *)
@@ -43,6 +44,9 @@ val maketype : Lexing.position option -> baretype -> deftype
 
 (** Make a pointer type. *)
 val makeptr : deftype -> deftype
+
+(** Return a volatile version of the given type. *)
+val volatile_of : deftype -> deftype
 
 (** Return whether the given integer type is signed. *)
 val signed_p : deftype -> bool
