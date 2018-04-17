@@ -81,18 +81,18 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
        let ftype = fbuild (convert true ret) (Array.of_list llvmargs) in
        if wrap_fcn_ptr then pointer_type ftype
        else ftype
-    | DefTypePrimitive (prim, _) ->
+    | DefTypePrimitive prim ->
        let name = primitive2string prim in
        the (lookup_symbol typemap name)
-    | DefTypePtr ({ bare = DefTypeVoid }, _) ->
+    | DefTypePtr ({ bare = DefTypeVoid }) ->
        (* Void pointer isn't natively supported by LLVM.  Use char* instead. *)
        pointer_type (the (lookup_symbol typemap "i8"))
-    | DefTypePtr ({ bare = DefTypeOpaque _ }, _) ->
+    | DefTypePtr ({ bare = DefTypeOpaque _ }) ->
        (* Opaque struct pointers are just i8 pointers, as far as we're
           concerned.  As long as an opaque type remains opaque, it doesn't
           matter. *)
        pointer_type (the (lookup_symbol typemap "i8"))
-    | DefTypePtr (pointed_to_tp, _) ->
+    | DefTypePtr pointed_to_tp ->
        pointer_type (convert wrap_fcn_ptr pointed_to_tp)
     | DefTypeArray (tp, dim) ->
        array_type (convert wrap_fcn_ptr tp) dim
@@ -235,7 +235,7 @@ let process_literal typemap lit = match lit with
 
 let bytes tp =
   match tp.bare with
-  | DefTypePrimitive (p, _) ->
+  | DefTypePrimitive p ->
      begin match p with
      | PrimBool | PrimI8 | PrimU8 -> 1
      | PrimI16 | PrimU16 -> 2
@@ -508,14 +508,14 @@ let process_expr data llvals varmap pos_n_expr =
        and llret = make_llvm_tp ret in
        if is_va then var_arg_function_type llret llparams
        else function_type llret llparams
-    | DefTypePtr (t, _) ->
+    | DefTypePtr t ->
        pointer_type (make_llvm_tp t)
     | DefTypeNamed nm ->
        the (lookup_symbol data.typemap nm)
     | DefTypeEnum _ ->
        let sz = size_of data.prog.deftypemap deftp in
        integer_type data.ctx (sz * 8)
-    | DefTypePrimitive (pt, _) ->
+    | DefTypePrimitive pt ->
        the (lookup_symbol data.typemap (primitive2string pt))
     | DefTypeOpaque _
     | DefTypeVoid ->
@@ -638,8 +638,7 @@ let process_expr data llvals varmap pos_n_expr =
       f e llvm_to_tp "cast" data.bldr
     in
     match from_tp.bare, to_tp.bare with
-    | DefTypePrimitive (prim1, _), DefTypePrimitive (prim2, _) ->
-       (* FIXME: qualifiers. *)
+    | DefTypePrimitive prim1, DefTypePrimitive prim2 ->
        build_primitive_cast prim1 prim2
     | DefTypePtr _, DefTypePtr _ ->
        build_bitcast e (make_llvm_tp to_tp) "cast" data.bldr
@@ -830,10 +829,10 @@ let get_debug_type =
             let plist = List.map lookup_type params in
             let r = lookup_type ret in
             create (disubroutine_type ctx dib (r :: plist))
-         | DefTypePrimitive (p, _) ->
+         | DefTypePrimitive p ->
             let sz, dtype = dwarf_of tp in
             create (dibasic_type ctx dib (primitive2string p) sz dtype)
-         | DefTypePtr (p, _) ->
+         | DefTypePtr p ->
             let base_type = lookup_type p in
             create (dipointer_type ctx dib base_type 64)
          | _ ->
@@ -1025,7 +1024,7 @@ let rec get_const_val data = function
                              "Not implemented case of get_const_val"
 
 let zero_llval data = function
-  | DefTypePrimitive (prim, []) ->
+  | DefTypePrimitive prim ->
      let primzero = match prim with
        | PrimBool -> LitBool false
        | PrimI8 -> LitI8 (Char.chr 0)

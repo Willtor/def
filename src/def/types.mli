@@ -20,9 +20,9 @@ type baretype =
   | DefTypeVoid
   | DefTypeNamed of string
   | DefTypeOpaque of string
-  | DefTypePrimitive of primitive * qualifier list
+  | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype * bool
-  | DefTypePtr of deftype * qualifier list
+  | DefTypePtr of deftype
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeEnum of string list

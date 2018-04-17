@@ -137,12 +137,12 @@ type function_scope =
   }
 
 (** Basic types. *)
-let bool_type = maketype None @@ DefTypePrimitive (PrimBool, [])
-let char_type = maketype None @@ DefTypePrimitive (PrimI8, [])
-let i32_type = maketype None @@ DefTypePrimitive (PrimI32, [])
-let i64_type = maketype None @@ DefTypePrimitive (PrimI64, [])
+let bool_type = maketype None @@ DefTypePrimitive PrimBool
+let char_type = maketype None @@ DefTypePrimitive PrimI8
+let i32_type = maketype None @@ DefTypePrimitive PrimI32
+let i64_type = maketype None @@ DefTypePrimitive PrimI64
 let string_type =
-  makeptr @@ maketype None (DefTypePrimitive (PrimI8, []))
+  makeptr @@ maketype None (DefTypePrimitive PrimI8)
 let nil_type = maketype None @@ DefTypeNullPtr
 let wildcard_type = maketype None @@ DefTypeWildcard
 
@@ -287,7 +287,7 @@ let can_escape_forward labelmap stmts =
 
 (** Get the type of an Ast.literal value. *)
 let typeof_literal lit =
-  maketype None (DefTypePrimitive (literal2primitive lit, []))
+  maketype None (DefTypePrimitive (literal2primitive lit))
 
 let rec get_field_types typemap tp =
   match tp.bare with
@@ -327,8 +327,8 @@ let rec convert_type defining_p array2ptr typemap asttype =
        | Some ({ bare = DefTypeLiteralUnion _ }) ->
           (* Prevent deep recursive definitions. *)
           deft pos (DefTypeNamed name)
-       | Some ({ bare = DefTypePrimitive (p, _) }) ->
-          deft pos (DefTypePrimitive (p, qlist))
+       | Some ({ bare = DefTypePrimitive p }) ->
+          deft pos (DefTypePrimitive p)
        | Some t -> t
      end
   | OpaqueType (pos, name) ->
@@ -407,9 +407,7 @@ let rec convert_type defining_p array2ptr typemap asttype =
          (DefTypeArray (convert_type defining_p array2ptr typemap tp, dim))
   | PtrType (pos, tp, qlist) ->
      let conv_tp =
-       deft
-         pos
-         (DefTypePtr (convert_type defining_p array2ptr typemap tp, qlist))
+       deft pos (DefTypePtr (convert_type defining_p array2ptr typemap tp))
      in
      if contains Volatile qlist then volatile_of conv_tp
      else conv_tp
@@ -500,7 +498,7 @@ let resolve_type typemap typename oldtp =
        let params = List.map v params
        and ret = v ret
        in maketype None (DefTypeFcn (params, ret, variadic))
-    | DefTypePtr (tp, q) -> maketype None (DefTypePtr (v tp, q))
+    | DefTypePtr tp -> maketype None (DefTypePtr (v tp))
     | DefTypeArray (tp, n) -> maketype None (DefTypeArray (v tp, n))
     | DefTypeNullPtr -> t
     | DefTypeEnum _ -> t
@@ -554,12 +552,10 @@ let infer_type_from_expr typemap scope toplevel_expr =
           let rhs = infer (Util.the op.op_right)
           in
           begin match lhs.bare, rhs.bare with
-          | DefTypePrimitive (prim_left, _), DefTypePrimitive (prim_right, _)
-            ->
+          | DefTypePrimitive prim_left, DefTypePrimitive prim_right ->
              maketype
                None
-               (DefTypePrimitive
-                  (generalize_primitives prim_left prim_right, []))
+               (DefTypePrimitive (generalize_primitives prim_left prim_right))
           | a, b when a = b -> maketype None a
           | _ ->
              Report.err_internal __FILE__ __LINE__
@@ -584,7 +580,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
        convert_type false false typemap vt
     | ExprIndex (_, base, _, _) ->
        begin match (infer base).bare with
-       | DefTypePtr (tp, _)
+       | DefTypePtr tp
        | DefTypeArray (tp, _) -> tp
        | _ ->
           Report.err_internal __FILE__ __LINE__ "Dereferenced unknown type."
@@ -608,7 +604,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
             | _ -> Report.err_internal __FILE__ __LINE__
                                        "Field name on a static struct."
             end
-         | DefTypePtr (tp, _) ->
+         | DefTypePtr tp ->
             get_field_tp tp
          | _ -> Report.err_internal __FILE__ __LINE__
                                     "Trying to get field from non-struct."
@@ -735,9 +731,9 @@ let rec maybe_cast typemap orig cast_as expr =
              let () = prerr_endline (string_of_type cast_as) in
              Report.err_internal __FILE__ __LINE__ "Non-struct type struct 2."
           end
-       | DefTypePrimitive (p1, p1q) ->
+       | DefTypePrimitive p1 ->
           begin match orig.bare with
-          | DefTypePrimitive (p2, p2q) ->
+          | DefTypePrimitive p2 ->
              (* FIXME: Removing qualifiers should generate warnings/errors. *)
              if p1 = p2 then expr
              else Expr_Cast (orig, cast_as, expr)
@@ -746,7 +742,7 @@ let rec maybe_cast typemap orig cast_as expr =
        | _ ->
           if expr = Expr_Nil then
             let zero = Expr_Literal (LitU64 (Int64.of_int 0)) in
-            let tp = maketype None (DefTypePrimitive (PrimU64, [])) in
+            let tp = maketype None (DefTypePrimitive PrimU64) in
             if equivalent_types tp cast_as then zero
             else Expr_Cast (tp, cast_as, zero)
           else Expr_Cast (orig, cast_as, expr)
@@ -776,11 +772,11 @@ let check_castability pos typemap ltype rtype =
          identical (ret1, ret2);
          if v1 != v2 then Report.err_type_mismatch pos
        end
-    | DefTypePtr ({ bare = DefTypeVoid }, _), DefTypePtr _
-    | DefTypePtr _, DefTypePtr ({ bare = DefTypeVoid }, _) ->
+    | DefTypePtr ({ bare = DefTypeVoid }), DefTypePtr _
+      | DefTypePtr _, DefTypePtr ({ bare = DefTypeVoid }) ->
        () (* FIXME: qualifier comparison? *)
-    | DefTypePtr (p1, _), DefTypePtr (p2, _) ->
-       identical (p1, p2) (* FIXME: qualifier comparison? *)
+    | DefTypePtr p1, DefTypePtr p2 ->
+       identical (p1, p2)
     | DefTypeNamed nm, _ ->
        similar ((the @@ lookup_symbol typemap nm), r)
     | _, DefTypeNamed nm ->
@@ -855,7 +851,7 @@ let binary_reconcile typemap =
     | OperGT | OperGTE
     | OperEquals | OperNEquals ->
        let tp = most_general_type pos typemap [ltype; rtype] in
-       type_definition pos (DefTypePrimitive (PrimBool, [])),
+       type_definition pos (DefTypePrimitive PrimBool),
        tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
@@ -866,7 +862,7 @@ let binary_reconcile typemap =
        maybe_cast typemap ltype tp lexpr,
        maybe_cast typemap rtype tp rexpr
     | OperLogicalOr | OperLogicalAnd ->
-       let primbool = type_definition pos (DefTypePrimitive (PrimBool, [])) in
+       let primbool = type_definition pos (DefTypePrimitive PrimBool) in
        begin
          check_castability pos typemap ltype primbool;
          check_castability pos typemap rtype primbool;
@@ -902,17 +898,16 @@ let build_fcn_call scope typemap pos name args =
   | None ->
      let ptr2int tp = match tp with
        | { dtpos = dtpos; bare = DefTypePtr _ } ->
-          maketype dtpos (DefTypePrimitive (PrimU64, []))
+          maketype dtpos (DefTypePrimitive PrimU64)
        | _ -> tp
      in
      let create_atomicrmw op = match args with
-       | [({ bare = DefTypePtr (t1, q) }, dexpr); (t2, vexpr)] ->
+       | [({ bare = DefTypePtr t1 } as arg1_t, dexpr); (t2, vexpr)] ->
           (* FIXME: Do more checking on the type of the destination arg. *)
           let castptrs = ptr2int t1 in
-          let ptr2t1 = maketype None (DefTypePtr (t1, q)) in
           let ptr2castptrs = makeptr castptrs in
           let revised = [ (ptr2castptrs,
-                           maybe_cast typemap ptr2t1 ptr2castptrs dexpr);
+                           maybe_cast typemap arg1_t ptr2castptrs dexpr);
                           (castptrs, maybe_cast typemap t2 castptrs vexpr) ]
           in
           let fcn = Expr_Atomic (op, revised) in
@@ -923,14 +918,13 @@ let build_fcn_call scope typemap pos name args =
           Report.err_wrong_number_of_atomic_args pos name (List.length args)
      in
      let create_atomic_cas () = match args with
-       | [({ bare = DefTypePtr (t1, q) }, dexpr);
+       | [({ bare = DefTypePtr t1 } as arg1_t, dexpr);
           (t2, cmpexpr);
           (t3, valexpr)] ->
           let castptrs = ptr2int t1 in
-          let ptr2t1 = maketype None (DefTypePtr (t1, q)) in
           let ptr2castptrs = makeptr castptrs in
           let revised = [ (ptr2castptrs,
-                           maybe_cast typemap ptr2t1 ptr2castptrs dexpr);
+                           maybe_cast typemap arg1_t ptr2castptrs dexpr);
                           (castptrs, maybe_cast typemap t2 castptrs cmpexpr);
                           (castptrs, maybe_cast typemap t3 castptrs valexpr) ]
           in
@@ -1121,7 +1115,7 @@ let convert_expr typemap fcnscope =
        let btype, converted_base = convert base
        and itype, converted_idx = convert idx
        in begin match btype.bare with
-       | DefTypePtr ({ bare = DefTypeVoid }, _) ->
+       | DefTypePtr ({ bare = DefTypeVoid }) ->
           Report.err_deref_void_ptr bpos ipos
        | DefTypeArray (deref_type, _) ->
           if is_integer_type itype then
@@ -1130,11 +1124,11 @@ let convert_expr typemap fcnscope =
                         false, true, (*FIXME: volatile?*)false)
           else
             Report.err_non_integer_index ipos
-       | DefTypePtr (deref_type, qlist) ->
+       | DefTypePtr deref_type ->
           if is_integer_type itype then
             deref_type,
             Expr_Index (converted_base, converted_idx, deref_type,
-                        true, false, contains Volatile qlist)
+                        true, false, btype.dtvolatile)
           else
             Report.err_non_integer_index ipos
        | _ -> Report.err_index_non_ptr ipos
@@ -1157,23 +1151,19 @@ let convert_expr typemap fcnscope =
                in
                get_field 0 fields
             in
-            let is_volatile = function
-              | DefTypePrimitive (_, [ Volatile ]) -> true
-              | _ -> false
-            in
             let tp = List.nth mtypes id in
             tp,
-            Expr_SelectField (obj, id, is_volatile tp.bare)
+            Expr_SelectField (obj, id, tp.dtvolatile)
          | DefTypeLiteralUnion _ ->
             Report.err_internal __FILE__ __LINE__
                                 "Unions not supported at this time."
          | DefTypeNamed sname ->
             record_select obj (the (lookup_symbol typemap sname))
-         | DefTypePtr (p, qlist) ->
+         | DefTypePtr p ->
             let idx = LitI32 (Int32.of_int 0) in
             let derefed_obj =
               Expr_Index (obj, Expr_Literal idx, p,
-                          true, false, contains Volatile qlist) in
+                          true, false, tp.dtvolatile) in
             record_select derefed_obj p
          | _ -> Report.err_non_struct_member_access dpos
        in

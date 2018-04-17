@@ -42,9 +42,9 @@ type baretype =
   | DefTypeVoid
   | DefTypeNamed of string
   | DefTypeOpaque of string
-  | DefTypePrimitive of primitive * qualifier list
+  | DefTypePrimitive of primitive
   | DefTypeFcn of deftype list * deftype * bool
-  | DefTypePtr of deftype * qualifier list
+  | DefTypePtr of deftype
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeEnum of string list
@@ -73,7 +73,7 @@ let maketype dtpos bare =
   }
 
 (** Make a bare pointer type. *)
-let makeptr tp = maketype None (DefTypePtr (tp, []))
+let makeptr tp = maketype None (DefTypePtr tp)
 
 (** Return a volatile version of the given type. *)
 let volatile_of tp =
@@ -84,7 +84,7 @@ let volatile_of tp =
 
 (** Return whether the given integer type is signed. *)
 let signed_p t = match t.bare with
-  | DefTypePrimitive (p, _) ->
+  | DefTypePrimitive p ->
      begin match p with
      | PrimBool -> true
      | PrimI8 | PrimI16 | PrimI32 | PrimI64 -> true
@@ -149,7 +149,7 @@ let generalize_primitives p1 p2 =
 let rec equivalent_types t1 t2 =
   let type_folder curr sub1 sub2 = curr && equivalent_types sub1 sub2 in
   match t1.bare, t2.bare with
-  | DefTypePrimitive (p1, _), DefTypePrimitive (p2, _) ->
+  | DefTypePrimitive p1, DefTypePrimitive p2 ->
      (* FIXME: Need to resolve qualifiers (volatile, const, etc.). *)
      p1 = p2
   | DefTypeWildcard, _
@@ -161,7 +161,7 @@ let rec equivalent_types t1 t2 =
          && equivalent_types r1 r2
        with _ -> false
      end
-  | DefTypePtr (sub1, _), DefTypePtr (sub2, _)
+  | DefTypePtr sub1, DefTypePtr sub2
   | DefTypeArray (sub1, _), DefTypeArray (sub2, _) ->
      equivalent_types sub1 sub2
   | DefTypeLiteralStruct (sub1, nm1), DefTypeLiteralStruct (sub2, nm2)
@@ -179,33 +179,33 @@ let map_builtin_types =
   let makebare = maketype None in
   [ ("void", makebare DefTypeVoid, void_type,
      ["void"], 0, DW_INVALID);
-    ("bool", makebare (DefTypePrimitive (PrimBool, [])), i1_type,
+    ("bool", makebare (DefTypePrimitive PrimBool), i1_type,
      ["char"], 1, DW_ATE_BOOLEAN);
-    ("char", makebare (DefTypePrimitive (PrimI8, [])), i8_type,
+    ("char", makebare (DefTypePrimitive PrimI8), i8_type,
      ["char"],
      8, DW_ATE_SIGNED_CHAR);
-    ("uchar", makebare (DefTypePrimitive (PrimU8, [])), i8_type,
+    ("uchar", makebare (DefTypePrimitive PrimU8), i8_type,
      ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
-    ("i8", makebare (DefTypePrimitive (PrimI8, [])),  i8_type,
+    ("i8", makebare (DefTypePrimitive PrimI8),  i8_type,
      ["char"; "signed char"], 8, DW_ATE_SIGNED_CHAR);
-    ("u8", makebare (DefTypePrimitive (PrimU8, [])),  i8_type,
+    ("u8", makebare (DefTypePrimitive PrimU8),  i8_type,
      ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
-    ("i16", makebare (DefTypePrimitive (PrimI16, [])), i16_type,
+    ("i16", makebare (DefTypePrimitive PrimI16), i16_type,
      ["short"; "signed short"], 16, DW_ATE_SIGNED);
-    ("u16", makebare (DefTypePrimitive (PrimU16, [])), i16_type,
+    ("u16", makebare (DefTypePrimitive PrimU16), i16_type,
      ["unsigned short"], 16, DW_ATE_UNSIGNED);
-    ("i32", makebare (DefTypePrimitive (PrimI32, [])), i32_type,
+    ("i32", makebare (DefTypePrimitive PrimI32), i32_type,
      ["int"; "signed int"], 32, DW_ATE_SIGNED);
-    ("u32", makebare (DefTypePrimitive (PrimU32, [])), i32_type,
+    ("u32", makebare (DefTypePrimitive PrimU32), i32_type,
      ["unsigned int"], 32, DW_ATE_UNSIGNED);
-    ("i64", makebare (DefTypePrimitive (PrimI64, [])), i64_type,
+    ("i64", makebare (DefTypePrimitive PrimI64), i64_type,
      ["long long"; "signed long long"; "long"; "signed long"],
      64, DW_ATE_SIGNED);
-    ("u64", makebare (DefTypePrimitive (PrimU64, [])), i64_type,
+    ("u64", makebare (DefTypePrimitive PrimU64), i64_type,
      ["unsigned long long"; "unsigned long"], 64, DW_ATE_UNSIGNED);
-    ("f32", makebare (DefTypePrimitive (PrimF32, [])), float_type,
+    ("f32", makebare (DefTypePrimitive PrimF32), float_type,
      ["float"], 64, DW_ATE_FLOAT);
-    ("f64", makebare (DefTypePrimitive (PrimF64, [])), double_type,
+    ("f64", makebare (DefTypePrimitive PrimF64), double_type,
      ["double"; "long double"], 64, DW_ATE_FLOAT);
     ("llvm.token", makebare DefTypeLLVMToken, token_type,
      [], 0, DW_INVALID)
@@ -227,7 +227,7 @@ let primitive2string = function
 
 (** Return true iff the given type is an integer type. *)
 let is_integer_type t = match t.bare with
-  | DefTypePrimitive (prim, _) ->
+  | DefTypePrimitive prim ->
      begin match prim with
      | PrimBool
      | PrimI8  | PrimU8
@@ -241,7 +241,7 @@ let is_integer_type t = match t.bare with
 
 (** Return true iff the type is a signed integer. *)
 let is_sinteger_type t = match t.bare with
-  | DefTypePrimitive (prim, _) ->
+  | DefTypePrimitive prim ->
      begin match prim with
      | PrimBool
      | PrimI8
@@ -258,7 +258,7 @@ let is_sinteger_type t = match t.bare with
 
 (** Return true iff the type is an unsigned integer. *)
 let is_uinteger_type t = match t.bare with
-  | DefTypePrimitive (prim, _) ->
+  | DefTypePrimitive prim ->
      begin match prim with
      | PrimU8
      | PrimU16
@@ -292,7 +292,7 @@ let rec size_of typemap t = match t.bare with
   | DefTypeOpaque nm ->
      Report.err_internal __FILE__ __LINE__
                          ("size_of called on opaque type: " ^ nm)
-  | DefTypePrimitive (p, _) ->
+  | DefTypePrimitive p ->
      begin match p with
      | PrimBool | PrimI8 | PrimU8 -> 1
      | PrimI16 | PrimU16 -> 2
@@ -341,14 +341,13 @@ let rec string_of_type t = match t.bare with
   | DefTypeVoid -> "void"
   | DefTypeNamed nm -> "<named> " ^ nm
   | DefTypeOpaque nm -> "<opaque> " ^ nm
-  | DefTypePrimitive (t, _) -> primitive2string t (* FIXME: qualifiers *)
+  | DefTypePrimitive t -> primitive2string t
   | DefTypeFcn (params, ret, is_va) ->
      "(" ^ (String.concat ", " (List.map string_of_type params))
      ^ (if is_va then ", ...) -> " else ") -> ")
      ^ string_of_type ret
-  | DefTypePtr (t, qlist) ->
-     (string_of_qlist qlist)
-     ^ "*" ^ (string_of_type t) (* FIXME: qualifiers *)
+  | DefTypePtr t ->
+     "*" ^ (string_of_type t)
   | DefTypeArray (tp, n) ->
      "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)
   | DefTypeNullPtr -> "nil"
@@ -373,12 +372,6 @@ let dt_is_volatile t = t.dtvolatile
 
 (** Return the most general of the list of types. *)
 let most_general_type pos typemap =
-  let generalize_qualifiers q1 q2 =
-    (* FIXME: Needs to be more sophisticated. *)
-    if q1 = [] then q2
-    else if q2 = [] then q1
-    else q1
-  in
   let rec generalize t1 t2 =
     let generalizing_error () =
       Report.err_generalizing_types pos (string_of_type t1) (string_of_type t2)
@@ -412,9 +405,8 @@ let most_general_type pos typemap =
     | DefTypeOpaque _, _
     | _, DefTypeOpaque _ ->
        generalizing_error ()
-    | DefTypePrimitive (p1, q1), DefTypePrimitive (p2, q2) ->
-       let bare = DefTypePrimitive (generalize_primitives p1 p2,
-                                    generalize_qualifiers q1 q2)
+    | DefTypePrimitive p1, DefTypePrimitive p2 ->
+       let bare = DefTypePrimitive (generalize_primitives p1 p2)
        in maketype None bare
     | DefTypePrimitive _, _
     | _, DefTypePrimitive _ ->
@@ -428,16 +420,16 @@ let most_general_type pos typemap =
     | DefTypeFcn _, _
     | _, DefTypeFcn _ ->
        generalizing_error ()
-    | DefTypePtr _, DefTypePtr ({ bare = DefTypeVoid }, _) -> t1
-    | DefTypePtr ({ bare = DefTypeVoid }, _), DefTypePtr _ -> t2
-    | DefTypePtr (st1, q1), DefTypeArray (st2, _) ->
-       let bare = DefTypePtr (generalize st1 st2, q1) in
+    | DefTypePtr _, DefTypePtr ({ bare = DefTypeVoid }) -> t1
+    | DefTypePtr ({ bare = DefTypeVoid }), DefTypePtr _ -> t2
+    | DefTypePtr st1, DefTypeArray (st2, _) ->
+       let bare = DefTypePtr (generalize st1 st2) in
        maketype None bare
-    | DefTypePtr (st1, q1), DefTypePtr (st2, q2) ->
-       let bare = DefTypePtr (generalize st1 st2, generalize_qualifiers q1 q2)
+    | DefTypePtr st1, DefTypePtr st2 ->
+       let bare = DefTypePtr (generalize st1 st2)
        in maketype None bare
-    | DefTypeArray (st1, _), DefTypePtr (st2, q2) ->
-       let bare = DefTypePtr (generalize st1 st2, q2) in
+    | DefTypeArray (st1, _), DefTypePtr st2 ->
+       let bare = DefTypePtr (generalize st1 st2) in
        maketype None bare
     | DefTypePtr _, DefTypeNullPtr -> t1
     | DefTypeNullPtr, DefTypePtr _ -> t2
@@ -452,14 +444,14 @@ let most_general_type pos typemap =
     | DefTypeArray (st1, n), DefTypeArray (st2, m) ->
        let subtype = generalize st1 st2 in
        let bare = if n = m then DefTypeArray (subtype, n)
-                  else DefTypePtr (subtype, [])
+                  else DefTypePtr subtype
        in
        maketype None bare
     | DefTypeArray (st1, _), DefTypeNullPtr ->
-       let bare = DefTypePtr (st1, []) in
+       let bare = DefTypePtr st1 in
        maketype None bare
     | DefTypeNullPtr, DefTypeArray (st2, _) ->
-       let bare = DefTypePtr (st2, []) in
+       let bare = DefTypePtr st2 in
        maketype None bare
     | DefTypeArray _, _
     | _, DefTypeArray _ ->
