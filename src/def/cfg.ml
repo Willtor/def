@@ -285,12 +285,10 @@ let string_type =
 
 let rec get_field_types typemap tp =
   match tp.bare with
-  | DefTypeNamedStruct nm ->
+  | DefTypeNamed nm ->
      get_field_types typemap (Util.the @@ lookup_symbol typemap nm)
   | DefTypeLiteralStruct (types, _) -> types
   | DefTypeStaticStruct types -> types
-  | DefTypeNamedUnion nm ->
-     get_field_types typemap (Util.the @@ lookup_symbol typemap nm)
   | DefTypeLiteralUnion (types, _) -> types
   | _ -> Report.err_internal __FILE__ __LINE__ "Unable to get field types."
 
@@ -316,10 +314,10 @@ let rec convert_type defining_p array2ptr typemap asttype =
           else Report.err_unknown_typename pos name
        | Some ({ bare = DefTypeLiteralStruct _ }) ->
           (* Prevent deep recursive definitions. *)
-          makebare (DefTypeNamedStruct name)
+          makebare (DefTypeNamed name)
        | Some ({ bare = DefTypeLiteralUnion _ }) ->
           (* Prevent deep recursive definitions. *)
-          makebare (DefTypeNamedUnion name)
+          makebare (DefTypeNamed name)
        | Some ({ bare = DefTypePrimitive (p, _) }) ->
           makebare (DefTypePrimitive (p, qlist))
        | Some t -> t
@@ -329,10 +327,10 @@ let rec convert_type defining_p array2ptr typemap asttype =
        match lookup_symbol typemap name with
        | Some ({ bare = DefTypeLiteralStruct _ }) ->
           (* Prevent deep recursive definitions. *)
-          makebare (DefTypeNamedStruct name)
+          makebare (DefTypeNamed name)
        | Some ({ bare = DefTypeLiteralUnion _ }) ->
           (* Prevent deep recursive definitions. *)
-          makebare (DefTypeNamedUnion name)
+          makebare (DefTypeNamed name)
        | Some t -> t
        | None -> makebare (DefTypeOpaque (pos, name))
      end
@@ -459,9 +457,9 @@ let resolve_type typemap typename oldtp =
     | DefTypeUnresolved (pos, name) ->
        begin match bared (lookup_symbol typemap name) with
        | Some (DefTypeLiteralStruct _) ->
-          makebare (DefTypeNamedStruct name)
+          makebare (DefTypeNamed name)
        | Some (DefTypeLiteralUnion _) ->
-          makebare (DefTypeNamedUnion name)
+          makebare (DefTypeNamed name)
        | Some (DefTypeUnresolved (_, name2)) when name = name2 ->
           Report.err_internal __FILE__ __LINE__
                               ("Recursive badness: " ^ name ^ ", " ^ name2)
@@ -469,17 +467,16 @@ let resolve_type typemap typename oldtp =
        | None -> (* Unresolved type name. *)
           Report.err_unknown_typename pos name
        end
-    | DefTypeNamedStruct _ -> t
-    | DefTypeNamedUnion _ -> t
+    | DefTypeNamed _ -> t
     | DefTypeVoid -> t
     | DefTypeOpaque (pos, nm) ->
        (* Sometimes we think a type if opaque if the parent type was resolved
           before the child. *)
        begin match bared (lookup_symbol typemap nm) with
        | Some (DefTypeLiteralStruct _) ->
-          makebare (DefTypeNamedStruct nm)
+          makebare (DefTypeNamed nm)
        | Some (DefTypeLiteralUnion _) ->
-          makebare (DefTypeNamedUnion nm)
+          makebare (DefTypeNamed nm)
        | Some tp -> makebare tp
        | None -> makebare (DefTypeOpaque (pos, nm))
        end
@@ -583,9 +580,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
     | ExprSelectField (_, _, base, field) ->
        let rec get_field_tp t =
          match t.bare with
-         | DefTypeNamedStruct name ->
-            get_field_tp (Util.the (lookup_symbol typemap name))
-         | DefTypeNamedUnion name ->
+         | DefTypeNamed name ->
             get_field_tp (Util.the (lookup_symbol typemap name))
          | DefTypeLiteralStruct (tlist, names) ->
             begin match field with
@@ -704,7 +699,7 @@ let rec make_size_expr typemap p = function
 let rec maybe_cast typemap orig cast_as expr =
   if orig = cast_as || orig = { bare = DefTypeWildcard } then expr
   else match cast_as.bare with
-       | DefTypeNamedStruct nm ->
+       | DefTypeNamed nm ->
           begin match (the (lookup_symbol typemap nm)).bare with
           | DefTypeLiteralStruct (tplist, _) ->
              begin match expr with
@@ -749,19 +744,14 @@ let rec maybe_cast typemap orig cast_as expr =
 let check_castability pos typemap ltype rtype =
   let rec get_struct_defn t =
     match t.bare with
+    | DefTypeNamed nm ->
+       begin match lookup_symbol typemap nm with
+       | Some t -> t.bare
+       | None -> DefTypeNamed nm
+       end
     | DefTypeStaticStruct _ as t -> t
     | DefTypeLiteralStruct _ as t -> t
-    | DefTypeNamedStruct nm ->
-       begin match lookup_symbol typemap nm with
-       | Some t -> t.bare
-       | None -> DefTypeNamedStruct nm
-       end
     | DefTypeLiteralUnion _ as t -> t
-    | DefTypeNamedUnion nm ->
-       begin match lookup_symbol typemap nm with
-       | Some t -> t.bare
-       | None -> DefTypeNamedUnion nm
-       end
     | t -> t
   in
   let rec similar (l, r) =
@@ -779,24 +769,15 @@ let check_castability pos typemap ltype rtype =
        () (* FIXME: qualifier comparison? *)
     | DefTypePtr (p1, _), DefTypePtr (p2, _) ->
        identical (p1, p2) (* FIXME: qualifier comparison? *)
-    | DefTypeStaticStruct smembers, DefTypeNamedStruct nm
-    | DefTypeNamedStruct nm, DefTypeStaticStruct smembers ->
-       begin match lookup_symbol typemap nm with
-       | Some { bare = DefTypeLiteralStruct (lmembers, _) } ->
-          List.iter similar (List.combine lmembers smembers)
-       | _ -> Report.err_internal __FILE__ __LINE__ "Unknown struct type."
-       end
+    | DefTypeNamed nm, _ ->
+       similar ((the @@ lookup_symbol typemap nm), r)
+    | _, DefTypeNamed nm ->
+       similar (l, (the @@ lookup_symbol typemap nm))
     | DefTypeStaticStruct smembers, DefTypeLiteralStruct (lmembers, _)
     | DefTypeLiteralStruct (lmembers, _), DefTypeStaticStruct smembers ->
        List.iter similar (List.combine lmembers smembers)
     | DefTypeLiteralStruct (lhs, _), DefTypeLiteralStruct (rhs, _) ->
        List.iter similar (List.combine lhs rhs)
-    | DefTypeNamedUnion nm, DefTypeLiteralUnion (smembers, _) ->
-       begin match lookup_symbol typemap nm with
-       | Some { bare = DefTypeLiteralUnion (lmembers, _) } ->
-          List.iter similar (List.combine lmembers smembers)
-       | _ -> Report.err_internal __FILE__ __LINE__ "Unknown union type."
-       end
     | DefTypeLiteralUnion (lmembers, _),
       DefTypeLiteralUnion (smembers, _) ->
        List.iter similar (List.combine lmembers smembers)
@@ -959,10 +940,8 @@ let build_fcn_call scope typemap pos name args =
      begin match decl.tp.bare with
      | DefTypeUnresolved _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call an unresolved type."
-     | DefTypeNamedStruct _ -> Report.err_internal __FILE__ __LINE__
-        "Tried to call a named-struct-type."
-     | DefTypeNamedUnion _ -> Report.err_internal __FILE__ __LINE__
-        "Tried to call a named-union-type."
+     | DefTypeNamed _ -> Report.err_internal __FILE__ __LINE__
+                                             "Tried to call a named type."
      | DefTypeVoid -> Report.err_internal __FILE__ __LINE__
         "Tried to call a void."
      | DefTypeOpaque _ -> Report.err_internal __FILE__ __LINE__
@@ -1043,7 +1022,7 @@ let convert_expr typemap fcnscope =
        | [] -> makeptr tp, Expr_New (tp, i64sz, [])
        | _ ->
           let mtypes, fields = match tp.bare with
-            | DefTypeNamedStruct sname ->
+            | DefTypeNamed sname ->
                begin match (the (lookup_symbol typemap sname)).bare with
                | DefTypeLiteralStruct (mtypes, fields) -> mtypes, fields
                | _ ->
@@ -1179,9 +1158,7 @@ let convert_expr typemap fcnscope =
          | DefTypeLiteralUnion _ ->
             Report.err_internal __FILE__ __LINE__
                                 "Unions not supported at this time."
-         | DefTypeNamedStruct sname ->
-            record_select obj (the (lookup_symbol typemap sname))
-         | DefTypeNamedUnion sname ->
+         | DefTypeNamed sname ->
             record_select obj (the (lookup_symbol typemap sname))
          | DefTypePtr (p, qlist) ->
             let idx = LitI32 (Int32.of_int 0) in
@@ -1790,12 +1767,10 @@ let rec build_bbs name decltable typemap fcn_pos body =
        in
        let rec get_member_types tp =
          match tp.bare with
-         | DefTypeNamedStruct nm ->
+         | DefTypeNamed nm ->
             get_member_types (Util.the @@ lookup_symbol typemap nm)
          | DefTypeLiteralStruct (mtypes, _) -> mtypes
          | DefTypeStaticStruct mtypes -> mtypes
-         | DefTypeNamedUnion nm ->
-            get_member_types (Util.the @@ lookup_symbol typemap nm)
          | DefTypeLiteralUnion (mtypes, _) -> mtypes
          | _ -> Report.err_internal __FILE__ __LINE__ "No members"
        in

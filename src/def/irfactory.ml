@@ -70,6 +70,8 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
          ("Tried to convert a placeholder type: " ^ name)
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
+    | DefTypeNamed nm ->
+       the (lookup_symbol typemap nm)
     | DefTypeOpaque (_, nm) ->
        Util.the @@ lookup_symbol typemap nm
     | DefTypeFcn (args, ret, variadic) ->
@@ -99,9 +101,6 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
     | DefTypeEnum _ ->
        let sz = size_of deftypemap tp in
        integer_type ctx (sz * 8)
-    | DefTypeNamedStruct name
-    | DefTypeNamedUnion name ->
-       the (lookup_symbol typemap name)
     | DefTypeStaticStruct members
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
@@ -137,6 +136,8 @@ let build_types ctx deftypes =
        | DefTypePrimitive _
        | DefTypePtr _ ->
           add_symbol typemap name (do_convert deftype)
+       | DefTypeNamed nm ->
+          Report.err_internal __FILE__ __LINE__ ("named type: " ^ nm)
        | DefTypeOpaque (_, name) ->
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypeFcn (params, ret, is_variadic) ->
@@ -175,8 +176,6 @@ let build_types ctx deftypes =
           let sz = size_of deftypes deftype in
           let tp = integer_type ctx (sz * 8) in
           add_symbol typemap name tp
-       | DefTypeNamedStruct s ->
-          Report.err_internal __FILE__ __LINE__ ("named struct type: " ^ s)
        | DefTypeArray (atype, sz) ->
           let elements = do_convert atype in
           add_symbol typemap name (array_type elements sz)
@@ -507,14 +506,13 @@ let process_expr data llvals varmap pos_n_expr =
        else function_type llret llparams
     | DefTypePtr (t, _) ->
        pointer_type (make_llvm_tp t)
+    | DefTypeNamed nm ->
+       the (lookup_symbol data.typemap nm)
     | DefTypeEnum _ ->
        let sz = size_of data.prog.deftypemap deftp in
        integer_type data.ctx (sz * 8)
     | DefTypePrimitive (pt, _) ->
        the (lookup_symbol data.typemap (primitive2string pt))
-    | DefTypeNamedStruct nm
-    | DefTypeNamedUnion nm ->
-       the (lookup_symbol data.typemap nm)
     | DefTypeOpaque _
     | DefTypeVoid ->
        the (lookup_symbol data.typemap "i8")
@@ -651,8 +649,8 @@ let process_expr data llvals varmap pos_n_expr =
          build_inttoptr e (make_llvm_tp to_tp) "cast" data.bldr
        else Report.err_internal __FILE__ __LINE__
          "What's the deal with casting floats to ptrs?"
-    | DefTypeStaticStruct _, DefTypeNamedStruct s
-    | DefTypeLiteralStruct _, DefTypeNamedStruct s ->
+    | DefTypeStaticStruct _, DefTypeNamed _
+    | DefTypeLiteralStruct _, DefTypeNamed _ ->
        build_bitcast e (make_llvm_tp to_tp) "scast" data.bldr
     | DefTypeStaticStruct _, _
     | DefTypeLiteralStruct _, _ ->

@@ -18,6 +18,7 @@ type visibility =
 type baretype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
+  | DefTypeNamed of string
   | DefTypeOpaque of Lexing.position * string
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
@@ -25,10 +26,8 @@ type baretype =
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeEnum of string list
-  | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
-  | DefTypeNamedUnion of string
   | DefTypeLiteralUnion of deftype list * string list
   | DefTypeVAList
   | DefTypeWildcard

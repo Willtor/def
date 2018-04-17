@@ -40,6 +40,7 @@ type visibility =
 type baretype =
   | DefTypeUnresolved of Lexing.position * string
   | DefTypeVoid
+  | DefTypeNamed of string
   | DefTypeOpaque of Lexing.position * string
   | DefTypePrimitive of primitive * qualifier list
   | DefTypeFcn of deftype list * deftype * bool
@@ -47,10 +48,8 @@ type baretype =
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeEnum of string list
-  | DefTypeNamedStruct of string
   | DefTypeLiteralStruct of deftype list * string list
   | DefTypeStaticStruct of deftype list
-  | DefTypeNamedUnion of string
   | DefTypeLiteralUnion of deftype list * string list
   | DefTypeVAList
   | DefTypeWildcard
@@ -253,6 +252,7 @@ let rec size_of typemap t = match t.bare with
   | DefTypeVoid ->
      Report.err_internal __FILE__ __LINE__
        "size_of called on a void type."
+  | DefTypeNamed nm -> size_of typemap (the (lookup_symbol typemap nm))
   | DefTypeOpaque (_, nm) ->
      Report.err_internal __FILE__ __LINE__
                          ("size_of called on opaque type: " ^ nm)
@@ -274,13 +274,11 @@ let rec size_of typemap t = match t.bare with
      if len < 256 then 1
      else if len < 65536 then 2
      else 4
-  | DefTypeNamedStruct nm -> size_of typemap (the (lookup_symbol typemap nm))
   | DefTypeLiteralStruct (members, _)
   | DefTypeStaticStruct members ->
      (* FIXME: Take aligment into account. *)
      List.fold_left (fun accum t -> accum + (size_of typemap t))
        0 members
-  | DefTypeNamedUnion nm -> size_of typemap (the (lookup_symbol typemap nm))
   | DefTypeLiteralUnion (members, _) ->
      let select_max curr m =
        let candidate = size_of typemap m in if curr > candidate then curr
@@ -305,6 +303,7 @@ let string_of_qlist =
 let rec string_of_type t = match t.bare with
   | DefTypeUnresolved (_, nm) -> "<" ^ nm ^ ">"
   | DefTypeVoid -> "void"
+  | DefTypeNamed nm -> "<named> " ^ nm
   | DefTypeOpaque (_, nm) -> "<opaque> " ^ nm
   | DefTypePrimitive (t, _) -> primitive2string t (* FIXME: qualifiers *)
   | DefTypeFcn (params, ret, is_va) ->
@@ -318,7 +317,6 @@ let rec string_of_type t = match t.bare with
      "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)
   | DefTypeNullPtr -> "nil"
   | DefTypeEnum variants -> "enum | " ^ (String.concat " | " variants)
-  | DefTypeNamedStruct nm -> "struct " ^ nm
   | DefTypeLiteralStruct (members, _) ->
      "{ "
      ^ (String.concat ", " (List.map string_of_type members))
@@ -327,7 +325,6 @@ let rec string_of_type t = match t.bare with
      "<static>{ "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
-  | DefTypeNamedUnion nm -> "union " ^ nm
   | DefTypeLiteralUnion (members, _) ->
      "union { "
      ^ (String.concat ", " (List.map string_of_type members))
@@ -343,24 +340,6 @@ let dt_is_volatile t = match t.bare with
 
 (** Return the most general of the list of types. *)
 let most_general_type pos typemap =
-  let rec get_literal_struct nm =
-    match lookup_symbol typemap nm with
-    | Some ({ bare = DefTypeLiteralStruct _ } as t) -> t
-    | Some ({ bare = DefTypeNamedStruct nm2 }) -> get_literal_struct nm2
-    | None -> Report.err_internal __FILE__ __LINE__
-                                  ("struct " ^ nm ^ "undefined.")
-    | _ -> Report.err_internal __FILE__ __LINE__
-                               ("struct " ^ nm ^ " was not a literal struct.")
-  in
-  let rec get_literal_union nm =
-    match lookup_symbol typemap nm with
-    | Some ({ bare = DefTypeLiteralUnion _ } as t) -> t
-    | Some ({ bare = DefTypeNamedUnion nm2 }) -> get_literal_union nm2
-    | None -> Report.err_internal __FILE__ __LINE__
-                                  ("union " ^ nm ^ "undefined.")
-    | _ -> Report.err_internal __FILE__ __LINE__
-                               ("union " ^ nm ^ " was not a literal union.")
-  in
   let generalize_qualifiers q1 q2 =
     (* FIXME: Needs to be more sophisticated. *)
     if q1 = [] then q2
@@ -387,6 +366,13 @@ let most_general_type pos typemap =
     | DefTypeVoid, _
     | _, DefTypeVoid ->
        Report.err_internal __FILE__ __LINE__ "Don't know what to do with void"
+    | DefTypeNamed nm1, DefTypeNamed nm2 ->
+       if nm1 = nm2 then t1
+       else generalizing_error ()
+    | DefTypeNamed nm, _ ->
+       generalize (Util.the @@ lookup_symbol typemap nm) t2
+    | _, DefTypeNamed nm ->
+       generalize t1 (Util.the @@ lookup_symbol typemap nm)
     | DefTypeOpaque (_, nm1), DefTypeOpaque (_, nm2) ->
        if nm1 = nm2 then t1
        else generalizing_error ()
@@ -439,24 +425,6 @@ let most_general_type pos typemap =
     | DefTypeNullPtr, _
     | _, DefTypeNullPtr ->
        generalizing_error ()
-    | DefTypeNamedStruct s1, DefTypeNamedStruct s2 ->
-       if s1 = s2 then t1
-       else generalizing_error ()
-    | DefTypeNamedStruct s, DefTypeLiteralStruct (tplist1, _)
-    | DefTypeLiteralStruct (tplist1, _), DefTypeNamedStruct s
-    | DefTypeNamedStruct s, DefTypeStaticStruct tplist1
-    | DefTypeStaticStruct tplist1, DefTypeNamedStruct s ->
-       begin match get_literal_struct s with
-       | { bare = DefTypeLiteralStruct (tplist2, _) } ->
-          let _ = reconcile_member_types tplist1 tplist2 in
-          { bare = DefTypeNamedStruct s }
-       | _ ->
-          Report.err_internal __FILE__ __LINE__
-                              "Named struct was actually not a struct."
-       end
-    | DefTypeNamedStruct _, _
-    | _, DefTypeNamedStruct _ ->
-       generalizing_error ()
     | DefTypeLiteralStruct _, DefTypeLiteralStruct _ ->
        if t1 = t2 then t1
        else generalizing_error ()
@@ -473,20 +441,6 @@ let most_general_type pos typemap =
        { bare = DefTypeStaticStruct (reconcile_member_types tplist1 tplist2) }
     | DefTypeStaticStruct _, _
     | _, DefTypeStaticStruct _ ->
-       generalizing_error ()
-    | DefTypeNamedUnion u, DefTypeNamedUnion v ->
-       if u = v then t1 else generalizing_error ()
-    | DefTypeNamedUnion u, DefTypeLiteralUnion (tplist1, _)
-    | DefTypeLiteralUnion (tplist1, _), DefTypeNamedUnion u ->
-       begin match get_literal_union u with
-       | { bare = DefTypeLiteralUnion (tplist2, _) } ->
-          let _ = reconcile_member_types tplist1 tplist2 in
-          { bare = DefTypeNamedUnion u }
-       | _ ->
-          Report.err_internal __FILE__ __LINE__
-                              "Named union was actually not a union."
-       end
-    | DefTypeNamedUnion _, _ | _, DefTypeNamedUnion _ ->
        generalizing_error ()
     | DefTypeLiteralUnion _, DefTypeLiteralUnion _ ->
        if t1 = t2 then t1
