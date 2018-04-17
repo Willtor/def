@@ -63,6 +63,12 @@ type primitive_kind =
   | KindInteger
   | KindFloat
 
+(** Make a deftype from a bare type. *)
+let makebare bare = { bare = bare }
+
+(** Make a bare pointer type. *)
+let makeptr tp = makebare (DefTypePtr (tp, []))
+
 (** Return whether the given integer type is signed. *)
 let signed_p t = match t.bare with
   | DefTypePrimitive (p, _) ->
@@ -140,7 +146,6 @@ let compare t1 t2 =
 
 (** name, type, llvm type constructor, C type(s), bitwidth, dwarf type *)
 let map_builtin_types =
-  let makebare bare = { bare = bare } in
   [ ("void", makebare DefTypeVoid, void_type,
      ["void"], 0, DW_INVALID);
     ("bool", makebare (DefTypePrimitive (PrimBool, [])), i1_type,
@@ -472,9 +477,3 @@ let dwarf_of =
   List.iter (fun (_, p, _, _, sz, d) -> Hashtbl.add dwarf p (sz, d))
             map_builtin_types;
   Hashtbl.find dwarf
-
-(** Make a deftype from a bare type. *)
-let makebare bare = { bare = bare }
-
-(** Make a bare pointer type. *)
-let makeptr tp = makebare (DefTypePtr (tp, []))
