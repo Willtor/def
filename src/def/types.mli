@@ -34,11 +34,12 @@ type baretype =
   | DefTypeLLVMToken
 
 and deftype =
-  { bare : baretype
+  { dtpos : Lexing.position option;
+    bare  : baretype
   }
 
-(** Make a deftype from a bare type. *)
-val makebare : baretype -> deftype
+(** Make a deftype from a position (option) and a bare type. *)
+val maketype : Lexing.position option -> baretype -> deftype
 
 (** Make a pointer type. *)
 val makeptr : deftype -> deftype
@@ -49,9 +50,8 @@ val signed_p : deftype -> bool
 (** Return the more general of the two primitive types. *)
 val generalize_primitives : primitive -> primitive -> primitive
 
-(** Compare two types for equality.  There is no ordering, so zero indicates
-    the types are identical and non-zero indicates non-identical. *)
-val compare : deftype -> deftype -> int
+(** Compare two types for equality.  Return true iff the types are equal. *)
+val equivalent_types : deftype -> deftype -> bool
 
 (** name, type, llvm type constructor, C type *)
 val map_builtin_types :

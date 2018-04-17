@@ -56,18 +56,22 @@ type baretype =
   | DefTypeLLVMToken
 
 and deftype =
-  { bare : baretype
+  { dtpos : Lexing.position option;
+    bare  : baretype
   }
 
 type primitive_kind =
   | KindInteger
   | KindFloat
 
-(** Make a deftype from a bare type. *)
-let makebare bare = { bare = bare }
+(** Make a deftype from a position (option) and a bare type. *)
+let maketype dtpos bare =
+  { dtpos = dtpos;
+    bare = bare
+  }
 
 (** Make a bare pointer type. *)
-let makeptr tp = makebare (DefTypePtr (tp, []))
+let makeptr tp = maketype None (DefTypePtr (tp, []))
 
 (** Return whether the given integer type is signed. *)
 let signed_p t = match t.bare with
@@ -132,20 +136,38 @@ let generalize_primitives p1 p2 =
      let r1, r2 = get_rank p1, get_rank p2 in
      if r1 > r2 then p1 else p2
 
-(** Compare two types for equality.  There is no ordering, so zero indicates
-    the types are identical and non-zero indicates non-identical. *)
-let compare t1 t2 =
-  let compare_primitives p1 p2 = if p1 == p2 then 0 else 1 in
+(** Compare two types for equality.  Return true iff the types are equal. *)
+let rec equivalent_types t1 t2 =
+  let type_folder curr sub1 sub2 = curr && equivalent_types sub1 sub2 in
   match t1.bare, t2.bare with
   | DefTypePrimitive (p1, _), DefTypePrimitive (p2, _) ->
      (* FIXME: Need to resolve qualifiers (volatile, const, etc.). *)
-     compare_primitives p1 p2
+     p1 = p2
   | DefTypeWildcard, _
-  | _, DefTypeWildcard -> 0
-  | _ -> failwith "Types.compare not fully implemented."
+  | _, DefTypeWildcard -> true
+  | DefTypeFcn (p1, r1, v1), DefTypeFcn (p2, r2, v2) when v1 = v2 ->
+     begin
+       try
+         (List.fold_left2 type_folder true p1 p2)
+         && equivalent_types r1 r2
+       with _ -> false
+     end
+  | DefTypePtr (sub1, _), DefTypePtr (sub2, _)
+  | DefTypeArray (sub1, _), DefTypeArray (sub2, _) ->
+     equivalent_types sub1 sub2
+  | DefTypeLiteralStruct (sub1, nm1), DefTypeLiteralStruct (sub2, nm2)
+  | DefTypeLiteralUnion (sub1, nm1), DefTypeLiteralUnion (sub2, nm2) ->
+     begin
+       try
+         (List.fold_left2 type_folder true sub1 sub2)
+         && nm1 = nm2
+       with _ -> false
+     end
+  | b1, b2 -> b1 = b2
 
 (** name, type, llvm type constructor, C type(s), bitwidth, dwarf type *)
 let map_builtin_types =
+  let makebare = maketype None in
   [ ("void", makebare DefTypeVoid, void_type,
      ["void"], 0, DW_INVALID);
     ("bool", makebare (DefTypePrimitive (PrimBool, [])), i1_type,
@@ -385,15 +407,16 @@ let most_general_type pos typemap =
     | _, DefTypeOpaque _ ->
        generalizing_error ()
     | DefTypePrimitive (p1, q1), DefTypePrimitive (p2, q2) ->
-       { bare = DefTypePrimitive (generalize_primitives p1 p2,
-                                  generalize_qualifiers q1 q2)
-       }
+       let bare = DefTypePrimitive (generalize_primitives p1 p2,
+                                    generalize_qualifiers q1 q2)
+       in maketype None bare
     | DefTypePrimitive _, _
     | _, DefTypePrimitive _ ->
        generalizing_error ()
     | DefTypeFcn (params1, ret1, var1), DefTypeFcn (params2, ret2, var2) ->
        if params1 = params2 && ret1 = ret2 && var1 = var2 then
-         { bare = DefTypeFcn(params1, ret1, var1) }
+         let bare = DefTypeFcn(params1, ret1, var1) in
+         maketype None bare
        else
          generalizing_error ()
     | DefTypeFcn _, _
@@ -402,11 +425,14 @@ let most_general_type pos typemap =
     | DefTypePtr _, DefTypePtr ({ bare = DefTypeVoid }, _) -> t1
     | DefTypePtr ({ bare = DefTypeVoid }, _), DefTypePtr _ -> t2
     | DefTypePtr (st1, q1), DefTypeArray (st2, _) ->
-       { bare = DefTypePtr (generalize st1 st2, q1) }
+       let bare = DefTypePtr (generalize st1 st2, q1) in
+       maketype None bare
     | DefTypePtr (st1, q1), DefTypePtr (st2, q2) ->
-       { bare = DefTypePtr (generalize st1 st2, generalize_qualifiers q1 q2) }
+       let bare = DefTypePtr (generalize st1 st2, generalize_qualifiers q1 q2)
+       in maketype None bare
     | DefTypeArray (st1, _), DefTypePtr (st2, q2) ->
-       { bare = DefTypePtr (generalize st1 st2, q2) }
+       let bare = DefTypePtr (generalize st1 st2, q2) in
+       maketype None bare
     | DefTypePtr _, DefTypeNullPtr -> t1
     | DefTypeNullPtr, DefTypePtr _ -> t2
     | DefTypePtr _, _
@@ -419,10 +445,16 @@ let most_general_type pos typemap =
        generalizing_error ()
     | DefTypeArray (st1, n), DefTypeArray (st2, m) ->
        let subtype = generalize st1 st2 in
-       if n = m then { bare = DefTypeArray (subtype, n) }
-       else { bare = DefTypePtr (subtype, []) }
-    | DefTypeArray (st1, _), DefTypeNullPtr -> { bare = DefTypePtr (st1, []) }
-    | DefTypeNullPtr, DefTypeArray (st2, _) -> { bare = DefTypePtr (st2, []) }
+       let bare = if n = m then DefTypeArray (subtype, n)
+                  else DefTypePtr (subtype, [])
+       in
+       maketype None bare
+    | DefTypeArray (st1, _), DefTypeNullPtr ->
+       let bare = DefTypePtr (st1, []) in
+       maketype None bare
+    | DefTypeNullPtr, DefTypeArray (st2, _) ->
+       let bare = DefTypePtr (st2, []) in
+       maketype None bare
     | DefTypeArray _, _
     | _, DefTypeArray _ ->
        generalizing_error ()
@@ -435,15 +467,18 @@ let most_general_type pos typemap =
        else generalizing_error ()
     | DefTypeLiteralStruct (tplist1, _), DefTypeStaticStruct tplist2 ->
        let reconciled = reconcile_member_types tplist1 tplist2 in
-       { bare = DefTypeStaticStruct reconciled }
+       let bare = DefTypeStaticStruct reconciled in
+       maketype None bare
     | DefTypeStaticStruct tplist1, DefTypeLiteralStruct (tplist2, _) ->
        let reconciled = reconcile_member_types tplist1 tplist2 in
-       { bare = DefTypeStaticStruct reconciled }
+       let bare = DefTypeStaticStruct reconciled in
+       maketype None bare
     | DefTypeLiteralStruct _, _
     | _, DefTypeLiteralStruct _ ->
        generalizing_error ()
     | DefTypeStaticStruct tplist1, DefTypeStaticStruct tplist2 ->
-       { bare = DefTypeStaticStruct (reconcile_member_types tplist1 tplist2) }
+       let bare = DefTypeStaticStruct (reconcile_member_types tplist1 tplist2)
+       in maketype None bare
     | DefTypeStaticStruct _, _
     | _, DefTypeStaticStruct _ ->
        generalizing_error ()
@@ -457,7 +492,9 @@ let most_general_type pos typemap =
        t1
   in
   let rec most_general = function
-    | [] -> { bare = DefTypeUnresolved (Util.faux_pos, "<unknown array>") }
+    | [] ->
+       let bare = DefTypeUnresolved (Util.faux_pos, "<unknown array>") in
+       maketype None bare
     | [ t ] -> t
     | t1 :: t2 :: rest ->
        most_general ((generalize t1 t2) :: rest)

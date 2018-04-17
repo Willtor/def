@@ -461,6 +461,9 @@ let process_expr data llvals varmap pos_n_expr =
           in
           let () = List.iteri assign exprs in
           base (* FIXME: Same as above. *)
+       | _, Expr_Cast (_, _, Expr_StaticArray _) ->
+          Report.err_internal __FILE__ __LINE__
+                              "Cast a whole static array.  That's bad."
        | _ ->
           let rhs = expr_gen true right in
           let _ = build_store rhs (expr_gen false left) bldr in
@@ -671,7 +674,7 @@ let process_expr data llvals varmap pos_n_expr =
        let llsz = expr_gen true sz in
        let _, _, alloc = the (lookup_symbol varmap "forkscan_malloc") in
        let mem = build_call alloc [| llsz |] "new" data.bldr in
-       let obj = build_cast (makeptr (makebare DefTypeVoid))
+       let obj = build_cast (makeptr (maketype None DefTypeVoid))
                             (makeptr tp)
                             mem
        in
@@ -800,6 +803,8 @@ let process_expr data llvals varmap pos_n_expr =
     | Expr_Val_Ref str ->
        Util.the (lookup_symbol llvals str)
     | Expr_StaticArray _ ->
+       let pos, _ = pos_n_expr in
+       let () = prerr_endline @@ Error.format_position pos in
        Report.err_internal __FILE__ __LINE__ "static array."
     | Expr_Wildcard ->
        Report.err_internal __FILE__ __LINE__ "wildcard."

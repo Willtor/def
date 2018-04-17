@@ -136,6 +136,15 @@ type function_scope =
     fs_scope_pos  : cfg_scope
   }
 
+(** Basic types. *)
+let bool_type = maketype None @@ DefTypePrimitive (PrimBool, [])
+let char_type = maketype None @@ DefTypePrimitive (PrimI8, [])
+let i64_type = maketype None @@ DefTypePrimitive (PrimI64, [])
+let string_type =
+  makeptr @@ maketype None (DefTypePrimitive (PrimI8, []))
+let nil_type = maketype None @@ DefTypeNullPtr
+let wildcard_type = maketype None @@ DefTypeWildcard
+
 (** Table of cfg_scopes mapped to their parents. *)
 let scope_table = Hashtbl.create 128
 
@@ -277,11 +286,7 @@ let can_escape_forward labelmap stmts =
 
 (** Get the type of an Ast.literal value. *)
 let typeof_literal lit =
-  makebare (DefTypePrimitive (literal2primitive lit, []))
-
-(** string as deftype. *)
-let string_type =
-  makebare (DefTypePtr (makebare (DefTypePrimitive (PrimI8, [])), []))
+  maketype None (DefTypePrimitive (literal2primitive lit, []))
 
 let rec get_field_types typemap tp =
   match tp.bare with
@@ -300,7 +305,10 @@ let check_native_c_type =
     Types.map_builtin_types;
   Hashtbl.find tbl
 
+let type_definition pos = maketype (Some pos)
+
 let rec convert_type defining_p array2ptr typemap asttype =
+  let deft = type_definition in
   match asttype with
   | VarType (pos, name, qlist) ->
      (* FIXME: qualifiers need to be addressed for all types. *)
@@ -310,16 +318,16 @@ let rec convert_type defining_p array2ptr typemap asttype =
           (* If we're defining a type, this type may not yet have been
              declared.  If we aren't, then the type hasn't been declared
              at all and that's an error. *)
-          if defining_p then makebare (DefTypeUnresolved (pos, name))
+          if defining_p then deft pos (DefTypeUnresolved (pos, name))
           else Report.err_unknown_typename pos name
        | Some ({ bare = DefTypeLiteralStruct _ }) ->
           (* Prevent deep recursive definitions. *)
-          makebare (DefTypeNamed name)
+          deft pos (DefTypeNamed name)
        | Some ({ bare = DefTypeLiteralUnion _ }) ->
           (* Prevent deep recursive definitions. *)
-          makebare (DefTypeNamed name)
+          deft pos (DefTypeNamed name)
        | Some ({ bare = DefTypePrimitive (p, _) }) ->
-          makebare (DefTypePrimitive (p, qlist))
+          deft pos (DefTypePrimitive (p, qlist))
        | Some t -> t
      end
   | OpaqueType (pos, name) ->
@@ -327,12 +335,12 @@ let rec convert_type defining_p array2ptr typemap asttype =
        match lookup_symbol typemap name with
        | Some ({ bare = DefTypeLiteralStruct _ }) ->
           (* Prevent deep recursive definitions. *)
-          makebare (DefTypeNamed name)
+          deft pos (DefTypeNamed name)
        | Some ({ bare = DefTypeLiteralUnion _ }) ->
           (* Prevent deep recursive definitions. *)
-          makebare (DefTypeNamed name)
+          deft pos (DefTypeNamed name)
        | Some t -> t
-       | None -> makebare (DefTypeOpaque (pos, name))
+       | None -> deft pos (DefTypeOpaque (pos, name))
      end
   | CVarType (pos, name, qlist) ->
      begin try check_native_c_type name
@@ -349,27 +357,27 @@ let rec convert_type defining_p array2ptr typemap asttype =
           pconvert (convert_type defining_p array2ptr typemap tp :: accum) rest
      in
      let variadic, converted_params = pconvert [] params in
-     makebare
+     maketype None
        (DefTypeFcn (converted_params,
                     convert_type defining_p array2ptr typemap ret,
                     variadic)
        )
   | EnumType (tok, variants) ->
-     makebare (DefTypeEnum (List.map (fun t -> t.td_text) variants))
+     maketype None (DefTypeEnum (List.map (fun t -> t.td_text) variants))
   | StructType elements ->
      let process (names, deftypes) (_, name, tp) =
        (name :: names,
         (convert_type defining_p array2ptr typemap tp) :: deftypes)
      in
      let names, deftypes = List.fold_left process ([], []) elements in
-     makebare (DefTypeLiteralStruct (List.rev deftypes, List.rev names))
+     maketype None (DefTypeLiteralStruct (List.rev deftypes, List.rev names))
   | UnionType elements ->
      let process (names, deftypes) (_, name, tp) =
        (name :: names,
         (convert_type defining_p array2ptr typemap tp) :: deftypes)
      in
      let names, deftypes = List.fold_left process ([], []) elements in
-     makebare (DefTypeLiteralUnion (List.rev deftypes, List.rev names))
+     maketype None (DefTypeLiteralUnion (List.rev deftypes, List.rev names))
   | ArrayType (pos, dim_expr, tp) ->
      if array2ptr then
        makeptr (convert_type defining_p array2ptr typemap tp)
@@ -391,17 +399,19 @@ let rec convert_type defining_p array2ptr typemap asttype =
          | None ->
             Report.err_cant_resolve_array_dim pos
        in
-       makebare
+       deft
+         pos
          (DefTypeArray (convert_type defining_p array2ptr typemap tp, dim))
   | PtrType (pos, tp, qlist) ->
-     makebare
+     deft
+       pos
        (DefTypePtr (convert_type defining_p array2ptr typemap tp, qlist))
   | Ellipsis pos ->
      Report.err_internal __FILE__ __LINE__
-       ("Found an ellipsis at an unexpected location: "
-        ^ (format_position pos))
+                         ("Found an ellipsis at an unexpected location: "
+                          ^ (format_position pos))
   | VAList pos ->
-     makebare DefTypeVAList
+     deft pos DefTypeVAList
   | InferredType ->
      Report.err_internal __FILE__ __LINE__
                          "Trying to convert an inferred type."
@@ -456,14 +466,13 @@ let resolve_type typemap typename oldtp =
     match t.bare with
     | DefTypeUnresolved (pos, name) ->
        begin match bared (lookup_symbol typemap name) with
-       | Some (DefTypeLiteralStruct _) ->
-          makebare (DefTypeNamed name)
+       | Some (DefTypeLiteralStruct _)
        | Some (DefTypeLiteralUnion _) ->
-          makebare (DefTypeNamed name)
+          type_definition pos (DefTypeNamed name)
        | Some (DefTypeUnresolved (_, name2)) when name = name2 ->
           Report.err_internal __FILE__ __LINE__
                               ("Recursive badness: " ^ name ^ ", " ^ name2)
-       | Some tp -> v (makebare tp)
+       | Some tp -> v @@ type_definition pos tp
        | None -> (* Unresolved type name. *)
           Report.err_unknown_typename pos name
        end
@@ -473,28 +482,27 @@ let resolve_type typemap typename oldtp =
        (* Sometimes we think a type if opaque if the parent type was resolved
           before the child. *)
        begin match bared (lookup_symbol typemap nm) with
-       | Some (DefTypeLiteralStruct _) ->
-          makebare (DefTypeNamed nm)
+       | Some (DefTypeLiteralStruct _)
        | Some (DefTypeLiteralUnion _) ->
-          makebare (DefTypeNamed nm)
-       | Some tp -> makebare tp
-       | None -> makebare (DefTypeOpaque (pos, nm))
+          type_definition pos (DefTypeNamed nm)
+       | Some tp -> type_definition pos tp
+       | None -> type_definition pos (DefTypeOpaque (pos, nm))
        end
     | DefTypePrimitive _ -> t
     | DefTypeFcn (params, ret, variadic) ->
        let params = List.map v params
        and ret = v ret
-       in makebare (DefTypeFcn (params, ret, variadic))
-    | DefTypePtr (tp, q) -> makebare (DefTypePtr (v tp, q))
-    | DefTypeArray (tp, n) -> makebare (DefTypeArray (v tp, n))
+       in maketype None (DefTypeFcn (params, ret, variadic))
+    | DefTypePtr (tp, q) -> maketype None (DefTypePtr (v tp, q))
+    | DefTypeArray (tp, n) -> maketype None (DefTypeArray (v tp, n))
     | DefTypeNullPtr -> t
     | DefTypeEnum _ -> t
     | DefTypeLiteralStruct (fields, names) ->
-       makebare (DefTypeLiteralStruct (List.map v fields, names))
+       maketype None (DefTypeLiteralStruct (List.map v fields, names))
     | DefTypeStaticStruct members ->
-       makebare (DefTypeStaticStruct (List.map v members))
+       maketype None (DefTypeStaticStruct (List.map v members))
     | DefTypeLiteralUnion (fields, names) ->
-       makebare (DefTypeLiteralUnion (List.map v fields, names))
+       maketype None (DefTypeLiteralUnion (List.map v fields, names))
     | DefTypeVAList -> t
     | DefTypeWildcard -> t
     | DefTypeLLVMToken -> t
@@ -515,10 +523,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
               | "__builtin_cas" ->
                  (* FIXME: Obviously, this is not the correct type, since CAS
                     takes various types for its parameters. *)
-                 makebare
-                   (DefTypeFcn ([],
-                                makebare (DefTypePrimitive (PrimBool, [])),
-                                false))
+                 maketype None (DefTypeFcn ([], bool_type, false))
               | _ ->
                  Report.err_unknown_fcn_call f.fc_pos f.fc_name
             end
@@ -534,8 +539,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
        | OperLogicalNot
        | OperLT | OperGT | OperLTE | OperGTE
        | OperEquals | OperNEquals
-       | OperLogicalAnd | OperLogicalOr ->
-          makebare (DefTypePrimitive (PrimBool, []))
+       | OperLogicalAnd | OperLogicalOr -> bool_type
        | OperAssign ->
           infer (Util.the op.op_right)
        | _ ->
@@ -545,10 +549,11 @@ let infer_type_from_expr typemap scope toplevel_expr =
           begin match lhs.bare, rhs.bare with
           | DefTypePrimitive (prim_left, _), DefTypePrimitive (prim_right, _)
             ->
-             makebare
+             maketype
+               None
                (DefTypePrimitive
                   (generalize_primitives prim_left prim_right, []))
-          | a, b when a = b -> makebare a
+          | a, b when a = b -> maketype None a
           | _ ->
              Report.err_internal __FILE__ __LINE__
                                  "Couldn't generalize types."
@@ -586,7 +591,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
             begin match field with
             | FieldNumber n -> List.nth tlist n
             | FieldName s ->
-               let f (tp, nm) = if s = nm then true else false in
+               let f (_, nm) = if s = nm then true else false in
                let tp, _ = List.find f (List.combine tlist names) in
                tp
             end
@@ -605,11 +610,11 @@ let infer_type_from_expr typemap scope toplevel_expr =
     | ExprStaticStruct (_, fields) ->
        let ftypes = List.map (fun (_, e) -> infer e) fields in
        (* Becomes a literal struct since variables are never static structs. *)
-       makebare (DefTypeLiteralStruct (ftypes, []))
+       maketype None (DefTypeLiteralStruct (ftypes, []))
     | ExprStaticArray (pos, elements) ->
        let atypes = List.map (fun (_, e) -> infer e) elements in
        let tp = most_general_type pos typemap atypes in
-       makebare (DefTypeArray (tp, List.length elements))
+       type_definition pos (DefTypeArray (tp, List.length elements))
     | ExprType _ ->
        Report.err_internal __FILE__ __LINE__ "Type of type?"
     | ExprTypeString _ -> string_type
@@ -697,7 +702,7 @@ let rec make_size_expr typemap p = function
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
 let rec maybe_cast typemap orig cast_as expr =
-  if orig = cast_as || orig = { bare = DefTypeWildcard } then expr
+  if equivalent_types orig cast_as then expr
   else match cast_as.bare with
        | DefTypeNamed nm ->
           begin match (the (lookup_symbol typemap nm)).bare with
@@ -734,8 +739,8 @@ let rec maybe_cast typemap orig cast_as expr =
        | _ ->
           if expr = Expr_Nil then
             let zero = Expr_Literal (LitU64 (Int64.of_int 0)) in
-            let tp = makebare (DefTypePrimitive (PrimU64, [])) in
-            if tp = cast_as then zero
+            let tp = maketype None (DefTypePrimitive (PrimU64, [])) in
+            if equivalent_types tp cast_as then zero
             else Expr_Cast (tp, cast_as, zero)
           else Expr_Cast (orig, cast_as, expr)
 
@@ -786,19 +791,20 @@ let check_castability pos typemap ltype rtype =
     | DefTypePtr _, DefTypeNullPtr
     | DefTypeNullPtr, DefTypePtr _ -> () (* FIXME: Qualifier comparison? *)
     | DefTypeArray _, DefTypePtr _ -> () (* FIXME: Qualifier comparison? *)
-    | DefTypeArray (t1, n), DefTypeArray (t2, m) when m = n && t1 = t2 ->
+    | DefTypeArray (t1, n), DefTypeArray (t2, m)
+         when m = n && equivalent_types t1 t2 ->
        ()
     | DefTypeArray _, DefTypeArray _ ->
        Report.err_cant_cast pos (string_of_type l) (string_of_type r)
     | _ ->
-       if l = r then ()
+       if equivalent_types l r then ()
        else
          Report.err_internal __FILE__ __LINE__
                              ("incomplete cast for " ^ (string_of_type l)
                               ^ " to " ^ (string_of_type r) ^ ": "
                               ^ (format_position pos))
   and identical (ltype, rtype) =
-    if ltype = rtype then ()
+    if equivalent_types ltype rtype then ()
     else match get_struct_defn ltype, get_struct_defn rtype with
          | DefTypeLiteralStruct (lmembers, _),
            DefTypeLiteralStruct (rmembers, _)
@@ -842,7 +848,7 @@ let binary_reconcile typemap =
     | OperGT | OperGTE
     | OperEquals | OperNEquals ->
        let tp = most_general_type pos typemap [ltype; rtype] in
-       makebare (DefTypePrimitive (PrimBool, [])),
+       type_definition pos (DefTypePrimitive (PrimBool, [])),
        tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
@@ -853,7 +859,7 @@ let binary_reconcile typemap =
        maybe_cast typemap ltype tp lexpr,
        maybe_cast typemap rtype tp rexpr
     | OperLogicalOr | OperLogicalAnd ->
-       let primbool = makebare (DefTypePrimitive (PrimBool, [])) in
+       let primbool = type_definition pos (DefTypePrimitive (PrimBool, [])) in
        begin
          check_castability pos typemap ltype primbool;
          check_castability pos typemap rtype primbool;
@@ -888,14 +894,15 @@ let build_fcn_call scope typemap pos name args =
   match lookup_symbol scope name with
   | None ->
      let ptr2int tp = match tp with
-       | { bare = DefTypePtr _ } -> makebare (DefTypePrimitive (PrimU64, []))
+       | { dtpos = dtpos; bare = DefTypePtr _ } ->
+          maketype dtpos (DefTypePrimitive (PrimU64, []))
        | _ -> tp
      in
      let create_atomicrmw op = match args with
        | [({ bare = DefTypePtr (t1, q) }, dexpr); (t2, vexpr)] ->
           (* FIXME: Do more checking on the type of the destination arg. *)
           let castptrs = ptr2int t1 in
-          let ptr2t1 = makebare (DefTypePtr (t1, q)) in
+          let ptr2t1 = maketype None (DefTypePtr (t1, q)) in
           let ptr2castptrs = makeptr castptrs in
           let revised = [ (ptr2castptrs,
                            maybe_cast typemap ptr2t1 ptr2castptrs dexpr);
@@ -912,16 +919,15 @@ let build_fcn_call scope typemap pos name args =
        | [({ bare = DefTypePtr (t1, q) }, dexpr);
           (t2, cmpexpr);
           (t3, valexpr)] ->
-          let rettp = makebare (DefTypePrimitive (PrimBool, [])) in
           let castptrs = ptr2int t1 in
-          let ptr2t1 = makebare (DefTypePtr (t1, q)) in
+          let ptr2t1 = maketype None (DefTypePtr (t1, q)) in
           let ptr2castptrs = makeptr castptrs in
           let revised = [ (ptr2castptrs,
                            maybe_cast typemap ptr2t1 ptr2castptrs dexpr);
                           (castptrs, maybe_cast typemap t2 castptrs cmpexpr);
                           (castptrs, maybe_cast typemap t3 castptrs valexpr) ]
           in
-          rettp, Expr_Atomic (AtomicCAS, revised)
+          bool_type, Expr_Atomic (AtomicCAS, revised)
        | _ ->
           Report.err_internal __FILE__ __LINE__ "Need an error message for CAS"
      in
@@ -956,7 +962,7 @@ let build_fcn_call scope typemap pos name args =
                match_params_with_args (expr :: accum) ([], args)
              else
                raise Arg2ParamMismatch
-          | params, [] -> raise Arg2ParamMismatch
+          | _, [] -> raise Arg2ParamMismatch
           | ptype :: params, (atype, expr) :: args ->
              let () = check_castability pos typemap atype ptype in
              let cast_arg = maybe_cast typemap atype ptype expr in
@@ -967,9 +973,9 @@ let build_fcn_call scope typemap pos name args =
             let cast_args = match_params_with_args [] (params, args) in
             rettp, Expr_FcnCall (fname, cast_args)
           with _ ->
-               Report.err_wrong_number_of_args pos decl.decl_pos name
-                                               (List.length params)
-                                               (List.length args)
+            Report.err_wrong_number_of_args pos decl.decl_pos name
+                                            (List.length params)
+                                            (List.length args)
         in
         begin
           match decl.mappedname with
@@ -1014,9 +1020,7 @@ let convert_expr typemap fcnscope =
        (* FIXME: Fix size for variable-sized array members. *)
        let i32tp, i32sz = convert (make_size_expr typemap pos t) in
        let i64sz =
-         maybe_cast typemap i32tp
-                    (makebare (DefTypePrimitive (PrimI64, [])))
-                    i32sz
+         maybe_cast typemap i32tp i64_type i32sz
        in
        begin match init with
        | [] -> makeptr tp, Expr_New (tp, i64sz, [])
@@ -1069,16 +1073,14 @@ let convert_expr typemap fcnscope =
        in
        (* FIXME: Should be const. *)
        let tp =
-         makebare (DefTypeArray
-                     (makebare (DefTypePrimitive (PrimI8, [])),
-                      String.length raw))
+         type_definition pos (DefTypeArray (char_type, String.length raw))
        in
        tp, Expr_String (label_of_pos pos, raw)
     | ExprBinary op ->
        let () = Hashtbl.add scope_table (ScopeLeaf op.op_pos) lexical in
        let rettp, tp, lhs, rhs =
          binary_reconcile typemap op.op_pos op.op_op
-           (convert op.op_left) (convert (the op.op_right))
+                          (convert op.op_left) (convert (the op.op_right))
        in
        (* FIXME: Should we make non-integers work using transactions?  We
           _could_.  Do users want that? *)
@@ -1177,7 +1179,7 @@ let convert_expr typemap fcnscope =
        let cmembers = List.map (fun (_, e) -> convert e) members in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
                                  (t :: taccum)) [] cmembers) in
-       makebare (DefTypeStaticStruct tlist),
+       maketype None (DefTypeStaticStruct tlist),
        Expr_StaticStruct (None, cmembers)
     | ExprStaticArray (pos, elements) ->
        let ce = List.map (fun (_, e) -> convert e) elements in
@@ -1185,16 +1187,16 @@ let convert_expr typemap fcnscope =
                                  (t :: taccum)) [] ce) in
        let tp = most_general_type pos typemap tlist in
        let cast_ce = List.map (fun (t, e) -> maybe_cast typemap t tp e) ce in
-       makebare (DefTypeArray (tp, List.length tlist)),
+       type_definition pos (DefTypeArray (tp, List.length tlist)),
        Expr_StaticArray cast_ce
     | ExprType (pos, _) -> Report.err_unexpected_type_expr pos
     | ExprTypeString (pos, subexpr) ->
        let nm = (label_of_pos pos) ^ ".type_str" in
        let expr_tp = infer_type_from_expr typemap scope subexpr in
-       makeptr (makebare (DefTypePrimitive (PrimI8, []))),
+       makeptr char_type,
        Expr_String (nm, string_of_type expr_tp)
-    | ExprNil _ -> makebare DefTypeNullPtr, Expr_Nil
-    | ExprWildcard _ -> makebare DefTypeWildcard, Expr_Wildcard
+    | ExprNil _ -> nil_type, Expr_Nil
+    | ExprWildcard _ -> wildcard_type, Expr_Wildcard
   in convert
 
 let nonconflicting_name pos scope name =
@@ -1393,8 +1395,10 @@ let rec build_bbs name decltable typemap fcn_pos body =
     | XACT_HARDWARE ->
        let _, f = build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" []
        in
+       let volatile_i32 =
+         type_definition pos (DefTypePrimitive (PrimI32, [Volatile])) in
        let e = Expr_Binary (pos, OperEquals, false,
-                            makebare (DefTypePrimitive (PrimI32, [Volatile])),
+                            volatile_i32,
                             Expr_Literal (LitI32 (Int32.of_int (-1))), f)
        in
        let xact_bb = make_sequential_bb ("xact." ^ label) [] in
@@ -1782,7 +1786,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
          List.fold_left
            (fun accum expr ->
              Expr_Binary (pos, OperLogicalAnd, false,
-                          makebare (DefTypePrimitive (PrimBool, [])),
+                          bool_type,
                           accum, expr))
            (List.hd atoms) (List.tl atoms)
        in
