@@ -558,7 +558,12 @@ let resolve_type typemap typename oldtp =
 let infer_type_from_expr typemap scope toplevel_expr =
   let rec infer expr =
     match expr with
-    | ExprNew (_, vt, _) -> makeptr vt
+    | ExprNew (_, vt, _, _) ->
+       (* We're allowed to fudge the array dimension, here, (third parameter
+          in the constructor) because the inferred type is a pointer, and we
+          won't actually use this information to malloc the memory.
+        *)
+       makeptr vt
     | ExprFcnCall f ->
        begin
          match lookup_symbol scope f.fc_name with
@@ -711,13 +716,19 @@ let get_fcntype_profile tp =
   | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
   | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
-let rec make_size_expr typemap p tp =
+let rec make_size_expr typemap p tp dimension_opt =
   match tp.bare with
   | DefTypeArray (subtype, n) ->
-     let subsize = make_size_expr typemap p tp in
+     let lhs =
+       if n > 0 then ExprLit (p, LitI32 (Int32.of_int n))
+       else if dimension_opt = None then
+         Report.err_cant_resolve_array_dim p
+       else Util.the dimension_opt
+     in
+     let subsize = make_size_expr typemap p subtype None in
      let op = { op_pos = p;
                 op_op = OperMult;
-                op_left = ExprLit (p, LitI32 (Int32.of_int n));
+                op_left = lhs;
                 op_right = Some subsize;
                 op_atomic = false
               }
@@ -1042,7 +1053,7 @@ let convert_expr typemap fcnscope =
   let scope = fcnscope.fs_vars in
   let lexical = fcnscope.fs_scope_pos in
   let rec convert = function
-    | ExprNew (pos, t, init) ->
+    | ExprNew (pos, t, dim, init) ->
        let tp = match t.bare with
          (* Throw away an initial ArrayType, since that's only relevant for
             the size of the allocation. *)
@@ -1050,7 +1061,7 @@ let convert_expr typemap fcnscope =
          | _ -> t
        in
        (* FIXME: Fix size for variable-sized array members. *)
-       let i32tp, i32sz = convert (make_size_expr typemap pos t) in
+       let i32tp, i32sz = convert (make_size_expr typemap pos t (Some dim)) in
        let i64sz =
          maybe_cast typemap i32tp i64_type i32sz
        in
@@ -2070,7 +2081,7 @@ let resolve_builtins stmts typemap defined_syms =
          | "sizeof" ->
             begin match f.fc_args with
             | [ ExprType (p, tp) ] ->
-               make_size_expr typemap p tp
+               make_size_expr typemap p tp None
             | _ :: [] -> Report.err_internal __FILE__ __LINE__
                "FIXME: No error message for this."
             | _ -> Report.err_internal __FILE__ __LINE__

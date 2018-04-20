@@ -58,6 +58,7 @@ and field_id =
 and expr =
   | ExprNew of
       position * deftype
+      * (*array dimension=*)expr
       * (position * string
          * (position * expr) option
          * position * expr) list
@@ -414,7 +415,9 @@ let of_parsetree =
     | PTE_F32 (tok, _) | PTE_F64 (tok, _) ->
        Report.err_float_array_dim tok.td_pos
     | expr ->
-       Report.err_cant_resolve_array_dim @@ pt_expr_pos expr
+       (* The dimension is too complex to resolve, here.  It may, in fact,
+          be determined at runtime, if this is a "new" statement. *)
+       -1L
 
   and deftype_of = function
     | PTT_Fcn (lparen, params, _, _, ret) ->
@@ -480,7 +483,14 @@ let of_parsetree =
               )
                      field_inits
        in
-       ExprNew (newtok.td_pos, deftype_of tp, init)
+       let array_pos = pt_type_pos tp in
+       let array_dim = match tp with
+         | PTT_Array (_, None, _, _) ->
+            Report.err_cant_resolve_array_dim array_pos
+         | PTT_Array (_, Some expr, _, _) -> expr_of expr
+         | _ -> ExprLit (array_pos, LitI64 1L)
+       in
+       ExprNew (newtok.td_pos, deftype_of tp, array_dim, init)
     | PTE_Nil nil -> ExprNil nil.td_pos
     | PTE_Type (typetok, tp) ->
        ExprType (typetok.td_pos, deftype_of tp)
@@ -771,7 +781,7 @@ let of_cimport cimport =
   convert [] cimport
 
 let rec pos_of_astexpr = function
-  | ExprNew (pos, _, _)
+  | ExprNew (pos, _, _, _)
   | ExprFcnCall { fc_pos = pos }
   | ExprString (pos, _)
   | ExprPreUnary { op_pos = pos }
@@ -797,13 +807,14 @@ let visit_expr f =
   let rec visit expr =
     f expr;
     match expr with
-    | ExprNew (_, _, init) ->
+    | ExprNew (_, _, sz_expr, init) ->
        let visit_init (_, _, p_e_opt, _, expr) =
          visit expr;
          match p_e_opt with
          | None -> ()
          | Some (_, e) -> visit e
        in
+       let () = visit sz_expr in
        List.iter visit_init init
     | ExprFcnCall fcn_call -> List.iter visit fcn_call.fc_args
     | ExprString _ -> ()
