@@ -189,14 +189,6 @@ let combine3 a b c =
   in
   combine [] (a, b, c)
 
-let contains v =
-  let rec test = function
-    | [] -> false
-    | cmp :: _ when cmp = v -> true
-    | _ :: rest -> test rest
-  in
-  test
-
 let re_set =
   [ (regexp {|\\n|}, "\n");    (* newline *)
     (regexp {|\\r|}, "\r");    (* carriage return *)
