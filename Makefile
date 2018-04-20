@@ -61,8 +61,6 @@ DEFFILES = 		\
 	report.ml	\
 	scrubber.ml	\
 	scrubber.mli	\
-	templates.ml	\
-	templates.mli	\
 	types.ml	\
 	types.mli	\
 	util.ml		\
