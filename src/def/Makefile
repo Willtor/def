@@ -49,9 +49,6 @@ $(TARGET): $(INTERFACE_OBJ) $(OBJ)
 	cp $< $@
 	cp $(<:.cmx=.o) $(@:.cmx=.o)
 
-ast.mli: ast.ml
-	$(OCAMLC) -I $(CIMPORT_PATH) -i $< > $@
-
 report.mli: report.ml
 	$(OCAMLC) -i $< > $@
 

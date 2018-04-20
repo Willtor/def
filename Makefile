@@ -34,6 +34,7 @@ CIMPORTFILES =		\
 DEF_SRC_DIR = src/def
 DEFFILES = 		\
 	ast.ml		\
+	ast.mli		\
 	build.ml	\
 	build.mli	\
 	cilky.cpp	\

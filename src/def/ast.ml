@@ -22,6 +22,8 @@ open Operator
 open Parsetree
 open Types
 
+type position = Lexing.position
+
 type literal =
   | LitBool of bool
   | LitI8  of char
@@ -57,7 +59,7 @@ and field_id =
 
 and expr =
   | ExprNew of
-      position * deftype
+      position * Types.deftype
       * (*array dimension=*)expr
       * (position * string * (position * expr) option * position * expr) list
   | ExprFcnCall of fcn_call
@@ -67,35 +69,37 @@ and expr =
   | ExprPostUnary of operation
   | ExprVar of position * string
   | ExprLit of position * literal
-  | ExprEnum of position * string * literal * deftype
-  | ExprCast of position * deftype * expr
+  | ExprEnum of position * string * literal * Types.deftype
+  | ExprCast of position * Types.deftype * expr
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * field_id
   | ExprStaticStruct of position * (position * expr) list
   | ExprStaticArray of position * (position * expr) list
-  | ExprType of position * deftype
+  | ExprType of position * Types.deftype
   | ExprTypeString of position * expr
   | ExprNil of position
   | ExprWildcard of position
 
 type stmt =
-  | Import of tokendata * tokendata
+  | Import of Parsetree.tokendata * Parsetree.tokendata
   | StmtExpr of position * expr
   | Block of position * stmt list
-  | DeclFcn of position * Types.visibility * string * deftype
+  | DeclFcn of position * Types.visibility * string * Types.deftype
                * (position * string) list
-  | DefFcn of position * string option * Types.visibility * string * deftype
+  | DefFcn of position * string option * Types.visibility * string
+              * Types.deftype
               * (position * string) list
               * stmt list
-  | DefTemplateFcn of position * pt_template * string option * Types.visibility
-                      * string * deftype * stmt list
+  | DefTemplateFcn of position * Parsetree.pt_template * string option
+                      * Types.visibility
+                      * string * Types.deftype * stmt list
   | VarDecl of Parsetree.tokendata * Parsetree.tokendata list
-               * expr list * deftype * Types.visibility
+               * expr list * Types.deftype * Types.visibility
   | InlineStructVarDecl of Parsetree.tokendata
-                           * (position * string * deftype) list
+                           * (position * string * Types.deftype) list
                            * (position * expr)
   | TransactionBlock of position * stmt list
-  | IfStmt of position * expr * stmt list * (Lexing.position * stmt list) option
+  | IfStmt of position * expr * stmt list * (position * stmt list) option
   (* ForLoop: start-pos * is_parallel * init * cond * iter * body *)
   | ForLoop of position * bool * stmt option * (position * expr)
     * (position * expr) option * position * stmt list
@@ -106,7 +110,7 @@ type stmt =
   | SwitchStmt of position * expr * (position * bool * expr * stmt list) list
   | Return of position * expr
   | ReturnVoid of position
-  | TypeDecl of position * string * deftype * Types.visibility * bool
+  | TypeDecl of position * string * Types.deftype * Types.visibility * bool
   | Label of position * string
   | Goto of position * string
   | Break of position
