@@ -319,14 +319,6 @@ let rec get_field_types typemap tp =
   | DefTypeLiteralUnion (types, _) -> types
   | _ -> Report.err_internal __FILE__ __LINE__ "Unable to get field types."
 
-let check_native_c_type =
-  let tbl = Hashtbl.create 16 in
-  List.iter
-    (fun (_, tp, _, names, _, _) ->
-      List.iter (fun name -> Hashtbl.add tbl name tp) names)
-    Types.map_builtin_types;
-  Hashtbl.find tbl
-
 let type_definition pos = maketype (Some pos)
 
 let rec dearray_fcn fcn_type =
