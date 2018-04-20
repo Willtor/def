@@ -573,12 +573,8 @@ let infer_type_from_expr typemap scope toplevel_expr =
             begin
               (* FIXME: Need to recode this with a table of builtins. *)
               match f.fc_name with
-              | "__builtin_cas" ->
-                 (* FIXME: Obviously, this is not the correct type, since CAS
-                    takes various types for its parameters. *)
-                 maketype None (DefTypeFcn ([], bool_type, false))
-              | _ ->
-                 Report.err_unknown_fcn_call f.fc_pos f.fc_name
+              | "__builtin_cas" -> bool_type
+              | _ -> Report.err_unknown_fcn_call f.fc_pos f.fc_name
             end
        end
     | ExprString _ -> string_type
