@@ -792,18 +792,6 @@ let rec maybe_cast typemap orig cast_as expr =
 (** Determine whether one type can be cast as another.  This function returns
     unit, as it only reports an error if it fails. *)
 let check_castability pos typemap ltype rtype =
-  let rec get_struct_defn t =
-    match t.bare with
-    | DefTypeNamed nm ->
-       begin match lookup_symbol typemap nm with
-       | Some t -> t.bare
-       | None -> DefTypeNamed nm
-       end
-    | DefTypeStaticStruct _ as t -> t
-    | DefTypeLiteralStruct _ as t -> t
-    | DefTypeLiteralUnion _ as t -> t
-    | t -> t
-  in
   let rec similar (l, r) =
     match l.bare, r.bare with
     | DefTypePrimitive _, DefTypePrimitive _ ->
@@ -849,8 +837,17 @@ let check_castability pos typemap ltype rtype =
                               ^ " to " ^ (string_of_type r) ^ ": "
                               ^ (format_position pos))
   and identical (ltype, rtype) =
-    if equivalent_types ltype rtype then ()
-    else match get_struct_defn ltype, get_struct_defn rtype with
+    let rec concrete_of tp =
+      match tp.bare with
+      | DefTypeNamed subtype ->
+         concrete_of (Util.the @@ lookup_symbol typemap subtype)
+      | _ -> tp
+    in
+    let left = concrete_of ltype
+    and right = concrete_of rtype
+    in
+    if equivalent_types left right then ()
+    else match left.bare, right.bare with
          | DefTypeLiteralStruct (lmembers, _),
            DefTypeLiteralStruct (rmembers, _)
          | DefTypeLiteralStruct (lmembers, _),
