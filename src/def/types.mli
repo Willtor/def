@@ -1,6 +1,3 @@
-type qualifier =
-  | Volatile
-
 type primitive =
   | PrimBool
   | PrimI8  | PrimU8

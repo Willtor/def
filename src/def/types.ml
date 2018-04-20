@@ -20,9 +20,6 @@ open Llvm
 open Llvmext (* token_type, dwarf_type *)
 open Util
 
-type qualifier =
-  | Volatile
-
 type primitive =
   | PrimBool
   | PrimI8  | PrimU8
@@ -327,13 +324,6 @@ let rec size_of typemap t = match t.bare with
      Report.err_internal __FILE__ __LINE__ "Can't get the size of a wildcard."
   | DefTypeLLVMToken ->
      Report.err_internal __FILE__ __LINE__ "Shouldn't need size of LLVM token."
-
-let string_of_qlist =
-  let rec conv accum = function
-    | [] -> accum
-    | Volatile :: rest -> conv (accum ^ "volatile ") rest
-  in
-  conv ""
 
 (** Convert the type into its string representation. *)
 let rec string_of_type t = match t.bare with
