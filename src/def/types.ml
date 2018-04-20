@@ -512,3 +512,13 @@ let dwarf_of =
   List.iter (fun (_, p, _, _, sz, d) -> Hashtbl.add dwarf p (sz, d))
             map_builtin_types;
   Hashtbl.find dwarf
+
+(** If the type is a named type, dereference it using the typemap until a
+    non-named type is reached. *)
+let concrete_of typemap tp =
+  let rec concrete tp =
+    match tp.bare with
+    | DefTypeNamed name -> Util.the @@ lookup_symbol typemap name
+    | _ -> tp
+  in
+  concrete tp

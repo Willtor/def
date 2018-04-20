@@ -137,17 +137,11 @@ let deftype2llvmtype data =
 let build_types ctx deftypes =
   let typemap = make_symtab () in
   let do_convert = convert_deftype2llvmtype ctx typemap deftypes true in
-  let rec concrete_of tp =
-    match tp.bare with
-    | DefTypeNamed nm ->
-       concrete_of (Util.the @@ lookup_symbol deftypes nm)
-    | _ -> tp
-  in
   let forward_declare_structs name deftype =
     match lookup_symbol typemap name with
     | Some _ -> ()
     | None ->
-       begin match (concrete_of deftype).bare with
+       begin match (concrete_of deftypes deftype).bare with
        | DefTypeLiteralStruct _ ->
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypeLiteralUnion _ ->
@@ -161,7 +155,7 @@ let build_types ctx deftypes =
     match lookup_symbol typemap name with
     | Some _ -> ()
     | None ->
-       begin match (concrete_of deftype).bare with
+       begin match (concrete_of deftypes deftype).bare with
        | DefTypePrimitive _ ->
           add_symbol typemap name (do_convert deftype)
        | DefTypeEnum _ ->
@@ -189,7 +183,7 @@ let build_types ctx deftypes =
     match lookup_symbol typemap name with
     | Some _ -> ()
     | None ->
-       begin match (concrete_of deftype).bare with
+       begin match (concrete_of deftypes deftype).bare with
        | DefTypeLiteralStruct _
        | DefTypeLiteralUnion _
        | DefTypeOpaque _
@@ -569,7 +563,10 @@ let process_expr data llvals varmap pos_n_expr =
     | _ -> Report.err_internal __FILE__ __LINE__
        ("make_llvm_tp incomplete: " ^ (string_of_type deftp))
 
-  and build_cast from_tp to_tp e =
+  and build_cast raw_from raw_to e =
+    let from_tp = concrete_of data.prog.deftypemap raw_from
+    and to_tp = concrete_of data.prog.deftypemap raw_to
+    in
     let build_primitive_cast t1 t2 =
       let llvm_to_tp =
         (the (lookup_symbol data.typemap (primitive2string t2))) in

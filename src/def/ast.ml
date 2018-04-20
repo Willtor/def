@@ -656,19 +656,22 @@ let of_cimport cimport =
                 maketype (Some pos) @@ DefTypeNamed name,
                 try Hashtbl.find no_duplicates name
                 with _ ->
-                  (* Note: Insert "Opaque" type instead of "Undefined" because
-                     C allows a user to specify an undefined struct as, e.g.,
-                     a parameter to a function.  If the parameter is a pointer
-                     to the unknown struct, it's treated as opaque because the
-                     C compiler doesn't care.  If it wasn't through a pointer,
-                     then the C compiler already generated an error, and DEF
+                  (* Note: Insert "Unresolved" type.  C allows its users to
+                     specify undefined structs as, e.g., parameters to
+                     functions.  It will get treated as an opaque type when
+                     used through a pointer, but it hasn't (yet) been
+                     typedef'd.  The C compiler doesn't care because... a
+                     pointer is a pointer.
+
+                     If it isn't through a pointer, and is never defined, then
+                     the C compiler has already generated an error, and DEF
                      doesn't have to.
 
                      The same is true for fields in a struct or union.  If the
                      reference isn't a pointer, then rest assured, we'll get
                      the real definition eventually.
                    *)
-                  let rval = maketype (Some pos) @@ DefTypeOpaque name in
+                  let rval = maketype (Some pos) @@ DefTypeUnresolved "hello" in
                   let () = Hashtbl.replace no_duplicates name rval in
                   rval
               end
@@ -731,12 +734,23 @@ let of_cimport cimport =
        let decl_n_accum =
          try
            begin match Hashtbl.find no_duplicates name with
+           | { bare = DefTypeUnresolved _ } ->
+              let tp = match maybe_tp with
+                | None -> maketype (Some pos) @@ DefTypeOpaque name
+                | Some t -> get_rval (deftype_of t)
+              in
+              let () = Hashtbl.replace no_duplicates name tp in
+              let decl = TypeDecl (pos, name, tp, VisLocal, false) in
+              decl :: accum
            | { bare = DefTypeOpaque _ } ->
-              if maybe_tp = None then accum
-              else let t = get_rval (deftype_of @@ Util.the maybe_tp) in
-                   let () = Hashtbl.replace no_duplicates name t in
-                   let decl = (TypeDecl (pos, name, t, VisLocal, false)) in
-                   decl :: accum
+              let tp = match maybe_tp with
+                | None -> Report.err_internal __FILE__ __LINE__
+                                              "Redefined type."
+                | Some t -> get_rval (deftype_of t)
+              in
+              let () = Hashtbl.replace no_duplicates name tp in
+              let decl = TypeDecl (pos, name, tp, VisLocal, false) in
+              decl :: accum
            | _ ->
               (* This is a strange case - that the struct has already been
                  defined and it seems to be redefined.  It's an artifact of
@@ -756,9 +770,27 @@ let of_cimport cimport =
            end
          with _ ->
            let tp =
-             if maybe_tp = None then
-               maketype (Some pos) @@ DefTypeOpaque name
-             else get_rval (deftype_of @@ Util.the maybe_tp)
+             match maybe_tp with
+             | None -> maketype (Some pos) @@ DefTypeOpaque name
+             | Some t ->
+                match get_rval (deftype_of t) with
+                | { dtpos = dtpos;
+                    bare = DefTypeUnresolved str
+                  } ->
+                   (* This is weird, right?  Like we've made a type and it
+                      came back "unresolved"?  Well, sometimes people make
+                      opaque types with:
+
+                        typedef struct foo foo;
+
+                      If "struct foo" was never defined, typedef'ing foo
+                      gives us an uresolved problem.  This catches that.
+                    *)
+                   { dtpos = dtpos;
+                     bare = DefTypeOpaque str;
+                     dtvolatile = false
+                   }
+                | rval -> rval
            in
            let () = Hashtbl.replace no_duplicates name tp in
            let decl = TypeDecl (pos, name, tp, VisLocal, false) in
@@ -778,7 +810,15 @@ let of_cimport cimport =
        in
        convert (decl :: accum) rest
   in
-  convert [] cimport
+  let ret = convert [] cimport in
+  let verify = function
+    | TypeDecl (_, name, { bare = DefTypeUnresolved _ }, _, _) ->
+       Report.err_internal __FILE__ __LINE__
+                           ("Unresolved type " ^ name)
+    | _ -> ()
+  in
+  List.iter verify ret;
+  ret
 
 let rec pos_of_astexpr = function
   | ExprNew (pos, _, _, _)
