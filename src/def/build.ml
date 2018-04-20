@@ -34,6 +34,7 @@ open Llvm_target
 open Lower
 open Parsetree
 open Scrubber
+open Types
 open Util
 open Version
 
@@ -90,32 +91,62 @@ let add_builtin_fcns stmts =
               pos_cnum = 1
             }
   in
+  let typify = maketype (Some pos) in
+  let void_type = typify DefTypeVoid in
+  let i32_type = typify @@ DefTypePrimitive PrimI32 in
+  let u64_type = typify @@ DefTypePrimitive PrimU64 in
+  let token_type = typify @@ DefTypeLLVMToken in
+
   let builtins =
     [ DeclFcn (pos, Types.VisExported pos, "__builtin_xbegin",
-               FcnType ([], VarType (pos, "i32", [Types.Volatile])));
+               typify
+               @@ DefTypeFcn ([], volatile_of i32_type, false),
+               []);
+
       DeclFcn (pos, Types.VisExported pos, "__builtin_xend",
-               FcnType ([], VarType (pos, "void", [])));
+               typify
+               @@ DefTypeFcn ([], void_type, false),
+               []);
+
       DeclFcn (pos, Types.VisExported pos, "forkscan_malloc",
-               FcnType ([(pos, "size", VarType (pos, "u64", []))],
-                        PtrType (pos, VarType (pos, "void", []), [])));
+               typify
+               @@ DefTypeFcn ([u64_type], makeptr void_type, false),
+               [pos, "size"]);
+
       DeclFcn (pos, Types.VisExported pos, "forkscan_free",
-               FcnType ([(pos, "ptr",
-                          PtrType (pos, VarType (pos, "void", []), []))],
-                         VarType (pos, "void", [])));
+               typify
+               @@ DefTypeFcn ([makeptr void_type], void_type, false),
+               [pos, "ptr"]);
+
       DeclFcn (pos, Types.VisExported pos, "forkscan_retire",
-               FcnType ([(pos, "ptr",
-                          PtrType (pos, VarType (pos, "void", []), []))],
-                        VarType (pos, "void", [])));
+               typify
+               @@ DefTypeFcn ([makeptr void_type], void_type, false),
+               [pos, "ptr"]);
+
       DeclFcn (pos, Types.VisExported pos, "llvm.x86.xbegin",
-               FcnType ([], VarType (pos, "i32", [Types.Volatile])));
+               typify
+               @@ DefTypeFcn ([], volatile_of i32_type, false),
+               []);
+
       DeclFcn (pos, Types.VisExported pos, "llvm.x86.xend",
-               FcnType ([], VarType (pos, "void", [])));
+               typify
+               @@ DefTypeFcn ([], void_type, false),
+               []);
+
       DeclFcn (pos, Types.VisExported pos, "__defrts_hybrid_xbegin",
-               FcnType ([], VarType (pos, "void", [])));
+               typify
+               @@ DefTypeFcn ([], void_type, false),
+               []);
+
       DeclFcn (pos, Types.VisExported pos, "__defrts_hybrid_xend",
-               FcnType ([], VarType (pos, "void", [])));
+               typify
+               @@ DefTypeFcn ([], void_type, false),
+               []);
+
       DeclFcn (pos, Types.VisExported pos, "llvm.syncregion.start",
-               FcnType ([], VarType (pos, "llvm.token", [])))
+               typify
+               @@ DefTypeFcn ([], token_type, false),
+               [])
     ]
   in
   builtins @ stmts
@@ -188,8 +219,7 @@ let recursive_parse_def_file file =
   List.rev_append cimport_ast def_ast
 
 let llmodule_of_ast infile ast =
-  let expanded_ast = Templates.expand ast in
-  let stmts = scrub (add_builtin_fcns expanded_ast) in
+  let stmts = scrub (add_builtin_fcns ast) in
   let prog = lower_cfg (Cfg.of_ast stmts) in
   let mdl = process_cfg infile prog in
   let () = Iropt.optimize mdl in

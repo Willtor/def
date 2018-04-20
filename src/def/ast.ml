@@ -57,7 +57,7 @@ and field_id =
 
 and expr =
   | ExprNew of
-      position * vartype
+      position * deftype
       * (position * string
          * (position * expr) option
          * position * expr) list
@@ -68,17 +68,19 @@ and expr =
   | ExprPostUnary of operation
   | ExprVar of position * string
   | ExprLit of position * literal
-  | ExprEnum of position * string * literal * vartype
-  | ExprCast of position * vartype * expr
+  | ExprEnum of position * string * literal * deftype (* FIXME: Never used?! *)
+  | ExprCast of position * deftype * expr (* FIXME: Never used?! *)
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * field_id
   | ExprStaticStruct of position * (position * expr) list
   | ExprStaticArray of position * (position * expr) list
-  | ExprType of position * vartype
-  | ExprTypeString of position * expr
+  | ExprType of position * deftype
+  | ExprTypeString of position * expr (* FIXME: Never used?! *)
   | ExprNil of position
   | ExprWildcard of position
 
+(* FIXME: Remove.  Only holding onto this for reference until I finish
+   eliminating it from the rest of the compiler. *)
 and vartype =
   | VarType of position * string * Types.qualifier list
   | OpaqueType of position * string
@@ -97,15 +99,17 @@ type stmt =
   | Import of tokendata * tokendata
   | StmtExpr of position * expr
   | Block of position * stmt list
-  | DeclFcn of position * Types.visibility * string * vartype
-  | DefFcn of position * string option * Types.visibility * string * vartype
-    * stmt list
+  | DeclFcn of position * Types.visibility * string * deftype
+               * (position * string) list
+  | DefFcn of position * string option * Types.visibility * string * deftype
+              * (position * string) list
+              * stmt list
   | DefTemplateFcn of position * pt_template * string option * Types.visibility
-    * string * vartype * stmt list
+                      * string * deftype * stmt list
   | VarDecl of Parsetree.tokendata * Parsetree.tokendata list
-               * expr list * vartype * Types.visibility
+               * expr list * deftype * Types.visibility
   | InlineStructVarDecl of Parsetree.tokendata
-                           * (position * string * vartype) list
+                           * (position * string * deftype) list
                            * (position * expr)
   | TransactionBlock of position * stmt list
   | IfStmt of position * expr * stmt list * (Lexing.position * stmt list) option
@@ -119,7 +123,7 @@ type stmt =
   | SwitchStmt of position * expr * (position * bool * expr * stmt list) list
   | Return of position * expr
   | ReturnVoid of position
-  | TypeDecl of position * string * vartype * Types.visibility * bool
+  | TypeDecl of position * string * deftype * Types.visibility * bool
   | Label of position * string
   | Goto of position * string
   | Break of position
@@ -138,6 +142,8 @@ let faux_global =
     td_noncode = []
   }
 
+let inferred_base = DefTypeUnresolved ""
+
 let literal2primitive = function
   | LitBool _ -> PrimBool
   | LitI8  _ -> PrimI8
@@ -151,7 +157,38 @@ let literal2primitive = function
   | LitF32 _ -> PrimF32
   | LitF64 _ -> PrimF64
 
+let params_of = function
+  | PTT_Fcn (_, params, _, _, _) ->
+     let get_pair = function
+       | PTP_Var (tok, _) -> tok.td_pos, tok.td_text
+       | PTP_Type tp -> pt_type_pos tp, ""
+       | PTP_Ellipsis tok -> tok.td_pos, ""
+     in
+     List.map get_pair params
+  | _ ->
+     Report.err_internal __FILE__ __LINE__
+                         "trying to get params from non-function type."
+
 let of_parsetree =
+
+  let builtin_types =
+    let builtins = Hashtbl.create 32 in
+    let add_type (name, tp, _, _, _, _) =
+      Hashtbl.add builtins name tp
+    in
+    List.iter add_type map_builtin_types;
+    builtins
+  in
+
+  let lookup_builtin_type pos name =
+    try let t = Hashtbl.find builtin_types name in
+        { dtpos = Some pos;
+          bare = t.bare;
+          dtvolatile = false
+        }
+    with _ -> maketype (Some pos) @@ DefTypeNamed name
+  in
+
   let rec get_documentation = function
     | [] -> None
     | str :: rest ->
@@ -223,26 +260,30 @@ let of_parsetree =
                       else Return (equals.td_pos, expr_of e)
        in
        if template_maybe = None then
-         DefFcn (def.td_pos, doc, vis, id.td_text, type_of tp, [contents])
+         DefFcn (def.td_pos, doc, vis, id.td_text, deftype_of tp,
+                 params_of tp, [contents])
        else
          DefTemplateFcn (def.td_pos, Util.the template_maybe, doc, vis,
-                         id.td_text, type_of tp, [contents])
+                         id.td_text, deftype_of tp, [contents])
     | PTS_FcnDefBlock ((exp, def, id, template_maybe, tp), stmt) ->
        let vis, doc = visdoc exp in
        if template_maybe = None then
-         DefFcn (def.td_pos, doc, vis, id.td_text, type_of tp, [stmt_of stmt])
+         DefFcn (def.td_pos, doc, vis, id.td_text, deftype_of tp,
+                 params_of tp, [stmt_of stmt])
        else
          DefTemplateFcn (def.td_pos, Util.the template_maybe, doc, vis,
-                         id.td_text, type_of tp, [stmt_of stmt])
+                         id.td_text, deftype_of tp, [stmt_of stmt])
     | PTS_FcnDecl (decl, id, tp, _) ->
-       DeclFcn (decl.td_pos, VisExported decl.td_pos, id.td_text, type_of tp)
+       DeclFcn (decl.td_pos, VisExported decl.td_pos, id.td_text,
+                deftype_of tp, params_of tp)
     | PTS_Expr (e, _) ->
        StmtExpr (pt_expr_pos e, expr_of e)
     | PTS_Var (decl, ids, tp, _) ->
-       VarDecl (decl, ids, [], type_of tp, VisLocal)
+       VarDecl (decl, ids, [], deftype_of tp, VisLocal)
     | PTS_VarInit (decl, ids, tp_opt, eq, elist, _) ->
-       let asttp = if tp_opt = None then InferredType
-                   else type_of (Util.the tp_opt) in
+       let asttp = if tp_opt = None then
+                     maketype (Some decl.td_pos) inferred_base
+                   else deftype_of (Util.the tp_opt) in
        let initify id expr =
          ExprBinary { op_pos = eq.td_pos;
                       op_op = OperAssign;
@@ -254,12 +295,17 @@ let of_parsetree =
        VarDecl (decl, ids, List.map2 initify ids elist, asttp, VisLocal)
     | PTS_VarInlineStruct (decl, _, vlist, _, _, e, _) ->
        let cvlist =
-         List.map (fun (id, tp) -> id.td_pos, id.td_text, type_of tp) vlist
+         List.map (fun (id, tp) -> id.td_pos, id.td_text, deftype_of tp) vlist
        in
        InlineStructVarDecl (decl, cvlist, (pt_expr_pos e, expr_of e))
     | PTS_VarInlineStructInferred (decl, _, vlist, _, _, e, _) ->
        let cvlist =
-         List.map (fun id -> id.td_pos, id.td_text, InferredType) vlist
+         List.map
+           (fun id ->
+             id.td_pos,
+             id.td_text,
+             maketype (Some id.td_pos) inferred_base)
+           vlist
        in
        InlineStructVarDecl (decl, cvlist, (pt_expr_pos e, expr_of e))
     | PTS_DeleteExpr (d, e, _) ->
@@ -300,7 +346,7 @@ let of_parsetree =
       ->
        let init = match init_p with
          | None -> None
-         | Some (PTForInit_Var (_, id, tp_opt, eq, e)) ->
+         | Some (PTForInit_Var (var, id, tp_opt, eq, e)) ->
             let init =
               ExprBinary { op_pos = eq.td_pos;
                            op_op = OperAssign;
@@ -310,8 +356,8 @@ let of_parsetree =
                          }
             in
             let tp = match tp_opt with
-              | Some t -> type_of t
-              | None -> InferredType
+              | Some t -> deftype_of t
+              | None -> maketype (Some var.td_pos) inferred_base
             in
             Some (VarDecl (faux_var, [id], [init], tp, VisLocal))
          | Some (PTForInit_Expr e) ->
@@ -350,8 +396,8 @@ let of_parsetree =
          | Some (exp, Some _) -> VisExported exp.td_pos, true
        in
        let tp = match tp_opt with
-         | None -> OpaqueType (id.td_pos, id.td_text)
-         | Some (_, t) -> type_of t
+         | None -> maketype (Some id.td_pos) (DefTypeOpaque id.td_text)
+         | Some (_, t) -> deftype_of t
        in
        TypeDecl (typedef.td_pos, id.td_text, tp, vis, opaque)
     | PTS_Goto (goto, id, _) -> Goto (goto.td_pos, id.td_text)
@@ -359,46 +405,59 @@ let of_parsetree =
     | PTS_Label (id, _) -> Label (id.td_pos, id.td_text)
     | PTS_Continue (continue, _) -> Continue continue.td_pos
     | PTS_Sync (sync, _) -> Sync sync.td_pos
-  and type_of = function
-    | PTT_Volatile (vol, tp) ->
-       let ret = match type_of tp with
-         | VarType (pos, nm, []) ->
-            VarType (pos, nm, [ Volatile ])
-         | PtrType (pos, tp, []) ->
-            PtrType (pos, tp, [ Volatile ])
-         | VarType _
-         | PtrType _ -> Report.err_multiple_volatile_keywords vol.td_pos
-         | _ ->
-            Report.err_internal
-              __FILE__ __LINE__
-              "volatile not yet supported on non-var|ptr-types"
+
+  and eval_array_dim = function
+    | PTE_I64 (_, n) | PTE_U64 (_, n) -> n
+    | PTE_I32 (_, n) | PTE_U32 (_, n)
+    | PTE_I16 (_, n) | PTE_U16 (_, n) -> Int64.of_int32 n
+    | PTE_I8  (_, c) | PTE_U8  (_, c) -> Int64.of_int @@ Char.code c
+    | PTE_F32 (tok, _) | PTE_F64 (tok, _) ->
+       Report.err_float_array_dim tok.td_pos
+    | expr ->
+       Report.err_cant_resolve_array_dim @@ pt_expr_pos expr
+
+  and deftype_of = function
+    | PTT_Fcn (lparen, params, _, _, ret) ->
+       let rec param_convert accum = function
+         | [] -> List.rev accum, false
+         | PTP_Var (_, parse_tp) :: rest
+         | PTP_Type parse_tp :: rest ->
+            let tp = deftype_of parse_tp in
+            param_convert (tp :: accum) rest
+         | [ PTP_Ellipsis tok ] ->
+            List.rev accum, true
+         | PTP_Ellipsis tok :: _ ->
+            Report.err_vararg_not_last tok.td_pos
        in
-       ret
-    | PTT_Name id -> VarType (id.td_pos, id.td_text, [])
-    | PTT_Ptr (star, tp) -> PtrType (star.td_pos, type_of tp, [])
-    | PTT_Array (lsquare, Some e, _, tp) ->
-       ArrayType (lsquare.td_pos, expr_of e, type_of tp)
-    | PTT_Array (lsquare, None, rsquare, tp) ->
-       let array_dim = ExprLit (rsquare.td_pos, LitI64 0L) in
-       ArrayType (lsquare.td_pos, array_dim, type_of tp)
-    | PTT_Struct (_, contents, _) ->
-       StructType (List.map (fun (id, tp) ->
-                       id.td_pos, id.td_text, type_of tp)
-                            contents)
-    | PTT_StructUnnamed (_, contents, _) ->
-       StructType (List.map (fun tp ->
-                       pt_type_pos tp, "", type_of tp)
-                            contents)
-    | PTT_Fcn (_, params, _, _, ret) ->
-       let param_convert = function
-         | PTP_Var (id, tp) -> id.td_pos, id.td_text, type_of tp
-         | PTP_Type tp -> pt_type_pos tp, "", type_of tp
-         | PTP_Ellipsis tok -> tok.td_pos, "", Ellipsis tok.td_pos
+       let params, is_variadic = param_convert [] params in
+       let base = DefTypeFcn (params, deftype_of ret, is_variadic) in
+       maketype (Some lparen.td_pos) base
+    | PTT_Volatile (vol, tp) -> volatile_of @@ deftype_of tp
+    | PTT_Name id ->
+       lookup_builtin_type id.td_pos id.td_text
+    | PTT_Ptr (star, tp) ->
+       maketype (Some star.td_pos) (DefTypePtr (deftype_of tp))
+    | PTT_Array (lsquare, size_expr_opt, _, tp) ->
+       let sz = if size_expr_opt = None then 0L
+                else eval_array_dim @@ Util.the size_expr_opt
        in
-       let cparams = List.map param_convert params in
-       FcnType (cparams, type_of ret)
-    | PTT_Enum (enum, variants) ->
-       EnumType (enum.td_pos, variants)
+       (* FIXME: The array dimension *should* be int64.  This is ridiculous. *)
+       let szi = Int64.to_int sz in
+       maketype (Some lsquare.td_pos) (DefTypeArray (deftype_of tp, szi))
+    | PTT_Struct (lcurly, name_tp_pairs, _) ->
+       let el_list = List.map (fun (n, t) -> deftype_of t, n.td_text)
+                              name_tp_pairs
+       in
+       let types, names = List.split el_list in
+       maketype (Some lcurly.td_pos) (DefTypeLiteralStruct (types, names))
+    | PTT_StructUnnamed (lcurly, tp_list, _) ->
+       let el_list = List.map (fun t -> deftype_of t, "") tp_list in
+       let types, names = List.split el_list in
+       maketype (Some lcurly.td_pos) (DefTypeLiteralStruct (types, names))
+    | PTT_Enum (enum, alts) ->
+       let alt_names = List.map (fun tok -> tok.td_text) alts in
+       maketype (Some enum.td_pos) (DefTypeEnum alt_names)
+
   and expr_of = function
     | PTE_New (newtok, tp, init_p) ->
        let init = match init_p with
@@ -421,10 +480,10 @@ let of_parsetree =
               )
                      field_inits
        in
-       ExprNew (newtok.td_pos, type_of tp, init)
+       ExprNew (newtok.td_pos, deftype_of tp, init)
     | PTE_Nil nil -> ExprNil nil.td_pos
     | PTE_Type (typetok, tp) ->
-       ExprType (typetok.td_pos, type_of tp)
+       ExprType (typetok.td_pos, deftype_of tp)
     | PTE_I64 (tok, value) -> ExprLit (tok.td_pos, LitI64 value)
     | PTE_U64 (tok, value) -> ExprLit (tok.td_pos, LitU64 value)
     | PTE_I32 (tok, value) -> ExprLit (tok.td_pos, LitI32 value)
@@ -508,6 +567,30 @@ let of_parsetree =
   List.map stmt_of
 
 let of_cimport cimport =
+
+  let builtin_ctypes =
+    let builtins = Hashtbl.create 64 in
+    let add_type (_, dt, _, ct_list, _, _) =
+      List.iter (fun ct -> Hashtbl.add builtins ct dt) ct_list
+    in
+    List.iter add_type map_builtin_types;
+    builtins
+  in
+
+  let lookup_builtin_ctype pos name =
+    try let t = Hashtbl.find builtin_ctypes name in
+        let ret =
+          { dtpos = Some pos;
+            bare = t.bare;
+            dtvolatile = false
+          }
+        in
+        ret, ret
+    with _ ->
+      maketype (Some pos) @@ DefTypeNamed name,
+      maketype (Some pos) @@ DefTypeOpaque name
+  in
+
   let nonbasic_regex = Str.regexp {|^\(union \)\|\(struct \)\|\(enum \)|} in
   let no_duplicates = Hashtbl.create 16 in
   let sanitize_ident name =
@@ -518,116 +601,154 @@ let of_cimport cimport =
     | rest ->
        String.concat " " rest
   in
-  let type_of t =
-    (* Remove extraneous pointer types from functions. *)
-    let rec deptr_fcns = function
-      | FcnType (params, ret) ->
-         FcnType (List.map pst_deptr_apply params, deptr_fcns ret)
-      | StructType members ->
-         StructType (List.map pst_deptr_apply members)
-      | UnionType members ->
-         StructType (List.map pst_deptr_apply members)
-      | ArrayType (p, e, t) -> ArrayType (p, e, deptr_fcns t)
-      | PtrType (_, (FcnType _ as f), _) ->
-         (* THE IMPORTANT CASE: *)
-         deptr_fcns f
-      | PtrType (p, t, q) -> PtrType (p, deptr_fcns t, q)
-      | t -> t
-    and pst_deptr_apply (p, s, t) = p, s, deptr_fcns t
+
+  let get_lval (lval, rval) = lval
+  and get_rval (lval, rval) = rval
+  in
+
+  let deftype_of t =
+    let rec deptr_fcns rawtype =
+      let replace_raw bare =
+        { dtpos = rawtype.dtpos;
+          bare = bare;
+          dtvolatile = rawtype.dtvolatile
+        }
+      in
+      match rawtype.bare with
+      | DefTypeFcn (rawparams, rawret, is_variadic) ->
+         let params = List.map deptr_fcns rawparams in
+         let ret = deptr_fcns rawret in
+         replace_raw @@ DefTypeFcn (params, ret, is_variadic)
+      | DefTypePtr ({ bare = DefTypeFcn _ } as subtype) ->
+         (* The "interesting" case, where we eliminate a redundant
+            function pointer. *)
+         deptr_fcns subtype
+      | DefTypeArray (subtype, n) ->
+         replace_raw @@ DefTypeArray (deptr_fcns subtype, n)
+      | DefTypeLiteralStruct (raw_tplist, names) ->
+         let tplist = List.map deptr_fcns raw_tplist in
+         replace_raw @@ DefTypeLiteralStruct (tplist, names)
+      | DefTypeLiteralUnion (raw_tplist, names) ->
+         let tplist = List.map deptr_fcns raw_tplist in
+         replace_raw @@ DefTypeLiteralUnion (tplist, names)
+      | _ -> rawtype
     in
-    (* Literally convert Clang AST types to DEF AST types. *)
-    let rec tof = function
+    let rec dt_of = function
       | CT_TypeName (pos, tp) ->
          begin
            match sanitize_ident tp with
-           | "__builtin_va_list" -> pos, VAList pos
-           | vartype when Str.string_match nonbasic_regex tp 0 ->
+           | "__builtin_va_list" ->
+              let ret = maketype (Some pos) DefTypeVAList in ret, ret
+           | name when Str.string_match nonbasic_regex tp 0 ->
               (* Non-basic type: struct/union/enum.  Make sure there are no
                  duplicates. *)
               begin
-                try
-                  let nodup = Hashtbl.find no_duplicates vartype in
-                  pos, nodup
+                maketype (Some pos) @@ DefTypeNamed name,
+                try Hashtbl.find no_duplicates name
                 with _ ->
-                  let ret = OpaqueType (pos, vartype) in
-                  let () = Hashtbl.replace no_duplicates vartype ret in
-                  pos, ret
+                  (* Note: Insert "Opaque" type instead of "Undefined" because
+                     C allows a user to specify an undefined struct as, e.g.,
+                     a parameter to a function.  If the parameter is a pointer
+                     to the unknown struct, it's treated as opaque because the
+                     C compiler doesn't care.  If it wasn't through a pointer,
+                     then the C compiler already generated an error, and DEF
+                     doesn't have to.
+
+                     The same is true for fields in a struct or union.  If the
+                     reference isn't a pointer, then rest assured, we'll get
+                     the real definition eventually.
+                   *)
+                  let rval = maketype (Some pos) @@ DefTypeOpaque name in
+                  let () = Hashtbl.replace no_duplicates name rval in
+                  rval
               end
-           | vartype ->
-              pos, CVarType (pos, vartype, [])
+           | name ->
+              lookup_builtin_ctype pos name
          end
       | CT_Pointer (pos, tp) ->
-         let _, t = tof tp in pos, PtrType (pos, t, [])
+         let ret = maketype (Some pos) @@ DefTypePtr (get_lval (dt_of tp)) in
+         ret, ret
       | CT_Record (kind, fields) ->
-         let ast_fields =
-           List.map
-             (fun (pos, nm, tp) ->
-               let _, t = tof tp in pos, sanitize_ident nm, t)
-             fields
+         let field_convert (_, name, ctype) = name, get_lval (dt_of ctype) in
+         let names, types = List.split @@ List.map field_convert fields in
+         let (pos, _, _) = List.hd fields in
+         let bare = match kind with
+           | CR_Struct -> DefTypeLiteralStruct (types, names)
+           | CR_Union -> DefTypeLiteralUnion (types, names)
          in
-         let p = (fun (pos, _, _) -> pos) (List.hd ast_fields) in
-         let tp = match kind with
-           | CR_Struct -> StructType ast_fields
-           | CR_Union -> UnionType ast_fields
+         let ret = maketype (Some pos) bare in
+         ret, ret
+      | CT_Function (pos, cparams, is_variadic, cret) ->
+         let params = List.map (fun p -> get_lval (dt_of p)) cparams in
+         let rettp = get_lval @@ dt_of cret in
+         let ret =
+           maketype (Some pos) @@ DefTypeFcn (params, rettp, is_variadic)
          in
-         p, tp
-      | CT_Function (pos, params, is_variadic, ret) ->
-         let ast_params =
-           (List.map (fun p -> let pos, t = tof p in pos, "", t) params)
-           @ (if is_variadic then [ Util.faux_pos, "", Ellipsis Util.faux_pos ]
-              else [])
-         in
-         let _, rtype = tof ret in
-         pos, FcnType (ast_params, rtype)
-      | CT_Array (pos, subtype, sz) ->
-         pos, ArrayType (pos, ExprLit (pos, LitI32 (Int32.of_int sz)),
-                         let _, t = tof subtype in t)
+         ret, ret
+      | CT_Array (pos, csubtype, sz) ->
+         let sub = get_lval @@ dt_of csubtype in
+         let ret = maketype (Some pos) @@ DefTypeArray (sub, sz) in
+         ret, ret
     in
-    let p, converted = tof t in
-    p, deptr_fcns converted
+    let lval, rval = dt_of t in
+    deptr_fcns lval, deptr_fcns rval
   in
+  let cparams_of params =
+    let pair_of = function
+      | CT_TypeName (pos, _) -> pos, ""
+      | CT_Pointer (pos, _) -> pos, ""
+      | CT_Record (_, members) ->
+         let pos, _, _ = List.hd members in pos, ""
+      | CT_Function (pos, _, _, _) -> pos, ""
+      | CT_Array (pos, _, _) -> pos, ""
+    in
+    List.map pair_of params
+  in
+
   let rec convert accum = function
     | [] -> List.rev accum
     | CV_Function (pos, name, params, is_variadic, ret) :: rest ->
-       let pmap param =
-         let tp_pos, tp = type_of param in tp_pos, "", tp
-       in
-       let _, ret_tp = type_of ret in
-       let vararg =
-         if is_variadic then [Util.faux_pos, "", Ellipsis Util.faux_pos]
-         else []
-       in
-       let ast_params = (List.map pmap params) @ vararg in
-       let ftype = FcnType (ast_params, ret_tp) in
-       let decl = DeclFcn (pos, Types.VisExported pos, name, ftype) in
+       let ret_tp = get_lval (deftype_of ret) in
+       let ast_params = List.map (fun p -> get_lval (deftype_of p)) params in
+       let bare = DefTypeFcn (ast_params, ret_tp, is_variadic) in
+       let ftype = maketype (Some pos) bare in
+       let decl = DeclFcn (pos, Types.VisExported pos, name, ftype,
+                           (cparams_of params)
+                           @ if is_variadic then [pos, ""] else []) in
        convert (decl :: accum) rest
     | CV_Typedecl (pos, name, maybe_tp) :: rest ->
        let name = sanitize_ident name in
        let decl_n_accum =
          try
            begin match Hashtbl.find no_duplicates name with
-           | OpaqueType _ ->
+           | { bare = DefTypeOpaque _ } ->
               if maybe_tp = None then accum
-              else let _, t = type_of @@ Util.the maybe_tp in
+              else let t = get_rval (deftype_of @@ Util.the maybe_tp) in
                    let () = Hashtbl.replace no_duplicates name t in
                    let decl = (TypeDecl (pos, name, t, VisLocal, false)) in
                    decl :: accum
            | _ ->
               (* This is a strange case - that the struct has already been
                  defined and it seems to be redefined.  It's an artifact of
-                 the way DEF uses Clang to parse C files.  There are cases
-                 when a struct is forward declared, but Clang's AST knows
-                 about its full definition and we captured it for DEF.  If
-                 the struct had _actually_ been redefined, Clang would have
-                 caught it.
+                 the way DEF uses Clang to parse C files.
 
-                 So we just ignore the apparent redefinition, here. *)
+                 When DEF calls Clang, Clang creates its own AST, and when
+                 DEF traverses it (to bring it here), it will often ask for
+                 definitions of, e.g., structs at the point of forward-
+                 declaration.  Clang knows the definition, so it gives them
+                 back to DEF.  DEF later comes across the actual point of
+                 definition and apparently "redefines" the struct.
+
+                 If the struct had _actually_ been redefined, Clang would have
+                 caught it.  So we just ignore the apparent redefinition, here.
+               *)
               accum
            end
          with _ ->
            let tp =
-             if maybe_tp = None then OpaqueType (pos, name)
-             else let _, t = type_of @@ Util.the maybe_tp in t
+             if maybe_tp = None then
+               maketype (Some pos) @@ DefTypeOpaque name
+             else get_rval (deftype_of @@ Util.the maybe_tp)
            in
            let () = Hashtbl.replace no_duplicates name tp in
            let decl = TypeDecl (pos, name, tp, VisLocal, false) in
@@ -641,7 +762,7 @@ let of_cimport cimport =
                               }
                             ]
        in
-       let _, tp = type_of ctype in
+       let tp = get_lval (deftype_of ctype) in
        let decl = VarDecl (faux_global, faux_tokendata, [], tp,
                            if extern then VisExternal else VisLocal)
        in
@@ -719,7 +840,7 @@ let rec visit_expr_in_stmt f = function
   | Import _ -> ()
   | StmtExpr (_, expr) -> visit_expr f expr
   | Block (_, block) -> List.iter (visit_expr_in_stmt f) block
-  | DefFcn (_, _, _, _, _, body) -> List.iter (visit_expr_in_stmt f) body
+  | DefFcn (_, _, _, _, _, _, body) -> List.iter (visit_expr_in_stmt f) body
   | DeclFcn _
   | DefTemplateFcn _ ->
      Report.err_internal __FILE__ __LINE__ "not implemented."

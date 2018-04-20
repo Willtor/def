@@ -20,6 +20,7 @@ open Ast
 open Error
 open Lexing
 open Parsetree
+open Types
 open Util
 
 (* FIXME: This analysis should be done on the CFG instead of the AST.
@@ -30,8 +31,8 @@ exception NoReturn
 let position_of_stmt = function
   | StmtExpr (pos, _)
   | Block (pos, _)
-  | DeclFcn (pos, _, _, _)
-  | DefFcn (pos, _, _, _, _, _)
+  | DeclFcn (pos, _, _, _, _)
+  | DefFcn (pos, _, _, _, _, _, _)
   | DefTemplateFcn (pos, _, _, _, _, _, _)
   | VarDecl ({td_pos = pos}, _, _, _, _)
   | InlineStructVarDecl ({td_pos = pos}, _, _)
@@ -66,9 +67,9 @@ let kill_dead_code =
          let stmt = Block (pos, proc [] slist) in
          proc (stmt :: accum) rest
       | DeclFcn _ as stmt :: rest -> proc (stmt :: accum) rest
-      | DefFcn (pos, doc, vis, name, tp, body) :: rest ->
-         let stmt = DefFcn (pos, doc, vis, name, tp, process name body) in
-         proc (stmt :: accum) rest
+      | DefFcn (pos, doc, vis, name, tp, params, body) :: rest ->
+         let stmt = DefFcn (pos, doc, vis, name, tp, params, process name body)
+         in proc (stmt :: accum) rest
       | DefTemplateFcn _ :: _ ->
          Report.err_internal __FILE__ __LINE__ "unexpanded template."
       | VarDecl _ as stmt :: rest ->
@@ -116,8 +117,8 @@ let kill_dead_code =
     in proc []
   in
   let toplevel = function
-    | DefFcn (pos, doc, vis, name, tp, body) ->
-       DefFcn (pos, doc, vis, name, tp, process name body)
+    | DefFcn (pos, doc, vis, name, tp, params, body) ->
+       DefFcn (pos, doc, vis, name, tp, params, process name body)
     | stmt -> stmt
   in List.map toplevel
 
@@ -195,13 +196,14 @@ let return_all_paths =
     else raise NoReturn
   in
   let toplevel = function
-    | DefFcn (pos, doc, vis, name, tp, body) ->
-       let can_return_void = match tp with
-         | FcnType (_, VarType (_, "void", _)) -> true
+    | DefFcn (pos, doc, vis, name, tp, params, body) ->
+       let can_return_void = match tp.bare with
+         | DefTypeFcn (_, { bare = DefTypeVoid }, _) -> true
          | _ -> false
        in
        begin
-         try DefFcn (pos, doc, vis, name, tp, process can_return_void body)
+         try DefFcn (pos, doc, vis, name, tp, params,
+                     process can_return_void body)
          with _ -> (* Fixme: Need the end of function position. *)
            Report.err_no_return pos name
        end

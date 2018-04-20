@@ -71,8 +71,21 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
     | DefTypeVoid ->
        the (lookup_symbol typemap "void")
     | DefTypeNamed nm ->
-       the (lookup_symbol typemap nm)
+       let ret = match lookup_symbol typemap nm with
+         | Some t -> t
+         | None ->
+            begin match lookup_symbol deftypemap nm with
+              | Some t ->
+                 Report.err_internal __FILE__ __LINE__
+                                     (nm ^ " in one map but not the other.")
+              | None ->
+                 Report.err_internal __FILE__ __LINE__
+                                     (nm ^ " in neither map.")
+            end
+       in
+       ret
     | DefTypeOpaque nm ->
+       let () = prerr_endline ("shouldn't lookup an opaque type " ^ nm) in
        Util.the @@ lookup_symbol typemap nm
     | DefTypeFcn (args, ret, variadic) ->
        let llvmargs = List.map (fun argtp -> convert true argtp) args in
@@ -124,31 +137,37 @@ let deftype2llvmtype data =
 let build_types ctx deftypes =
   let typemap = make_symtab () in
   let do_convert = convert_deftype2llvmtype ctx typemap deftypes true in
+  let rec concrete_of tp =
+    match tp.bare with
+    | DefTypeNamed nm ->
+       concrete_of (Util.the @@ lookup_symbol deftypes nm)
+    | _ -> tp
+  in
   let forward_declare_structs name deftype =
     match lookup_symbol typemap name with
     | Some _ -> ()
     | None ->
-       begin match deftype.bare with
+       begin match (concrete_of deftype).bare with
        | DefTypeLiteralStruct _ ->
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypeLiteralUnion _ ->
           add_symbol typemap name (named_struct_type ctx name)
-       | DefTypePrimitive _
-       | DefTypePtr _ ->
-          add_symbol typemap name (do_convert deftype)
-       | DefTypeNamed nm ->
-          Report.err_internal __FILE__ __LINE__ ("named type: " ^ nm)
-       | DefTypeOpaque name ->
+       | DefTypeOpaque _ ->
           add_symbol typemap name (named_struct_type ctx name)
-       | DefTypeFcn (params, ret, is_variadic) ->
-          let llparams = List.map do_convert params in
-          let llret = do_convert ret in
-          let lltype =
-            (if is_variadic then var_arg_function_type
-             else function_type)
-              llret (Array.of_list llparams)
-          in
-          add_symbol typemap name lltype
+       | _ -> ()
+       end
+  in
+  let build_primitives name deftype =
+    match lookup_symbol typemap name with
+    | Some _ -> ()
+    | None ->
+       begin match (concrete_of deftype).bare with
+       | DefTypePrimitive _ ->
+          add_symbol typemap name (do_convert deftype)
+       | DefTypeEnum _ ->
+          let sz = size_of deftypes deftype in
+          let tp = integer_type ctx (sz * 8) in
+          add_symbol typemap name tp
        | DefTypeVAList ->
           (* FIXME: Platform-specific struct: struct.va_list. *)
           let t name = Util.the @@ lookup_symbol typemap name in
@@ -161,7 +180,36 @@ let build_types ctx deftypes =
                                    |]
                                    false
           in
-          add_symbol typemap va_list_tag valist
+          let () = add_symbol typemap va_list_tag valist in
+          add_symbol typemap name valist
+       | _ -> ()
+       end
+  in
+  let build_non_structs name deftype =
+    match lookup_symbol typemap name with
+    | Some _ -> ()
+    | None ->
+       begin match (concrete_of deftype).bare with
+       | DefTypeLiteralStruct _
+       | DefTypeLiteralUnion _
+       | DefTypeOpaque _
+       | DefTypePrimitive _
+       | DefTypeEnum _
+       | DefTypeVAList ->
+          ()
+       | DefTypePtr _ ->
+          add_symbol typemap name (do_convert deftype)
+       | DefTypeNamed nm ->
+          Report.err_internal __FILE__ __LINE__ ("named type: " ^ nm)
+       | DefTypeFcn (params, ret, is_variadic) ->
+          let llparams = List.map do_convert params in
+          let llret = do_convert ret in
+          let lltype =
+            (if is_variadic then var_arg_function_type
+             else function_type)
+              llret (Array.of_list llparams)
+          in
+          add_symbol typemap name lltype
        | DefTypeVoid ->
           (* Sometimes comes out of a typedef.  Any typing problems should have
              been caught earlier in compilation, so it's okay to simpy i8 the
@@ -172,10 +220,6 @@ let build_types ctx deftypes =
           compilation. *)
        | DefTypeNullPtr ->
           Report.err_internal __FILE__ __LINE__ "null pointer type."
-       | DefTypeEnum _ ->
-          let sz = size_of deftypes deftype in
-          let tp = integer_type ctx (sz * 8) in
-          add_symbol typemap name tp
        | DefTypeArray (atype, sz) ->
           let elements = do_convert atype in
           add_symbol typemap name (array_type elements sz)
@@ -207,6 +251,8 @@ let build_types ctx deftypes =
     (fun (name, _, f, _, _, _) -> add_symbol typemap name (f ctx))
     Types.map_builtin_types;
   symtab_iter forward_declare_structs deftypes;
+  symtab_iter build_primitives deftypes;
+  symtab_iter build_non_structs deftypes;
   symtab_iter build_structs deftypes;
   typemap
 
