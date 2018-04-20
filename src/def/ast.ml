@@ -80,22 +80,6 @@ and expr =
   | ExprNil of position
   | ExprWildcard of position
 
-(* FIXME: Remove.  Only holding onto this for reference until I finish
-   eliminating it from the rest of the compiler. *)
-and vartype =
-  | VarType of position * string * Types.qualifier list
-  | OpaqueType of position * string
-  | CVarType of position * string * Types.qualifier list
-  | FcnType of (position * string * vartype) list * vartype
-  | EnumType of position * Parsetree.tokendata list
-  | StructType of (position * string * vartype) list
-  | UnionType of (position * string * vartype) list
-  | ArrayType of position * expr * vartype
-  | PtrType of position * vartype * Types.qualifier list
-  | Ellipsis of position
-  | VAList of position
-  | InferredType
-
 type stmt =
   | Import of tokendata * tokendata
   | StmtExpr of position * expr
