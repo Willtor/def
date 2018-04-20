@@ -59,9 +59,7 @@ and expr =
   | ExprNew of
       position * deftype
       * (*array dimension=*)expr
-      * (position * string
-         * (position * expr) option
-         * position * expr) list
+      * (position * string * (position * expr) option * position * expr) list
   | ExprFcnCall of fcn_call
   | ExprString of position * string
   | ExprBinary of operation
@@ -69,14 +67,14 @@ and expr =
   | ExprPostUnary of operation
   | ExprVar of position * string
   | ExprLit of position * literal
-  | ExprEnum of position * string * literal * deftype (* FIXME: Never used?! *)
-  | ExprCast of position * deftype * expr (* FIXME: Never used?! *)
+  | ExprEnum of position * string * literal * deftype
+  | ExprCast of position * deftype * expr
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * field_id
   | ExprStaticStruct of position * (position * expr) list
   | ExprStaticArray of position * (position * expr) list
   | ExprType of position * deftype
-  | ExprTypeString of position * expr (* FIXME: Never used?! *)
+  | ExprTypeString of position * expr
   | ExprNil of position
   | ExprWildcard of position
 
