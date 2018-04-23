@@ -25,6 +25,7 @@
 #include "caml/memory.h"
 #include "caml/alloc.h"
 #include "caml/custom.h"
+#include "caml/fail.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
@@ -388,8 +389,9 @@ value cimport_file (const char *filename, int argc, const char **argv)
     CommonOptionsParser options_parser(argc, argv, option_category);
     ClangTool tool(options_parser.getCompilations(), source_files);
     if (0 != tool.run(newFrontendActionFactory<DeclFindingAction>().get())) {
-        // FIXME: Should throw an exception.
-        outs() << "### BAD EXIT FROM C FILE.\n";
+        caml_failwith("");
+        // Shouldn't make it here.
+        abort();
     }
 
     // Build the list of cvalues.
@@ -422,6 +424,7 @@ CAMLprim value cimport_import_c_file (value filename, value paths)
     for ( ; paths != Val_int(0); paths = Field(paths, 1)) {
         path_vec.push_back(std::string("-I") + String_val(Field(paths, 0)));
     }
+    path_vec.push_back(std::string("-D__def=1"));
     int argc = path_vec.size() + 3;
     const char *argv[argc];
     argv[0] = "def";

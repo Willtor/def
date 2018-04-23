@@ -210,11 +210,13 @@ let recursive_parse_def_file file =
   let cimport_ast =
     if cfile_str = "" then []
     else
-      let tmpfile = "/tmp/def-include" ^ (random_hex ()) ^ ".c" in
-      let os = open_out tmpfile in
-      let () = output_string os cfile_str in
-      let () = close_out_noerr os in
-      Ast.of_cimport @@ import_c_file tmpfile !import_dirs
+      try
+        let tmpfile = "/tmp/def-include" ^ (random_hex ()) ^ ".c" in
+        let os = open_out tmpfile in
+        let () = output_string os cfile_str in
+        let () = close_out_noerr os in
+        Ast.of_cimport @@ import_c_file tmpfile !import_dirs
+      with _ -> Report.err_parsing_c ()
   in
   List.rev_append cimport_ast def_ast
 

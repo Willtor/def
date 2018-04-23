@@ -53,6 +53,10 @@ let err_unable_to_open_file filename =
 let err_unable_to_locate_imported_file pos filename =
   err_pos ("Unable to locate file to import: " ^ filename) pos
 
+(** Failed to parse C file. *)
+let err_parsing_c () =
+  fatal_error "Error(s) parsing C file."
+
 (** Tried to generate an LLVM .ll file from .s assembly. *)
 let err_cant_convert_s_to_ll filename =
   let err = "Unable to convert assembly file \"" ^ filename
