@@ -278,52 +278,70 @@ let is_pointer_type t = match t.bare with
 let ptr_size = 8
 
 (** Return the size of the given type in bytes. *)
-let rec size_of typemap t = match t.bare with
-  | DefTypeUnresolved _ ->
-     Report.err_internal __FILE__ __LINE__
-       "size_of called on an unresolved type."
-  | DefTypeVoid ->
-     Report.err_internal __FILE__ __LINE__
-       "size_of called on a void type."
-  | DefTypeNamed nm -> size_of typemap (the (lookup_symbol typemap nm))
-  | DefTypeOpaque nm ->
-     Report.err_internal __FILE__ __LINE__
-                         ("size_of called on opaque type: " ^ nm)
-  | DefTypePrimitive p ->
-     begin match p with
-     | PrimBool | PrimI8 | PrimU8 -> 1
-     | PrimI16 | PrimU16 -> 2
-     | PrimI32 | PrimU32 -> 4
-     | PrimI64 | PrimU64 -> 8
-     | PrimF32 -> 4
-     | PrimF64 -> 8
-     end
-  | DefTypeFcn _ -> ptr_size
-  | DefTypePtr _ -> ptr_size
-  | DefTypeArray (tp, n) -> n * (size_of typemap tp)
-  | DefTypeNullPtr -> ptr_size
-  | DefTypeEnum variants ->
-     let len = List.length variants in
-     if len < 256 then 1
-     else if len < 65536 then 2
-     else 4
-  | DefTypeLiteralStruct (members, _)
-  | DefTypeStaticStruct members ->
-     (* FIXME: Take aligment into account. *)
-     List.fold_left (fun accum t -> accum + (size_of typemap t))
-       0 members
-  | DefTypeLiteralUnion (members, _) ->
-     let select_max curr m =
-       let candidate = size_of typemap m in if curr > candidate then curr
-                                            else candidate
-     in
-     List.fold_left select_max 0 members
-  | DefTypeVAList ->
-     Report.err_internal __FILE__ __LINE__ "Can't get size of a va_list."
-  | DefTypeWildcard ->
-     Report.err_internal __FILE__ __LINE__ "Can't get the size of a wildcard."
-  | DefTypeLLVMToken ->
-     Report.err_internal __FILE__ __LINE__ "Shouldn't need size of LLVM token."
+let size_of typemap tp =
+  let rec size_n_alignment t =
+    match t.bare with
+    | DefTypeUnresolved _ ->
+       Report.err_internal __FILE__ __LINE__
+                           "size_of called on an unresolved type."
+    | DefTypeVoid ->
+       Report.err_internal __FILE__ __LINE__
+                           "size_of called on a void type."
+    | DefTypeNamed nm ->
+       size_n_alignment (the @@ lookup_symbol typemap nm)
+    | DefTypeOpaque nm ->
+       Report.err_internal __FILE__ __LINE__
+                           ("size_of called on opaque type: " ^ nm)
+    | DefTypePrimitive p ->
+       let sz = match p with
+         | PrimBool | PrimI8 | PrimU8 -> 1
+         | PrimI16 | PrimU16 -> 2
+         | PrimI32 | PrimU32 -> 4
+         | PrimI64 | PrimU64 -> 8
+         | PrimF32 -> 4
+         | PrimF64 -> 8
+       in
+       sz, sz
+    | DefTypeFcn _ -> ptr_size, ptr_size
+    | DefTypePtr _ -> ptr_size, ptr_size
+    | DefTypeArray (tp, n) ->
+       let sz, align = size_n_alignment tp in
+       n * sz, align
+    | DefTypeNullPtr -> ptr_size, ptr_size
+    | DefTypeEnum _ ->
+       (* FIXME: Clang always seems to make enums 4 bytes, even if they could
+          be smaller.  Need to investigate this further. *)
+       4, 4
+    | DefTypeLiteralStruct (members, _)
+    | DefTypeStaticStruct members ->
+       let member_proc (accum_sz, accum_align) member =
+         let sz, align = size_n_alignment member in
+         let depth_into_alignment = accum_sz mod align in
+         let aligned_sz = if depth_into_alignment = 0 then accum_sz
+                          else accum_sz + (align - depth_into_alignment)
+         in
+         aligned_sz + sz, max align accum_align
+       in
+       let accum_sz, align = List.fold_left member_proc (0, 0) members in
+       let depth_into_alignment = accum_sz mod align in
+       let padded_sz = if depth_into_alignment = 0 then accum_sz
+                       else accum_sz + (align - depth_into_alignment)
+       in
+       padded_sz, align
+    | DefTypeLiteralUnion (members, _) ->
+       let select_max (curr_sz, curr_align) m =
+         let sz, align = size_n_alignment m in
+         max sz curr_sz, max align curr_align
+       in
+       List.fold_left select_max (0, 0) members
+    | DefTypeVAList ->
+       Report.err_internal __FILE__ __LINE__ "Can't get size of a va_list."
+    | DefTypeWildcard ->
+       Report.err_internal __FILE__ __LINE__ "Can't get the size of a wildcard."
+    | DefTypeLLVMToken ->
+       Report.err_internal __FILE__ __LINE__ "Shouldn't need size of LLVM token."
+  in
+  let sz, _ = size_n_alignment tp in sz
 
 (** Convert the type into its string representation. *)
 let rec string_of_type t = match t.bare with
