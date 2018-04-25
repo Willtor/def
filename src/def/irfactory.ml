@@ -706,6 +706,8 @@ let process_expr data llvals varmap pos_n_expr =
     | DefTypeArray (tp, n), DefTypePtr _ ->
        build_in_bounds_gep e [|data.zero_i32; data.zero_i32|]
                            "ptr_cast" data.bldr
+    | DefTypeFcn _, DefTypeFcn _ ->
+       build_pointercast e (make_llvm_tp (makeptr to_tp)) "fcast" data.bldr
     | _ ->
        Report.err_internal __FILE__ __LINE__
          ("build_cast: Incomplete implementation (from "
