@@ -526,7 +526,8 @@ let dwarf_of =
 let concrete_of typemap tp =
   let rec concrete tp =
     match tp.bare with
-    | DefTypeNamed name -> Util.the @@ lookup_symbol typemap name
+    | DefTypeNamed name ->
+       concrete (Util.the @@ lookup_symbol typemap name)
     | _ -> tp
   in
   concrete tp
