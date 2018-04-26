@@ -1089,11 +1089,7 @@ let convert_expr typemap fcnscope =
 
 let nonconflicting_name pos scope name =
   match lookup_symbol_local scope name with
-  | None -> begin match lookup_symbol scope name with
-    | None -> name
-    | _ ->
-       "_def_" ^ name ^ "_" ^ (string_of_int pos.pos_lnum)
-  end
+  | None -> name ^ "." ^ (string_of_int pos.pos_lnum)
   | Some decl -> Report.err_redeclared_variable pos decl.decl_pos name
 
 let make_decl pos fcnscope nm tp =
@@ -1258,7 +1254,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
   in
 
   let decls = ref [] in
-  let add_decl name decl = decls := (name, decl) :: !decls in
+  let add_decl decl = decls := (decl.mappedname, decl) :: !decls in
 
   let push_scope ?(cont = None)
                  ?(break = None)
@@ -1436,7 +1432,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let declare var =
          let decl = make_decl var.td_pos scope var.td_text tp in
          add_symbol scope.fs_vars var.td_text decl;
-         add_decl var.td_text decl
+         add_decl decl
        in
        let initialize bb expr =
          let faux_stmt = StmtExpr (pos_of_astexpr expr, expr) in
@@ -1455,7 +1451,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let target_struct = make_decl p scope temp_struct_nm target_tp
        in
        let () = add_symbol scope.fs_vars temp_struct_nm target_struct in
-       let () = add_decl temp_struct_nm target_struct in
+       let () = add_decl target_struct in
        let _, cexpr = convert_expr typemap scope
          (ExprBinary { op_pos = epos;
                        op_op = OperAssign;
@@ -1473,7 +1469,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
          in
          let decl = make_decl pos scope nm vartp in
          let () = add_symbol scope.fs_vars nm decl in
-         let () = add_decl nm decl in
+         let () = add_decl decl in
          let rhs = ExprSelectField (pos, pos,
                                     ExprVar (pos, temp_struct_nm),
                                     FieldNumber n) in
@@ -1635,9 +1631,9 @@ let rec build_bbs name decltable typemap fcn_pos body =
           cased for traditional, C-like switch statements. *)
        let label = label_of_pos pos in
        let switch_tp, switch_expr = convert_expr typemap scope expr in
-       let switch_var_nm = "switch_var." ^ (Util.unique_id ()) in
-       let switch_decl = make_decl pos scope switch_var_nm switch_tp in
-       let () = add_decl switch_var_nm switch_decl in
+       let switch_decl = make_decl pos scope "switch_var" switch_tp in
+       let switch_var_nm = switch_decl.mappedname in
+       let () = add_decl switch_decl in
        let switch_assign = Expr_Binary (pos, OperAssign, false, switch_tp,
                                         Expr_Variable (switch_var_nm),
                                         switch_expr) in
@@ -1757,9 +1753,9 @@ let rec build_bbs name decltable typemap fcn_pos body =
          check_castability pos typemap tp ret_type;
          match tp.bare, expr with
          | DefTypeStaticStruct _, Expr_StaticStruct (_, elist) ->
-            let nm = "defret." ^ (Util.unique_id ()) in
-            let decl = make_decl pos scope nm tp in
-            let () = add_decl nm decl in
+            let decl = make_decl pos scope "defret" tp in
+            let nm = decl.mappedname in
+            let () = add_decl decl in
             let structvar = Expr_Variable nm in
             let exprs =
               List.mapi (fun n (t, e) ->
