@@ -1,0 +1,6 @@
+foo (i32) = 0
+foo (i32) = 1
+foo (i32) = 2
+foo (i32) = 3
+foo (f64) = 10.0000
+foo (bool) = 1

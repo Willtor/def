@@ -1,0 +1,22 @@
+// Unit test for variable declarations, where the variables have the same
+// declared name.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var foo f64 = 10.0;
+
+    for var foo i32 = 0; foo < 4; ++foo do
+        printf("foo (i32) = %d\n", foo);
+    od
+    printf("foo (f64) = %.4f\n", foo);
+
+    if foo > 9.0 then
+        var foo bool = true;
+        printf("foo (bool) = %d\n", cast(type i32, foo));
+    fi
+
+    return 0;
+end

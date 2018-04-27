@@ -1,3 +1,5 @@
+// Unit test for switching on static arrays.
+
 decl printf (*char, ...) -> i32;
 
 def domatch (array *i32) -> void
