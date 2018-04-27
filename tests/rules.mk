@@ -9,7 +9,7 @@ unit: $(UNIT)
 smoke: $(SMOKE)
 
 clean:
-	rm -f *.o $(ALL) *.out
+	rm -f *.o $(ALL) *.out *.ll
 
 %: %.def %.correct
 	$(DEFC) -o $@ $<
