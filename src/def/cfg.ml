@@ -343,8 +343,6 @@ let global_types typemap defined_syms = function
           let sz = size_of typemap tp in
           let variant_conversion =
             match sz with
-            | 1 -> (fun n -> LitU8 (Char.chr n))
-            | 2 -> (fun n -> LitU16 (Int32.of_int n))
             | 4 -> (fun n -> LitU32 (Int32.of_int n))
             | _ -> Report.err_internal __FILE__ __LINE__
                                        "unexpected size of enum"
@@ -380,7 +378,7 @@ let resolve_type typemap typename oldtp =
     | DefTypeNamed _ -> t
     | DefTypeVoid -> t
     | DefTypeOpaque nm ->
-       (* Sometimes we think a type if opaque if the parent type was resolved
+       (* Sometimes we think a type is opaque if the parent type was resolved
           before the child. *)
        begin match bared (lookup_symbol typemap nm) with
        | Some (DefTypeLiteralStruct _)
