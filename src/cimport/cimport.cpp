@@ -201,7 +201,7 @@ private:
                 value ret = caml_alloc(3, 4);
                 Store_field(ret, 0, pos);
                 Store_field(ret, 1, subtype);
-                Store_field(ret, 2, Int_val(atype->getSize().getZExtValue()));
+                Store_field(ret, 2, Val_int(atype->getSize().getZExtValue()));
                 return ret;
             } else if (type->isIncompleteArrayType()) {
                 const IncompleteArrayType *atype =
@@ -210,7 +210,7 @@ private:
                 value ret = caml_alloc(3, 4);
                 Store_field(ret, 0, pos);
                 Store_field(ret, 1, subtype);
-                Store_field(ret, 2, Int_val(0));
+                Store_field(ret, 2, Val_int(0));
                 return ret;
             } else {
                 outs() << "Internal error: unhandled array type.\n";
