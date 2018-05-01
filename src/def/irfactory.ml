@@ -418,8 +418,10 @@ let process_expr data llvals varmap pos_n_expr =
     in
     let is_wildcard v = if v = Expr_Wildcard then true else false in
 
-    let integer_math = (is_integer_type tp) || (is_pointer_type tp) in
-    let is_signed = if is_integer_type tp then signed_p tp else false in
+    let basetp = concrete_of data.prog.deftypemap tp in
+    let integer_math = (is_integer_type basetp) || (is_pointer_type basetp) in
+    let is_signed = if is_integer_type basetp then signed_p basetp else false
+    in
     match op, integer_math with
     (* FIXME: Distinguish between signed/unsigned integers. *)
     | OperMult, true -> standard_op build_mul "def_mult"
