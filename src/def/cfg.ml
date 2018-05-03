@@ -102,7 +102,8 @@ and decl =
     vis        : Types.visibility;
     is_tls     : bool;
     tp         : Types.deftype;
-    params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
+    params     : (Lexing.position * string) list; (* Zero-len for non-fcns *)
+    mutable decl_ref : bool (* Whether this symbol is referenced. *)
   }
 
 and function_defn =
@@ -135,6 +136,18 @@ type function_scope =
     fs_in_xaction : bool;
     fs_scope_pos  : cfg_scope
   }
+
+(* Builtin function names. *)
+let hwtm_begin = "llvm.x86.begin"
+let hwtm_end = "llvm.x86.xend"
+let hytm_begin = "__defrts_hybrid_xbegin"
+let hytm_end = "__defrts_hybrid_xend"
+let new_fcn = "forkscan_malloc"
+let sync_region_fcn = "llvm.syncregion.start"
+
+let set_ref_bit scope name =
+  let decl = Util.the @@ lookup_symbol scope name in
+  decl.decl_ref <- true
 
 let volatility v tp = if v then volatile_of tp else tp
 
@@ -526,7 +539,8 @@ let global_decls decltable typemap = function
             vis = vis;
             is_tls = false;
             tp = dearray_fcn tp;
-            params = params
+            params = params;
+            decl_ref = false;
           }
         in
         add_symbol decltable name fcn
@@ -549,7 +563,8 @@ let global_decls decltable typemap = function
               vis = vis;
               is_tls = get_tls_ness decl.td_text;
               tp = tp;
-              params = []
+              params = [];
+              decl_ref = false;
             }
           in
           add_symbol decltable tok.td_text decl
@@ -835,6 +850,7 @@ let build_fcn_call scope typemap pos name args =
      | _ -> Report.err_unknown_fcn_call pos name
      end
   | Some decl ->
+     let () = decl.decl_ref <- true in
      begin match decl.tp.bare with
      | DefTypeUnresolved _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call an unresolved type."
@@ -903,6 +919,7 @@ let convert_expr typemap fcnscope =
   let lexical = fcnscope.fs_scope_pos in
   let rec convert = function
     | ExprNew (pos, t, dim, init) ->
+       let () = set_ref_bit fcnscope.fs_vars new_fcn in
        let tp = match t.bare with
          (* Throw away an initial ArrayType, since that's only relevant for
             the size of the allocation. *)
@@ -993,6 +1010,7 @@ let convert_expr typemap fcnscope =
     | ExprVar (pos, name) ->
        begin match lookup_symbol scope name with
        | Some var ->
+          let () = var.decl_ref <- true in
           var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
        | None ->
           Report.err_undefined_var pos name
@@ -1097,7 +1115,8 @@ let make_decl pos fcnscope nm tp =
     vis = VisLocal;
     is_tls = false;
     tp = tp;
-    params = []
+    params = [];
+    decl_ref = true
   }
 
 let make_sequential_bb label exprs =
@@ -1167,6 +1186,7 @@ let make_goto_bb label =
 
 let rec build_bbs name decltable typemap fcn_pos body =
   let fcndecl = the (lookup_symbol decltable name) in
+  fcndecl.decl_ref <- true;
   let param_types, ret_type, _ = get_fcntype_profile fcndecl.tp in
 
   (* Add the function's parameters to the scope table. *)
@@ -1178,7 +1198,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
         vis = VisLocal;
         is_tls = false;
         tp = tp;
-        params = [] })
+        params = [];
+        decl_ref = true })
     param_types
     fcndecl.params;
 
@@ -1240,7 +1261,10 @@ let rec build_bbs name decltable typemap fcn_pos body =
   let label_bbs = Hashtbl.create 8 in
 
   let sync_regions = ref [] in
-  let push_sync_region region = sync_regions := region :: !sync_regions in
+  let push_sync_region region =
+    set_ref_bit decltable sync_region_fcn;
+    sync_regions := region :: !sync_regions
+  in
   let unique_regions () =
     let ordered_regions = List.sort String.compare !sync_regions in
     let uniquify accum str = match accum with
@@ -1275,8 +1299,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
     let label = label_of_pos pos in
     match !xact_kind with
     | XACT_HARDWARE ->
-       let _, f = build_fcn_call scope.fs_vars typemap pos "llvm.x86.xbegin" []
-       in
+       let _, f = build_fcn_call scope.fs_vars typemap pos hwtm_begin [] in
        let e = Expr_Binary (pos, OperEquals, false,
                             volatile_of i32_type,
                             Expr_Literal (LitI32 (Int32.of_int (-1))), f)
@@ -1290,9 +1313,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
          xact_bb
        end
     | XACT_HYBRID ->
-       let _, f =
-         build_fcn_call scope.fs_vars typemap pos "__defrts_hybrid_xbegin" []
-       in
+       let _, f = build_fcn_call scope.fs_vars typemap pos hytm_begin [] in
        let xact_bb = make_sequential_bb ("hyxact." ^ label) [(pos, f)] in
        begin
          add_next prev_bb xact_bb;
@@ -1305,8 +1326,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
   let end_xact prev_bb pos scope =
     let label = label_of_pos pos in
     let fname = match !xact_kind with
-      | XACT_HARDWARE -> "llvm.x86.xend"
-      | XACT_HYBRID -> "__defrts_hybrid_xend"
+      | XACT_HARDWARE -> hwtm_end
+      | XACT_HYBRID -> hytm_end
       | XACT_SOFTWARE ->
          Report.err_internal __FILE__ __LINE__ "STM not yet supported."
     in
@@ -1353,6 +1374,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
            | BB_Detach (_, _, block) -> block
            | _ -> Report.err_internal __FILE__ __LINE__ "Do you even lift?"
          in
+         let () = set_ref_bit scope.fs_vars nm in
          let call = Expr_FcnCall_Refs (nm, List.map (fun (label, _) -> label)
                                                     block.detach_args)
          in detach, call

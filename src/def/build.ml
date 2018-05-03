@@ -98,52 +98,52 @@ let add_builtin_fcns stmts =
   let token_type = typify @@ DefTypeLLVMToken in
 
   let builtins =
-    [ DeclFcn (pos, Types.VisExported pos, "__builtin_xbegin",
+    [ DeclFcn (pos, Types.VisExternal, "__builtin_xbegin",
                typify
                @@ DefTypeFcn ([], volatile_of i32_type, false),
                []);
 
-      DeclFcn (pos, Types.VisExported pos, "__builtin_xend",
+      DeclFcn (pos, Types.VisExternal, "__builtin_xend",
                typify
                @@ DefTypeFcn ([], void_type, false),
                []);
 
-      DeclFcn (pos, Types.VisExported pos, "forkscan_malloc",
+      DeclFcn (pos, Types.VisExternal, "forkscan_malloc",
                typify
                @@ DefTypeFcn ([u64_type], makeptr void_type, false),
                [pos, "size"]);
 
-      DeclFcn (pos, Types.VisExported pos, "forkscan_free",
+      DeclFcn (pos, Types.VisExternal, "forkscan_free",
                typify
                @@ DefTypeFcn ([makeptr void_type], void_type, false),
                [pos, "ptr"]);
 
-      DeclFcn (pos, Types.VisExported pos, "forkscan_retire",
+      DeclFcn (pos, Types.VisExternal, "forkscan_retire",
                typify
                @@ DefTypeFcn ([makeptr void_type], void_type, false),
                [pos, "ptr"]);
 
-      DeclFcn (pos, Types.VisExported pos, "llvm.x86.xbegin",
+      DeclFcn (pos, Types.VisExternal, "llvm.x86.xbegin",
                typify
                @@ DefTypeFcn ([], volatile_of i32_type, false),
                []);
 
-      DeclFcn (pos, Types.VisExported pos, "llvm.x86.xend",
+      DeclFcn (pos, Types.VisExternal, "llvm.x86.xend",
                typify
                @@ DefTypeFcn ([], void_type, false),
                []);
 
-      DeclFcn (pos, Types.VisExported pos, "__defrts_hybrid_xbegin",
+      DeclFcn (pos, Types.VisExternal, "__defrts_hybrid_xbegin",
                typify
                @@ DefTypeFcn ([], void_type, false),
                []);
 
-      DeclFcn (pos, Types.VisExported pos, "__defrts_hybrid_xend",
+      DeclFcn (pos, Types.VisExternal, "__defrts_hybrid_xend",
                typify
                @@ DefTypeFcn ([], void_type, false),
                []);
 
-      DeclFcn (pos, Types.VisExported pos, "llvm.syncregion.start",
+      DeclFcn (pos, Types.VisExternal, "llvm.syncregion.start",
                typify
                @@ DefTypeFcn ([], token_type, false),
                [])

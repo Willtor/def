@@ -72,7 +72,8 @@ and decl =
     vis        : Types.visibility;
     is_tls     : bool;
     tp         : Types.deftype;
-    params     : (Lexing.position * string) list (* Zero-length for non-fcns *)
+    params     : (Lexing.position * string) list; (* Zero-len for non-fcns *)
+    mutable decl_ref : bool (* Whether this symbol is referenced. *)
   }
 
 and function_defn =

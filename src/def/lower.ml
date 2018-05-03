@@ -39,6 +39,7 @@ let lift_lhs_static_structs program =
                       is_tls = false;
                       tp = dtp;
                       params = [];
+                      decl_ref = true;
                      } in
          let vars = ("__defstatic", decl) in
          let exprs = List.mapi (fun n (tp, e) ->
@@ -65,6 +66,7 @@ let lift_lhs_static_structs program =
                       is_tls = false;
                       tp = dtp;
                       params = [];
+                      decl_ref = true;
                     } in
          let vars = ("__defstatic", decl) in
          let exprs = List.mapi (fun n (tp, e) ->

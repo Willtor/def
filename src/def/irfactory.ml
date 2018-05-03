@@ -926,6 +926,7 @@ let process_fcn data symbols fcn =
 
   let make_sync_region sync_region =
     let _, _, syncreg_start =
+      (* FIXME: Gather builtin names together in a table. *)
       the (lookup_symbol varmap "llvm.syncregion.start") in
     let ret = build_call syncreg_start [| |] "sync_region" data.bldr in
     add_symbol llvals sync_region ret
@@ -1090,35 +1091,42 @@ let zero_llval data = function
 
 let declare_globals data symbols initializers name decl =
   let lltp = deftype2llvmtype data false decl.tp in
-  let llval = match decl.tp.bare with
-    | DefTypeFcn _ ->
-       let llfcn = declare_function decl.mappedname lltp data.mdl in
-       (if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
-        llfcn)
-    | _ ->
-       let llglobal =
-         try
-           let init = match Hashtbl.find initializers decl.mappedname with
-             | Expr_Binary (_, OperAssign, _, _, _, rhs) ->
-                get_const_val data rhs
-             | _ -> Report.err_internal __FILE__ __LINE__
-                                        "Init that is not an assignment."
-           in
-           define_global decl.mappedname init data.mdl
-         with _ ->
-           if decl.vis = VisExternal then
-             let llglobal = declare_global lltp name data.mdl in
-             let () = set_externally_initialized true llglobal in
-             llglobal
-           else
-             define_global decl.mappedname
-                           (zero_llval data decl.tp.bare)
-                           data.mdl
-       in
-       let () = if decl.is_tls then set_thread_local true llglobal in
-       llglobal
+  let should_declare =
+    match decl.decl_ref, decl.vis with
+    | true, _ -> true
+    | false, VisExported _ -> true
+    | _ -> false
   in
-  add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
+  if should_declare then
+    let llval = match decl.tp.bare with
+      | DefTypeFcn _ ->
+         let llfcn = declare_function decl.mappedname lltp data.mdl in
+         (if decl.vis = VisLocal then set_linkage Linkage.Internal llfcn;
+          llfcn)
+      | _ ->
+         let llglobal =
+           try
+             let init = match Hashtbl.find initializers decl.mappedname with
+               | Expr_Binary (_, OperAssign, _, _, _, rhs) ->
+                  get_const_val data rhs
+               | _ -> Report.err_internal __FILE__ __LINE__
+                                          "Init that is not an assignment."
+             in
+             define_global decl.mappedname init data.mdl
+           with _ ->
+             if decl.vis = VisExternal then
+               let llglobal = declare_global lltp name data.mdl in
+               let () = set_externally_initialized true llglobal in
+               llglobal
+             else
+               define_global decl.mappedname
+                             (zero_llval data decl.tp.bare)
+                             data.mdl
+         in
+         let () = if decl.is_tls then set_thread_local true llglobal in
+         llglobal
+    in
+    add_symbol symbols decl.mappedname (decl.decl_pos, decl.tp, llval)
 
 let make_module_flags data =
   if !Config.position_indep then

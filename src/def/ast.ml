@@ -711,7 +711,7 @@ let of_cimport cimport =
        let ast_params = List.map (fun p -> get_lval (deftype_of p)) params in
        let bare = DefTypeFcn (ast_params, ret_tp, is_variadic) in
        let ftype = maketype (Some pos) bare in
-       let decl = DeclFcn (pos, Types.VisExported pos, name, ftype,
+       let decl = DeclFcn (pos, Types.VisExternal, name, ftype,
                            (cparams_of params)
                            @ if is_variadic then [pos, ""] else []) in
        convert (decl :: accum) rest
