@@ -25,7 +25,13 @@
  */
 
 typedef __rhnorec_ctx =
-    {
+    { is_tx_version u64,
+      max_reads i16,
+      expected_length i16,
+      prefix_reads i16,
+      is_rh_prefix_active bool,
+      is_rh_active bool,
+      is_write_detected bool
     };
 
 // FIXME: Separate these out.  Shouldn't be on the same cache line, right?
@@ -210,9 +216,9 @@ begin
     fi
 
     // If RH is on, then commit.
-    if ctx.rh_is_active then
+    if ctx.is_rh_active then
         __builtin_xend();
-        ctx.rh_is_active = false;
+        ctx.is_rh_active = false;
     fi
 
     // If HTM lock is taken, then release it.
