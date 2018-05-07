@@ -1,0 +1,226 @@
+/* Copyright (C) 2018  DEF Authors
+
+   Permission is hereby granted, free of charge, to any person obtaining a
+   copy of this software and associated documentation files (the "Software"),
+   to deal in the Software without restriction, including without limitation
+   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+   and/or sell copies of the Software, and to permit persons to whom the
+   Software is furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+ */
+
+/* RH NOrec: adapted from the pseudocode provided in:
+   Alex Matveev, Nir Shavit.  Reduced Hardware NOrec: A Safe and Scalable
+   Hybrid Transactional Memory.  ASPLOS, 2015.
+ */
+
+typedef __rhnorec_ctx =
+    {
+    };
+
+// FIXME: Separate these out.  Shouldn't be on the same cache line, right?
+global global_htm_lock i64 = 0;
+global global_clock u64 = 0;
+
+def fast_path_start (ctx *__rhnorec_ctx) -> bool
+begin // FIXME: Do we need the ctx parameter?  It's in the pseudo-code...
+    var n_retries = 4;
+retry:
+    // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
+    // htm-lock is available (global_htm_lock == 0).
+
+    if -1 != __builtin_xbegin() then
+        // HTM failed.
+        if n_retries <= 0 then
+            // Fallback to slow path.
+            return false;
+        fi
+        --n_retries;
+        goto retry;
+    fi
+
+    // HTM started.
+    if global_htm_lock != 0 then
+        // Get the lock into the write-set.
+        __builtin_xabort();
+    fi
+    return true;
+end
+
+def fast_path_commit (ctx *__rhnorec_ctx) -> void
+begin
+    if ctx->is_readonly then
+        // Statically detected by the compiler.
+        __builtin_xend();
+        return;
+    fi
+
+    if num_of_fallbacks > 0 then
+        if is_locked(global_clock) then
+            __builtin_xabort();
+        fi
+        ++global_clock;
+    fi
+
+    __builtin_xend();
+end
+
+/**************************************************************************/
+/*                              Algorithm 2                               */
+/**************************************************************************/
+
+def mixed_slow_path_start (ctx *__rhnorec_ctx) -> void
+begin
+    if start_rh_htm_prefix(ctx) then
+        return;
+    fi
+
+    // Algorithm 2.
+    num_of_fallbacks atomic += 1;
+    ctx.is_write_detected = false;
+    ctx.is_tx_version = global_clock;
+    if is_locked(ctx.is_tx_version) then
+        restart(ctx);
+    fi
+end
+
+def start_rh_htm_prefix (ctx *__rhnorec_ctx) -> bool
+begin
+    var n_retries = 4;
+retry:
+    // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
+    // htm-lock is available (global_htm_lock == 0).
+
+    if -1 != __builtin_xbegin() then
+        if n_retries <= 0 then
+            return false;
+        fi
+        goto retry;
+    fi
+
+    ctx.is_rh_prefix_active = true;
+    if global_htm_lock != 0 then
+        __builtin_xabort();
+    fi
+    ctx.max_reads = ctx.expected_length;
+    ctx.prefix_reads = 0;
+    return true;
+end
+
+def mixed_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.tx_version != global_clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+def mixed_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64) -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
+end
+
+def commit_rh_htm_prefix (ctx *__rhnorec_ctx) -> void
+begin
+    ++num_of_fallbacks;
+    ctx.is_write_detected = false;
+    ctx.tx_version = global_clock;
+    if is_locked(ctx.tx_version) then
+        __builtin_xabort();
+    fi
+    __builtin_xend();
+    ctx.is_rh_prefix_active = false;
+end
+
+def handle_first_write (ctx *__rhnorec_ctx) -> void
+begin
+    ctx.is_write_detected = true;
+    acquire_clock_lock(ctx);
+    if !start_htm_postfix(ctx) then
+        global_htm_lock = 1;
+    fi
+end
+
+def start_htm_postfix (ctx *__rhnorec_ctx) -> bool
+begin
+    var n_retries = 4;
+retry:
+    if -1 != __builtin_xbegin() then
+        if n_retries <= 0 then
+            return false;
+        fi
+        --n_retries;
+        goto retry;
+    fi
+    ctx.is_rh_active = true;
+    return true;
+end
+
+def acquire_clock_lock (ctx *__rhnorec_ctx) -> bool
+begin
+    var marked = set_lock_bit(ctx.tx_version);
+    if !__builtin_cas(&global_clock, ctx.tx_version, marked) then
+        // FIXME: What's the deal with restart?  And why does this function
+        // never return false?
+        restart(ctx);
+    fi
+    ctx.tx_version = marked;
+    return true;
+end
+
+def mixed_slow_path_commit (ctx *__rhnorec_ctx) -> void
+begin
+    if ctx.is_rh_prefix_active then
+        __builtin_xend();
+        return;
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        // Read-only transaction.
+        num_of_fallbacks atomic -= 1;
+    fi
+
+    // If RH is on, then commit.
+    if ctx.rh_is_active then
+        __builtin_xend();
+        ctx.rh_is_active = false;
+    fi
+
+    // If HTM lock is taken, then release it.
+    if global_htm_lock != 0 then
+        global_htm_lock = 0;
+    fi
+
+    // Update the clock: clear lock bit and increment.
+    global_clock = clear_lock_bit(global_lock) + 1;
+    num_of_fallbacks atomic -= 1;
+end
