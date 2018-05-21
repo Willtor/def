@@ -850,7 +850,6 @@ let build_fcn_call scope typemap pos name args =
      | _ -> Report.err_unknown_fcn_call pos name
      end
   | Some decl ->
-     let () = decl.decl_ref <- true in
      begin match decl.tp.bare with
      | DefTypeUnresolved _ -> Report.err_internal __FILE__ __LINE__
         "Tried to call an unresolved type."
@@ -877,6 +876,11 @@ let build_fcn_call scope typemap pos name args =
              match_params_with_args (cast_arg :: accum) (params, args)
         in
         let expr_fcncall fname =
+          (* A second lookup?!  Well, the function name we were provided may
+             not be the internal name that's actually getting called.  E.g.,
+             __builtin_xbegin() --> llvm.x86.xbegin *)
+          let real_decl = Util.the @@ lookup_symbol scope fname in
+          real_decl.decl_ref <- true;
           try
             let cast_args = match_params_with_args [] (params, args) in
             rettp, Expr_FcnCall (fname, cast_args)
