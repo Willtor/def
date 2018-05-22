@@ -19,9 +19,8 @@
 open Config
 open Llvm
 open Llvm_passmgr_builder
+open Llvm_tapir_opts
 open Llvmext (* add_unify_function_exit_nodes,
-                add_loop_spawning,
-                add_lower_tapir_to_cilk,
                 is_parallel *)
 
 let bldr = Llvm_passmgr_builder.create ()

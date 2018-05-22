@@ -16,10 +16,7 @@
 #define Builder_val(v) (*(LLVMBuilderRef *)(Data_custom_val(v)))
 #define TapirTarget_val(v) (*(TapirTarget **)(Data_custom_val(v)))
 
-typedef void * TapirTargetRef;
-
 using namespace llvm;
-using namespace llvm::tapir;
 
 static void llvm_delete_tapir_target(value target)
 {
@@ -38,32 +35,6 @@ static struct custom_operations tapir_target_ops =
       custom_compare_ext_default
     };
 
-static LLVMValueRef LLVMBuildDetach(LLVMBuilderRef B,
-                                    LLVMBasicBlockRef DetachBB,
-                                    LLVMBasicBlockRef ContinueBB,
-                                    LLVMValueRef SyncRegion)
-{
-    return wrap(unwrap(B)->CreateDetach(unwrap(DetachBB),
-                                        unwrap(ContinueBB),
-                                        unwrap(SyncRegion)));
-}
-
-static LLVMValueRef LLVMBuildReattach(LLVMBuilderRef B,
-                                      LLVMBasicBlockRef ReattachBB,
-                                      LLVMValueRef SyncRegion)
-{
-    return wrap(unwrap(B)->CreateReattach(unwrap(ReattachBB),
-                                          unwrap(SyncRegion)));
-}
-
-static LLVMValueRef LLVMBuildSync(LLVMBuilderRef B,
-                                  LLVMBasicBlockRef ContinueBB,
-                                  LLVMValueRef SyncRegion)
-{
-    return wrap(unwrap(B)->CreateSync(unwrap(ContinueBB),
-                                      unwrap(SyncRegion)));
-}
-
 static void LLVMAddUnifyFunctionExitNodes(LLVMPassManagerRef PM)
 {
     unwrap(PM)->add(createUnifyFunctionExitNodesPass());
@@ -76,50 +47,8 @@ static value LLVMAllocateTapirTarget(TapirTarget *target)
     return val;
 }
 
-static void LLVMAddLowerTapirToCilk(LLVMPassManagerRef PM,
-                                    TapirTargetRef tt)
-{
-    unwrap(PM)->add(createLowerTapirToTargetPass(TapirTarget_val(tt)));
-}
-
-static void LLVMAddLoopSpawning(LLVMPassManagerRef PM,
-                                TapirTargetRef tt)
-{
-    unwrap(PM)->add(createLoopSpawningPass(TapirTarget_val(tt)));
-}
-
 extern LLVMTypeRef LLVMTokenTypeInContext(LLVMContextRef C);
 
-/* llbasicblock -> llbasicblock -> llvalue -> llbuilder -> llvalue
- */
-extern "C"
-CAMLprim LLVMValueRef llvm_build_detach(LLVMBasicBlockRef DetachBB,
-                                        LLVMBasicBlockRef ContinueBB,
-                                        LLVMValueRef SyncRegion,
-                                        LLVMBuilderRef B)
-{
-    return LLVMBuildDetach(Builder_val(B), DetachBB, ContinueBB, SyncRegion);
-}
-
-/* llbasicblock -> llvalue -> llbuilder -> llvalue
- */
-extern "C"
-CAMLprim LLVMValueRef llvm_build_reattach(LLVMBasicBlockRef ReattachBB,
-                                          LLVMValueRef SyncRegion,
-                                          LLVMBuilderRef B)
-{
-    return LLVMBuildReattach(Builder_val(B), ReattachBB, SyncRegion);
-}
-
-/* llbasicblock -> llvalue -> llbuilder -> llvalue
- */
-extern "C"
-CAMLprim LLVMValueRef llvm_build_sync(LLVMBasicBlockRef ContinueBB,
-                                      LLVMValueRef SyncRegion,
-                                      LLVMBuilderRef B)
-{
-    return LLVMBuildSync(Builder_val(B), ContinueBB, SyncRegion);
-}
 
 /* [`Module] Llvm.Passmanager.t -> unit
  */
@@ -132,27 +61,7 @@ CAMLprim value llvm_add_unify_function_exit_nodes(LLVMPassManagerRef PM) {
 extern "C"
 CAMLprim value llvm_tapir_cilk_target ()
 {
-    return LLVMAllocateTapirTarget(new llvm::tapir::CilkABI());
-}
-
-/* [`Module] Llvm.PassManager.t -> unit
- */
-extern "C"
-CAMLprim value llvm_add_lower_tapir_to_cilk(LLVMPassManagerRef PM,
-                                            TapirTargetRef tt)
-{
-    LLVMAddLowerTapirToCilk(PM, tt);
-    return Val_unit;
-}
-
-/* [`Module] Llvm.PassManager.t -> unit
- */
-extern "C"
-CAMLprim value llvm_add_loop_spawning(LLVMPassManagerRef PM,
-                                      TapirTargetRef tt)
-{
-    LLVMAddLoopSpawning(PM, tt);
-    return Val_unit;
+    return LLVMAllocateTapirTarget(new llvm::CilkABI());
 }
 
 /* llcontext -> lltype
