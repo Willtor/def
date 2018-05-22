@@ -38,6 +38,7 @@ typedef __rhnorec_ctx =
 global global_htm_lock i64 = 0;
 global global_clock u64 = 0;
 
+export
 def fast_path_start (ctx *__rhnorec_ctx) -> bool
 begin // FIXME: Do we need the ctx parameter?  It's in the pseudo-code...
     var n_retries = 4;
@@ -63,6 +64,7 @@ retry:
     return true;
 end
 
+export
 def fast_path_commit (ctx *__rhnorec_ctx) -> void
 begin
     if ctx->is_readonly then
@@ -82,9 +84,10 @@ begin
 end
 
 /**************************************************************************/
-/*                              Algorithm 2                               */
+/*                            Algorithms 2 + 3                            */
 /**************************************************************************/
 
+export
 def mixed_slow_path_start (ctx *__rhnorec_ctx) -> void
 begin
     if start_rh_htm_prefix(ctx) then
@@ -123,6 +126,7 @@ retry:
     return true;
 end
 
+export
 def mixed_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
 begin
     if ctx.is_rh_prefix_active then
@@ -141,6 +145,7 @@ begin
     return ret;
 end
 
+export
 def mixed_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64) -> void
 begin
     if ctx.is_rh_prefix_active then
@@ -202,6 +207,7 @@ begin
     return true;
 end
 
+export
 def mixed_slow_path_commit (ctx *__rhnorec_ctx) -> void
 begin
     if ctx.is_rh_prefix_active then
