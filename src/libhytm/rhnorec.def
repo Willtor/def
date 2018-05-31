@@ -39,8 +39,8 @@ global global_htm_lock i64 = 0;
 global global_clock u64 = 0;
 
 export
-def fast_path_start (ctx *__rhnorec_ctx) -> bool
-begin // FIXME: Do we need the ctx parameter?  It's in the pseudo-code...
+def __rhnorec_fast_path_start () -> bool
+begin
     var n_retries = 4;
 retry:
     // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
@@ -87,10 +87,13 @@ end
 /*                            Algorithms 2 + 3                            */
 /**************************************************************************/
 
+///////////////////////////////////
+////////// TO BE INLINED //////////
+///////////////////////////////////
 export
-def mixed_slow_path_start (ctx *__rhnorec_ctx) -> void
+def __rhnorec_slow_path_start (ctx *__rhnorec_ctx) -> void
 begin
-    if start_rh_htm_prefix(ctx) then
+    if __rhnorec_rh_htm_prefix_start(ctx) then
         return;
     fi
 
@@ -103,7 +106,8 @@ begin
     fi
 end
 
-def start_rh_htm_prefix (ctx *__rhnorec_ctx) -> bool
+export
+def __rhnorec_rh_htm_prefix_start (ctx *__rhnorec_ctx) -> bool
 begin
     var n_retries = 4;
 retry:
@@ -114,6 +118,7 @@ retry:
         if n_retries <= 0 then
             return false;
         fi
+        --n_retries;
         goto retry;
     fi
 
@@ -126,6 +131,9 @@ retry:
     return true;
 end
 
+///////////////////////////////////
+////////// TO BE INLINED //////////
+///////////////////////////////////
 export
 def mixed_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
 begin
@@ -145,6 +153,9 @@ begin
     return ret;
 end
 
+///////////////////////////////////
+////////// TO BE INLINED //////////
+///////////////////////////////////
 export
 def mixed_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64) -> void
 begin
