@@ -145,10 +145,22 @@ let err_wrong_number_of_args use_pos decl_pos name n_params n_args =
     ^ (show_source decl_pos)
   in fatal_error err
 
-(** Called an atomic (builtin) function with the wrong number of args. *)
-let err_wrong_number_of_atomic_args pos name n_args =
-  err_pos ("Atomic function " ^ name ^ " called with " ^ (string_of_int n_args)
-           ^ " arguments.")
+(** Called a builtin function with the wrong number of args. *)
+let err_wrong_number_of_builtin_args pos name n_args =
+  err_pos ("Builtin function " ^ name ^ " called with "
+           ^ (string_of_int n_args) ^ " arguments.")
+          pos
+
+(** Report that the type of the first argument to the function should be a
+    jump buffer. *)
+let err_first_arg_should_be_jumpbuf pos name =
+  err_pos ("The first argument to " ^ name
+           ^ " should be a jumpbuf ([20]*void).")
+          pos
+
+(** This is just how __builtin_longjmp works, y'all. *)
+let err_builtin_longjmp_wants_literal_one pos =
+  err_pos "__builtin_longjmp's second argument should be a literal 1."
           pos
 
 (** Tried to perform an atomic operation on a non-integer, non-pointer type. *)

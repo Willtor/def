@@ -821,7 +821,7 @@ let build_fcn_call scope typemap pos name args =
        | [_; _] ->
           Report.err_atomic_dest_not_ptr pos name
        | _ ->
-          Report.err_wrong_number_of_atomic_args pos name (List.length args)
+          Report.err_wrong_number_of_builtin_args pos name (List.length args)
      in
      let create_atomic_cas () = match args with
        | [({ bare = DefTypePtr t1 } as arg1_t, dexpr);
@@ -838,15 +838,61 @@ let build_fcn_call scope typemap pos name args =
        | _ ->
           Report.err_internal __FILE__ __LINE__ "Need an error message for CAS"
      in
-     (* Check if the function is an atomic. *)
+     let is_jumpbuf = function
+       | ({ bare = DefTypePtr
+                     ({ bare = DefTypePtr
+                                 ({ bare = DefTypeVoid }) }) },
+          expr) ->
+          expr
+       | ({ bare = DefTypeArray
+                     ({ bare = DefTypePtr
+                                 ({ bare = DefTypeVoid }) }, 20) } as oldtp,
+          expr) ->
+          let newtp = makeptr (makeptr (maketype None DefTypeVoid)) in
+          maybe_cast typemap oldtp newtp expr
+       | (t, _) ->
+          Report.err_first_arg_should_be_jumpbuf pos name
+     in
+     let verify_setjmp () =
+       if (List.length args) <> 1 then
+         Report.err_wrong_number_of_builtin_args pos name (List.length args);
+       [is_jumpbuf (List.hd args)]
+     in
+     let verify_longjmp () =
+       if (List.length args) <> 2 then
+         Report.err_wrong_number_of_builtin_args pos name (List.length args);
+       let jumpbuf = is_jumpbuf (List.hd args) in
+       let literal_one = Expr_Literal (LitI32 1l) in
+       let () = match List.nth args 1 with
+         | ({ bare = DefTypePrimitive PrimI32 }, expr)
+              when expr = literal_one -> ()
+         | _ -> Report.err_builtin_longjmp_wants_literal_one pos
+       in
+       [jumpbuf; literal_one]
+     in
+
+     (* Check if the function is a builtin. *)
      begin match name with
      | "__builtin_cas" ->
         if (List.length args) <> 3 then
-          Report.err_wrong_number_of_atomic_args pos name (List.length args)
+          Report.err_wrong_number_of_builtin_args pos name (List.length args)
         else
           create_atomic_cas ()
      | "__builtin_swap" ->
         create_atomicrmw AtomicSwap
+     | "__builtin_setjmp" ->
+        let () = set_ref_bit scope "llvm.stacksave"
+        and () = set_ref_bit scope "llvm.frameaddress"
+        and () = set_ref_bit scope "llvm.eh.sjlj.setjmp"
+        in
+        let verified_args = verify_setjmp () in
+        maketype None (DefTypePrimitive PrimI32),
+        Expr_FcnCall (name, verified_args)
+     | "__builtin_longjmp" ->
+        let () = set_ref_bit scope "llvm.eh.sjlj.longjmp" in
+        let verified_args = verify_longjmp () in
+        maketype None DefTypeVoid,
+        Expr_FcnCall (name, verified_args)
      | _ -> Report.err_unknown_fcn_call pos name
      end
   | Some decl ->

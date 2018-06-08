@@ -146,6 +146,26 @@ let add_builtin_fcns stmts =
       DeclFcn (pos, Types.VisExternal, "llvm.syncregion.start",
                typify
                @@ DefTypeFcn ([], token_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "llvm.stacksave",
+               typify
+               @@ DefTypeFcn ([], makeptr void_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "llvm.frameaddress",
+               typify
+               @@ DefTypeFcn ([i32_type], makeptr void_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "llvm.eh.sjlj.setjmp",
+               typify
+               @@ DefTypeFcn ([makeptr void_type], i32_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "llvm.eh.sjlj.longjmp",
+               typify
+               @@ DefTypeFcn ([makeptr void_type], void_type, false),
                [])
     ]
   in

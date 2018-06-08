@@ -102,6 +102,8 @@ begin
     ctx.is_write_detected = false;
     ctx.is_tx_version = global_clock;
     if is_locked(ctx.is_tx_version) then
+        // Decrement num_of_fallbacks?  Presumably yes?  Is this part of
+        // the restart() routine?  Presumably no?
         restart(ctx);
     fi
 end
@@ -172,7 +174,7 @@ end
 
 def commit_rh_htm_prefix (ctx *__rhnorec_ctx) -> void
 begin
-    ++num_of_fallbacks;
+    num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
     ctx.tx_version = global_clock;
     if is_locked(ctx.tx_version) then
@@ -219,7 +221,7 @@ begin
 end
 
 export
-def mixed_slow_path_commit (ctx *__rhnorec_ctx) -> void
+def __rhnorec_mixed_slow_path_commit (ctx *__rhnorec_ctx) -> void
 begin
     if ctx.is_rh_prefix_active then
         __builtin_xend();
