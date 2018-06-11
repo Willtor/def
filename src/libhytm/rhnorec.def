@@ -25,7 +25,8 @@
  */
 
 typedef __rhnorec_ctx =
-    { is_tx_version u64,
+    { jump_buffer [20]*void,
+      is_tx_version u64,
       max_reads i16,
       expected_length i16,
       prefix_reads i16,
@@ -35,8 +36,9 @@ typedef __rhnorec_ctx =
     };
 
 // FIXME: Separate these out.  Shouldn't be on the same cache line, right?
-global global_htm_lock i64 = 0;
-global global_clock u64 = 0;
+global g_htm_lock i64 = 0;
+global g_clock u64 = 0;
+global g_num_of_fallbacks = 0;
 
 export
 def __rhnorec_fast_path_start () -> bool
@@ -44,7 +46,7 @@ begin
     var n_retries = 4;
 retry:
     // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
-    // htm-lock is available (global_htm_lock == 0).
+    // htm-lock is available (g_htm_lock == 0).
 
     if -1 != __builtin_xbegin() then
         // HTM failed.
@@ -57,7 +59,7 @@ retry:
     fi
 
     // HTM started.
-    if global_htm_lock != 0 then
+    if g_htm_lock != 0 then
         // Get the lock into the write-set.
         __builtin_xabort();
     fi
@@ -65,7 +67,7 @@ retry:
 end
 
 export
-def fast_path_commit (ctx *__rhnorec_ctx) -> void
+def __rhnorec_fast_path_commit (ctx *__rhnorec_ctx) -> void
 begin
     if ctx->is_readonly then
         // Statically detected by the compiler.
@@ -73,11 +75,11 @@ begin
         return;
     fi
 
-    if num_of_fallbacks > 0 then
-        if is_locked(global_clock) then
+    if g_num_of_fallbacks > 0 then
+        if is_locked(g_clock) then
             __builtin_xabort();
         fi
-        ++global_clock;
+        ++g_clock;
     fi
 
     __builtin_xend();
@@ -87,20 +89,17 @@ end
 /*                            Algorithms 2 + 3                            */
 /**************************************************************************/
 
-///////////////////////////////////
-////////// TO BE INLINED //////////
-///////////////////////////////////
 export
 def __rhnorec_slow_path_start (ctx *__rhnorec_ctx) -> void
 begin
-    if __rhnorec_rh_htm_prefix_start(ctx) then
+    if htm_prefix_start(ctx) then
         return;
     fi
 
     // Algorithm 2.
-    num_of_fallbacks atomic += 1;
+    g_num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
-    ctx.is_tx_version = global_clock;
+    ctx.is_tx_version = g_clock;
     if is_locked(ctx.is_tx_version) then
         // Decrement num_of_fallbacks?  Presumably yes?  Is this part of
         // the restart() routine?  Presumably no?
@@ -108,13 +107,12 @@ begin
     fi
 end
 
-export
-def __rhnorec_rh_htm_prefix_start (ctx *__rhnorec_ctx) -> bool
+def htm_prefix_start (ctx *__rhnorec_ctx) -> bool
 begin
     var n_retries = 4;
 retry:
     // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
-    // htm-lock is available (global_htm_lock == 0).
+    // htm-lock is available (g_htm_lock == 0).
 
     if -1 != __builtin_xbegin() then
         if n_retries <= 0 then
@@ -125,7 +123,7 @@ retry:
     fi
 
     ctx.is_rh_prefix_active = true;
-    if global_htm_lock != 0 then
+    if g_htm_lock != 0 then
         __builtin_xabort();
     fi
     ctx.max_reads = ctx.expected_length;
@@ -133,11 +131,8 @@ retry:
     return true;
 end
 
-///////////////////////////////////
-////////// TO BE INLINED //////////
-///////////////////////////////////
 export
-def mixed_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
+def __rhnorec_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
 begin
     if ctx.is_rh_prefix_active then
         ++ctx.prefix_reads;
@@ -149,17 +144,15 @@ begin
 
     // Algorithm 2.
     var ret = addr[0];
-    if ctx.tx_version != global_clock then
+    if ctx.tx_version != g_clock then
         restart(ctx);
     fi
     return ret;
 end
 
-///////////////////////////////////
-////////// TO BE INLINED //////////
-///////////////////////////////////
 export
-def mixed_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64) -> void
+def __rhnorec_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64)
+        -> void
 begin
     if ctx.is_rh_prefix_active then
         commit_rh_htm_prefix(ctx);
@@ -174,9 +167,9 @@ end
 
 def commit_rh_htm_prefix (ctx *__rhnorec_ctx) -> void
 begin
-    num_of_fallbacks atomic += 1;
+    g_num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
-    ctx.tx_version = global_clock;
+    ctx.tx_version = g_clock;
     if is_locked(ctx.tx_version) then
         __builtin_xabort();
     fi
@@ -189,7 +182,7 @@ begin
     ctx.is_write_detected = true;
     acquire_clock_lock(ctx);
     if !start_htm_postfix(ctx) then
-        global_htm_lock = 1;
+        g_htm_lock = 1;
     fi
 end
 
@@ -211,7 +204,7 @@ end
 def acquire_clock_lock (ctx *__rhnorec_ctx) -> bool
 begin
     var marked = set_lock_bit(ctx.tx_version);
-    if !__builtin_cas(&global_clock, ctx.tx_version, marked) then
+    if !__builtin_cas(&g_clock, ctx.tx_version, marked) then
         // FIXME: What's the deal with restart?  And why does this function
         // never return false?
         restart(ctx);
@@ -231,7 +224,7 @@ begin
     // Algorithm 2.
     if !ctx.is_write_detected then
         // Read-only transaction.
-        num_of_fallbacks atomic -= 1;
+        g_num_of_fallbacks atomic -= 1;
     fi
 
     // If RH is on, then commit.
@@ -241,11 +234,17 @@ begin
     fi
 
     // If HTM lock is taken, then release it.
-    if global_htm_lock != 0 then
-        global_htm_lock = 0;
+    if g_htm_lock != 0 then
+        g_htm_lock = 0;
     fi
 
     // Update the clock: clear lock bit and increment.
-    global_clock = clear_lock_bit(global_lock) + 1;
-    num_of_fallbacks atomic -= 1;
+    g_clock = clear_lock_bit(g_lock) + 1;
+    g_num_of_fallbacks atomic -= 1;
+end
+
+def restart (ctx *__rhnorec_ctx) -> void
+begin
+    // FIXME: Do I need to zero-out the non-jump_buffer portion of ctx?
+    __builtin_longjmp(ctx);
 end
