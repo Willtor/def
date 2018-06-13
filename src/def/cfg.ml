@@ -939,6 +939,7 @@ let build_fcn_call scope typemap pos name args =
           match decl.mappedname with
           | "__builtin_xbegin" -> expr_fcncall "llvm.x86.xbegin"
           | "__builtin_xend" -> expr_fcncall "llvm.x86.xend"
+          | "__builtin_xabort" -> expr_fcncall "llvm.x86.xabort"
           | _ -> expr_fcncall decl.mappedname
         end
      | DefTypePrimitive _ -> Report.err_called_non_fcn pos decl.decl_pos name

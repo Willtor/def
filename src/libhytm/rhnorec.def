@@ -32,7 +32,8 @@ typedef __rhnorec_ctx =
       prefix_reads i16,
       is_rh_prefix_active bool,
       is_rh_active bool,
-      is_write_detected bool
+      is_write_detected bool,
+      is_readonly bool
     };
 
 // FIXME: Separate these out.  Shouldn't be on the same cache line, right?
@@ -61,7 +62,7 @@ retry:
     // HTM started.
     if g_htm_lock != 0 then
         // Get the lock into the write-set.
-        __builtin_xabort();
+        __builtin_xabort(0);
     fi
     return true;
 end
@@ -69,7 +70,7 @@ end
 export
 def __rhnorec_fast_path_commit (ctx *__rhnorec_ctx) -> void
 begin
-    if ctx->is_readonly then
+    if ctx.is_readonly then
         // Statically detected by the compiler.
         __builtin_xend();
         return;
@@ -77,7 +78,7 @@ begin
 
     if g_num_of_fallbacks > 0 then
         if is_locked(g_clock) then
-            __builtin_xabort();
+            __builtin_xabort(0);
         fi
         ++g_clock;
     fi
@@ -124,7 +125,7 @@ retry:
 
     ctx.is_rh_prefix_active = true;
     if g_htm_lock != 0 then
-        __builtin_xabort();
+        __builtin_xabort(0);
     fi
     ctx.max_reads = ctx.expected_length;
     ctx.prefix_reads = 0;
@@ -171,7 +172,7 @@ begin
     ctx.is_write_detected = false;
     ctx.tx_version = g_clock;
     if is_locked(ctx.tx_version) then
-        __builtin_xabort();
+        __builtin_xabort(0);
     fi
     __builtin_xend();
     ctx.is_rh_prefix_active = false;
