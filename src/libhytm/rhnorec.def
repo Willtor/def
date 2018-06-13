@@ -37,9 +37,9 @@ typedef __rhnorec_ctx =
     };
 
 // FIXME: Separate these out.  Shouldn't be on the same cache line, right?
-global g_htm_lock i64 = 0;
-global g_clock u64 = 0;
-global g_num_of_fallbacks = 0;
+global g_htm_lock i64 = 0I64;
+global g_clock u64 = 0U64;
+global g_num_of_fallbacks u64 = 0U64;
 
 export
 def __rhnorec_fast_path_start () -> bool
@@ -145,7 +145,7 @@ begin
 
     // Algorithm 2.
     var ret = addr[0];
-    if ctx.tx_version != g_clock then
+    if ctx.is_tx_version != g_clock then
         restart(ctx);
     fi
     return ret;
@@ -170,8 +170,8 @@ def commit_rh_htm_prefix (ctx *__rhnorec_ctx) -> void
 begin
     g_num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
-    ctx.tx_version = g_clock;
-    if is_locked(ctx.tx_version) then
+    ctx.is_tx_version = g_clock;
+    if is_locked(ctx.is_tx_version) then
         __builtin_xabort(0);
     fi
     __builtin_xend();
@@ -204,13 +204,13 @@ end
 
 def acquire_clock_lock (ctx *__rhnorec_ctx) -> bool
 begin
-    var marked = set_lock_bit(ctx.tx_version);
-    if !__builtin_cas(&g_clock, ctx.tx_version, marked) then
+    var marked = set_lock_bit(ctx.is_tx_version);
+    if !__builtin_cas(&g_clock, ctx.is_tx_version, marked) then
         // FIXME: What's the deal with restart?  And why does this function
         // never return false?
         restart(ctx);
     fi
-    ctx.tx_version = marked;
+    ctx.is_tx_version = marked;
     return true;
 end
 
@@ -240,12 +240,21 @@ begin
     fi
 
     // Update the clock: clear lock bit and increment.
-    g_clock = clear_lock_bit(g_lock) + 1;
+    g_clock = clear_lock_bit(g_clock) + 1; // FIXME: atomic?
     g_num_of_fallbacks atomic -= 1;
 end
 
 def restart (ctx *__rhnorec_ctx) -> void
 begin
     // FIXME: Do I need to zero-out the non-jump_buffer portion of ctx?
-    __builtin_longjmp(ctx);
+    __builtin_longjmp(ctx.jump_buffer, 1);
 end
+
+def is_locked (clock u64) -> bool =
+    (0x8000000000000000U64 & clock) != 0U64;
+
+def set_lock_bit (clock u64) -> u64 =
+    0x8000000000000000U64 | clock;
+
+def clear_lock_bit (clock u64) -> u64 =
+    0x7FFFFFFFFFFFFFFFU64 & clock;
