@@ -74,6 +74,9 @@ val is_uinteger_type : deftype -> bool
 (** Return true iff the type is a pointer. *)
 val is_pointer_type : deftype -> bool
 
+(** Return true iff the type is an array. *)
+val is_array_type : deftype -> bool
+
 (** Return the size of the given type in bytes. *)
 val size_of : deftype Util.symtab -> deftype -> int
 

@@ -1111,8 +1111,12 @@ let convert_expr typemap fcnscope =
                get_field 0 fields
             in
             let tp = List.nth mtypes id in
-            volatility tp.dtvolatile tp,
-            Expr_SelectField (obj, id, tp.dtvolatile)
+            let fselect = Expr_SelectField(obj, id, tp.dtvolatile) in
+            let expr = if is_array_type tp then
+                         Expr_Unary (OperAddrOf, tp, fselect, true)
+                       else fselect
+            in
+            volatility tp.dtvolatile tp, expr
          | DefTypeLiteralUnion _ ->
             Report.err_internal __FILE__ __LINE__
                                 "Unions not supported at this time."
