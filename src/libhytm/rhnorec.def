@@ -80,6 +80,9 @@ end
 export
 def __rhnorec_fast_path_commit (ctx *__rhnorec_ctx) -> void
 begin
+    // Pre:
+    //   ctx.is_readonly == <true or false>
+
     if ctx.is_readonly then
         // Statically detected by the compiler.
         __builtin_xend();
@@ -103,6 +106,11 @@ end
 export
 def __rhnorec_slow_path_start (ctx *__rhnorec_ctx) -> void
 begin
+    // Pre:
+    //   ctx.is_rh_prefix_active == false
+    //   ctx.expected_length == <something sensible>
+    //   ctx.is_rh_active == false
+
     if htm_prefix_start(ctx) then
         return;
     fi
@@ -111,10 +119,10 @@ begin
     // FIXME: Wrap incr g_num_fallbacks.
     g_state.num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
-    do
-        // Save the clock.
-        ctx.is_tx_version = g_state.clock;
-    od while is_locked(ctx.is_tx_version);
+    ctx.is_tx_version = g_state.clock;
+    if is_locked(ctx.is_tx_version) then
+        restart(ctx);
+    fi
 end
 
 def htm_prefix_start (ctx *__rhnorec_ctx) -> bool
@@ -212,16 +220,13 @@ retry:
     return true;
 end
 
-def acquire_clock_lock (ctx *__rhnorec_ctx) -> bool
+def acquire_clock_lock (ctx *__rhnorec_ctx) -> void
 begin
     var marked = set_lock_bit(ctx.is_tx_version);
     if !__builtin_cas(&g_state.clock, ctx.is_tx_version, marked) then
-        // FIXME: What's the deal with restart?  And why does this function
-        // never return false?
         restart(ctx);
     fi
     ctx.is_tx_version = marked;
-    return true;
 end
 
 export
@@ -250,7 +255,7 @@ begin
     fi
 
     // Update the clock: clear lock bit and increment.
-    g_state.clock = clear_lock_bit(g_state.clock) + 1; // FIXME: atomic?
+    g_state.clock = clear_lock_bit(g_state.clock) + 1;
     g_state.num_of_fallbacks atomic -= 1;
 end
 
@@ -260,7 +265,7 @@ end
 
 def restart (ctx *__rhnorec_ctx) -> void
 begin
-    // FIXME: Do I need to zero-out the non-jump_buffer portion of ctx?
+    g_state.num_of_fallbacks atomic -= 1;
     __builtin_longjmp(ctx.jump_buffer, 1);
 end
 
