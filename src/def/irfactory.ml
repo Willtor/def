@@ -1127,7 +1127,9 @@ let rec get_const_val data = function
   | _ -> Report.err_internal __FILE__ __LINE__
                              "Not implemented case of get_const_val"
 
-let zero_llval data = function
+let rec zero_llval data rawtp =
+  let tp = concrete_of data.prog.deftypemap rawtp in
+  match tp.bare with
   | DefTypePrimitive prim ->
      let primzero = match prim with
        | PrimBool -> LitBool false
@@ -1143,7 +1145,12 @@ let zero_llval data = function
        | PrimF64 -> LitF64 0.0
      in
      process_literal data.typemap primzero
-  | _ -> Report.err_internal __FILE__ __LINE__ "Unknown zero val"
+  | DefTypeLiteralStruct (tp_list, _)
+  | DefTypeStaticStruct (tp_list) ->
+     let member_zeroes = List.map (fun t -> zero_llval data t) tp_list in
+     const_struct data.ctx (Array.of_list member_zeroes)
+  | _ -> Report.err_internal
+           __FILE__ __LINE__ ("Unknown zero val: " ^ (string_of_type tp))
 
 let declare_globals data symbols initializers name decl =
   let lltp = deftype2llvmtype data false decl.tp in
@@ -1176,7 +1183,7 @@ let declare_globals data symbols initializers name decl =
                llglobal
              else
                define_global decl.mappedname
-                             (zero_llval data decl.tp.bare)
+                             (zero_llval data decl.tp)
                              data.mdl
          in
          let () = if decl.is_tls then set_thread_local true llglobal in
