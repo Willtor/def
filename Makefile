@@ -81,7 +81,8 @@ DEFGHIFILES =		\
 LIBHYTM_SRC_DIR = src/libhytm
 LIBHYTMFILES =		\
 	Makefile	\
-	software_tran.def
+	software_tran.def	\
+	rhnorec.def
 
 COMMON_SRC = $(addprefix $(COMMON_BUILD_DIR)/,$(COMMONFILES))
 CIMPORT_SRC = $(addprefix $(CIMPORT_BUILD_DIR)/,$(CIMPORTFILES))

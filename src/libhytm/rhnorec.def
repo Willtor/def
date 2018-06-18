@@ -98,6 +98,7 @@ begin
     fi
 
     // Algorithm 2.
+    // FIXME: Wrap incr g_num_fallbacks.
     g_num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
     ctx.is_tx_version = g_clock;
