@@ -150,40 +150,6 @@ retry:
     return true;
 end
 
-export
-def __rhnorec_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
-begin
-    if ctx.is_rh_prefix_active then
-        ++ctx.prefix_reads;
-        if ctx.prefix_reads < ctx.max_reads then
-            return addr[0];
-        fi
-        commit_rh_htm_prefix(ctx);
-    fi
-
-    // Algorithm 2.
-    var ret = addr[0];
-    if ctx.is_tx_version != g_state.clock then
-        restart(ctx);
-    fi
-    return ret;
-end
-
-export
-def __rhnorec_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64)
-        -> void
-begin
-    if ctx.is_rh_prefix_active then
-        commit_rh_htm_prefix(ctx);
-    fi
-
-    // Algorithm 2.
-    if !ctx.is_write_detected then
-        handle_first_write(ctx);
-    fi
-    addr[0] = value;
-end
-
 def commit_rh_htm_prefix (ctx *__rhnorec_ctx) -> void
 begin
     g_state.num_of_fallbacks atomic += 1;
@@ -257,6 +223,149 @@ begin
     // Update the clock: clear lock bit and increment.
     g_state.clock = clear_lock_bit(g_state.clock) + 1;
     g_state.num_of_fallbacks atomic -= 1;
+end
+
+/**************************************************************************/
+/*                          Slow path read/write                          */
+/**************************************************************************/
+
+// FIXME: Need to implement structural macros to make this easier/cleaner/more
+// maintainable.  This is a mess of duplicated code.
+
+export
+def __rhnorec_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.is_tx_version != g_state.clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+export
+def __rhnorec_slow_path_read_32 (ctx *__rhnorec_ctx, addr *u32) -> u32
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.is_tx_version != g_state.clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+export
+def __rhnorec_slow_path_read_16 (ctx *__rhnorec_ctx, addr *u16) -> u16
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.is_tx_version != g_state.clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+export
+def __rhnorec_slow_path_read_8 (ctx *__rhnorec_ctx, addr *u8) -> u8
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.is_tx_version != g_state.clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+export
+def __rhnorec_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64)
+        -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
+end
+
+export
+def __rhnorec_slow_path_write_32 (ctx *__rhnorec_ctx, addr *u32, value u32)
+        -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
+end
+
+export
+def __rhnorec_slow_path_write_16 (ctx *__rhnorec_ctx, addr *u16, value u16)
+        -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
+end
+
+export
+def __rhnorec_slow_path_write_8 (ctx *__rhnorec_ctx, addr *u8, value u8)
+        -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
 end
 
 /**************************************************************************/
