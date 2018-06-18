@@ -36,10 +36,15 @@ typedef __rhnorec_ctx =
       is_readonly bool
     };
 
-// FIXME: Separate these out.  Shouldn't be on the same cache line, right?
-global g_htm_lock i64 = 0I64;
-global g_clock u64 = 0U64;
-global g_num_of_fallbacks u64 = 0U64;
+typedef g_state_t =
+    { htm_lock          volatile i64,
+      buff_1            [56]char,
+      clock             volatile u64,
+      buff_2            [56]char,
+      num_of_fallbacks  volatile u64
+    };
+
+global g_state g_state_t;
 
 export
 def __rhnorec_fast_path_start () -> bool
@@ -47,7 +52,7 @@ begin
     var n_retries = 4;
 retry:
     // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
-    // htm-lock is available (g_htm_lock == 0).
+    // htm-lock is available (g_state.htm_lock == 0).
 
     if -1 != __builtin_xbegin() then
         // HTM failed.
@@ -60,7 +65,7 @@ retry:
     fi
 
     // HTM started.
-    if g_htm_lock != 0 then
+    if g_state.htm_lock != 0 then
         // Get the lock into the write-set.
         __builtin_xabort(0);
     fi
@@ -76,11 +81,11 @@ begin
         return;
     fi
 
-    if g_num_of_fallbacks > 0 then
-        if is_locked(g_clock) then
+    if g_state.num_of_fallbacks > 0 then
+        if is_locked(g_state.clock) then
             __builtin_xabort(0);
         fi
-        ++g_clock;
+        ++g_state.clock;
     fi
 
     __builtin_xend();
@@ -99,9 +104,9 @@ begin
 
     // Algorithm 2.
     // FIXME: Wrap incr g_num_fallbacks.
-    g_num_of_fallbacks atomic += 1;
+    g_state.num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
-    ctx.is_tx_version = g_clock;
+    ctx.is_tx_version = g_state.clock;
     if is_locked(ctx.is_tx_version) then
         // Decrement num_of_fallbacks?  Presumably yes?  Is this part of
         // the restart() routine?  Presumably no?
@@ -114,7 +119,7 @@ begin
     var n_retries = 4;
 retry:
     // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
-    // htm-lock is available (g_htm_lock == 0).
+    // htm-lock is available (g_state.htm_lock == 0).
 
     if -1 != __builtin_xbegin() then
         if n_retries <= 0 then
@@ -125,7 +130,7 @@ retry:
     fi
 
     ctx.is_rh_prefix_active = true;
-    if g_htm_lock != 0 then
+    if g_state.htm_lock != 0 then
         __builtin_xabort(0);
     fi
     ctx.max_reads = ctx.expected_length;
@@ -146,7 +151,7 @@ begin
 
     // Algorithm 2.
     var ret = addr[0];
-    if ctx.is_tx_version != g_clock then
+    if ctx.is_tx_version != g_state.clock then
         restart(ctx);
     fi
     return ret;
@@ -169,9 +174,9 @@ end
 
 def commit_rh_htm_prefix (ctx *__rhnorec_ctx) -> void
 begin
-    g_num_of_fallbacks atomic += 1;
+    g_state.num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
-    ctx.is_tx_version = g_clock;
+    ctx.is_tx_version = g_state.clock;
     if is_locked(ctx.is_tx_version) then
         __builtin_xabort(0);
     fi
@@ -184,7 +189,7 @@ begin
     ctx.is_write_detected = true;
     acquire_clock_lock(ctx);
     if !start_htm_postfix(ctx) then
-        g_htm_lock = 1;
+        g_state.htm_lock = 1;
     fi
 end
 
@@ -206,7 +211,7 @@ end
 def acquire_clock_lock (ctx *__rhnorec_ctx) -> bool
 begin
     var marked = set_lock_bit(ctx.is_tx_version);
-    if !__builtin_cas(&g_clock, ctx.is_tx_version, marked) then
+    if !__builtin_cas(&g_state.clock, ctx.is_tx_version, marked) then
         // FIXME: What's the deal with restart?  And why does this function
         // never return false?
         restart(ctx);
@@ -226,7 +231,7 @@ begin
     // Algorithm 2.
     if !ctx.is_write_detected then
         // Read-only transaction.
-        g_num_of_fallbacks atomic -= 1;
+        g_state.num_of_fallbacks atomic -= 1;
     fi
 
     // If RH is on, then commit.
@@ -236,13 +241,13 @@ begin
     fi
 
     // If HTM lock is taken, then release it.
-    if g_htm_lock != 0 then
-        g_htm_lock = 0;
+    if g_state.htm_lock != 0 then
+        g_state.htm_lock = 0;
     fi
 
     // Update the clock: clear lock bit and increment.
-    g_clock = clear_lock_bit(g_clock) + 1; // FIXME: atomic?
-    g_num_of_fallbacks atomic -= 1;
+    g_state.clock = clear_lock_bit(g_state.clock) + 1; // FIXME: atomic?
+    g_state.num_of_fallbacks atomic -= 1;
 end
 
 def restart (ctx *__rhnorec_ctx) -> void
