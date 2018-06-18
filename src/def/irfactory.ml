@@ -1145,6 +1145,13 @@ let rec zero_llval data rawtp =
        | PrimF64 -> LitF64 0.0
      in
      process_literal data.typemap primzero
+  | DefTypeArray (subtype, n) ->
+     let llvmtp = convert_deftype2llvmtype data.ctx data.typemap
+                                           data.prog.deftypemap
+                                           (*should wrap?*)true subtype
+     in
+     let static_array = Array.make n (zero_llval data subtype) in
+     const_array llvmtp static_array
   | DefTypeLiteralStruct (tp_list, _)
   | DefTypeStaticStruct (tp_list) ->
      let member_zeroes = List.map (fun t -> zero_llval data t) tp_list in
