@@ -27,7 +27,7 @@ DEF is currently supported only on GNU/Linux.  Instructions are for Ubuntu (or D
 * Instructions are in README.md (or visit the Github site).
 
 **LLVM:**
-* DEF requires the TAPIR extension to LLVM, which you have to build yourself.  The meta-package can be found at: https://github.com/wsmoses/Tapir-Meta
+* DEF requires the TAPIR extension to LLVM, which you have to build yourself.  The meta-package can be found at: https://github.com/Willtor/Tapir-Meta
 * Follow the instructions for building.  Caution: The debug binaries can get quite large, leading to long build-times.  For better results, try building the release version.
 * You do not need to install TAPIR.
 * Set the environment variable, TAPIRPATH, to your /path/to/tapir, the parent of the build subdirectory that was created.
