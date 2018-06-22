@@ -25,25 +25,39 @@
  */
 
 typedef __rhnorec_ctx =
-    { is_tx_version u64,
+    { jump_buffer [20]*void,
+      is_tx_version u64,
       max_reads i16,
       expected_length i16,
       prefix_reads i16,
       is_rh_prefix_active bool,
       is_rh_active bool,
-      is_write_detected bool
+      is_write_detected bool,
+      is_readonly bool
     };
 
-// FIXME: Separate these out.  Shouldn't be on the same cache line, right?
-global global_htm_lock i64 = 0;
-global global_clock u64 = 0;
+typedef g_state_t =
+    { htm_lock          volatile i64,
+      buff_1            [56]char,
+      clock             volatile u64,
+      buff_2            [56]char,
+      num_of_fallbacks  volatile u64
+    };
 
-def fast_path_start (ctx *__rhnorec_ctx) -> bool
-begin // FIXME: Do we need the ctx parameter?  It's in the pseudo-code...
+global g_state g_state_t;
+
+/**************************************************************************/
+/*                               Fast path                                */
+/**************************************************************************/
+
+export
+def __rhnorec_fast_path_start () -> bool
+begin
     var n_retries = 4;
 retry:
-    // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
-    // htm-lock is available (global_htm_lock == 0).
+    while g_state.htm_lock != 0 do
+        // busy-wait until the lock is free.
+    od
 
     if -1 != __builtin_xbegin() then
         // HTM failed.
@@ -56,111 +70,93 @@ retry:
     fi
 
     // HTM started.
-    if global_htm_lock != 0 then
-        // Get the lock into the write-set.
-        __builtin_xabort();
+    if g_state.htm_lock != 0 then
+        // Get the lock into the read-set.
+        __builtin_xabort(0);
     fi
     return true;
 end
 
-def fast_path_commit (ctx *__rhnorec_ctx) -> void
+export
+def __rhnorec_fast_path_commit (ctx *__rhnorec_ctx) -> void
 begin
-    if ctx->is_readonly then
+    // Pre:
+    //   ctx.is_readonly == <true or false>
+
+    if ctx.is_readonly then
         // Statically detected by the compiler.
         __builtin_xend();
         return;
     fi
 
-    if num_of_fallbacks > 0 then
-        if is_locked(global_clock) then
-            __builtin_xabort();
+    if g_state.num_of_fallbacks > 0 then
+        if is_locked(g_state.clock) then
+            __builtin_xabort(0);
         fi
-        ++global_clock;
+        ++g_state.clock;
     fi
 
     __builtin_xend();
 end
 
 /**************************************************************************/
-/*                              Algorithm 2                               */
+/*                               Slow path                                */
 /**************************************************************************/
 
-def mixed_slow_path_start (ctx *__rhnorec_ctx) -> void
+export
+def __rhnorec_slow_path_start (ctx *__rhnorec_ctx) -> void
 begin
-    if start_rh_htm_prefix(ctx) then
+    // Pre:
+    //   ctx.is_rh_prefix_active == false
+    //   ctx.expected_length == <something sensible>
+    //   ctx.is_rh_active == false
+
+    if htm_prefix_start(ctx) then
         return;
     fi
 
     // Algorithm 2.
-    num_of_fallbacks atomic += 1;
+    // FIXME: Wrap incr g_num_fallbacks.
+    g_state.num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
-    ctx.is_tx_version = global_clock;
+    ctx.is_tx_version = g_state.clock;
     if is_locked(ctx.is_tx_version) then
         restart(ctx);
     fi
 end
 
-def start_rh_htm_prefix (ctx *__rhnorec_ctx) -> bool
+def htm_prefix_start (ctx *__rhnorec_ctx) -> bool
 begin
     var n_retries = 4;
 retry:
-    // FIXME: Not in Alex's pseudo-code, but we should busy-wait until the
-    // htm-lock is available (global_htm_lock == 0).
+    while g_state.htm_lock != 0 do
+        // busy-wait until the lock is free.
+    od
 
     if -1 != __builtin_xbegin() then
         if n_retries <= 0 then
             return false;
         fi
+        --n_retries;
         goto retry;
     fi
 
     ctx.is_rh_prefix_active = true;
-    if global_htm_lock != 0 then
-        __builtin_xabort();
+    if g_state.htm_lock != 0 then
+        __builtin_xabort(0);
     fi
     ctx.max_reads = ctx.expected_length;
     ctx.prefix_reads = 0;
     return true;
 end
 
-def mixed_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
-begin
-    if ctx.is_rh_prefix_active then
-        ++ctx.prefix_reads;
-        if ctx.prefix_reads < ctx.max_reads then
-            return addr[0];
-        fi
-        commit_rh_htm_prefix(ctx);
-    fi
-
-    // Algorithm 2.
-    var ret = addr[0];
-    if ctx.tx_version != global_clock then
-        restart(ctx);
-    fi
-    return ret;
-end
-
-def mixed_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64) -> void
-begin
-    if ctx.is_rh_prefix_active then
-        commit_rh_htm_prefix(ctx);
-    fi
-
-    // Algorithm 2.
-    if !ctx.is_write_detected then
-        handle_first_write(ctx);
-    fi
-    addr[0] = value;
-end
-
 def commit_rh_htm_prefix (ctx *__rhnorec_ctx) -> void
 begin
-    ++num_of_fallbacks;
+    g_state.num_of_fallbacks atomic += 1;
     ctx.is_write_detected = false;
-    ctx.tx_version = global_clock;
-    if is_locked(ctx.tx_version) then
-        __builtin_xabort();
+    ctx.is_tx_version = g_state.clock;
+    if is_locked(ctx.is_tx_version) then
+        __builtin_xabort(0);
     fi
     __builtin_xend();
     ctx.is_rh_prefix_active = false;
@@ -171,7 +167,7 @@ begin
     ctx.is_write_detected = true;
     acquire_clock_lock(ctx);
     if !start_htm_postfix(ctx) then
-        global_htm_lock = 1;
+        g_state.htm_lock = 1;
     fi
 end
 
@@ -190,19 +186,17 @@ retry:
     return true;
 end
 
-def acquire_clock_lock (ctx *__rhnorec_ctx) -> bool
+def acquire_clock_lock (ctx *__rhnorec_ctx) -> void
 begin
-    var marked = set_lock_bit(ctx.tx_version);
-    if !__builtin_cas(&global_clock, ctx.tx_version, marked) then
-        // FIXME: What's the deal with restart?  And why does this function
-        // never return false?
+    var marked = set_lock_bit(ctx.is_tx_version);
+    if !__builtin_cas(&g_state.clock, ctx.is_tx_version, marked) then
         restart(ctx);
     fi
-    ctx.tx_version = marked;
-    return true;
+    ctx.is_tx_version = marked;
 end
 
-def mixed_slow_path_commit (ctx *__rhnorec_ctx) -> void
+export
+def __rhnorec_mixed_slow_path_commit (ctx *__rhnorec_ctx) -> void
 begin
     if ctx.is_rh_prefix_active then
         __builtin_xend();
@@ -212,7 +206,7 @@ begin
     // Algorithm 2.
     if !ctx.is_write_detected then
         // Read-only transaction.
-        num_of_fallbacks atomic -= 1;
+        g_state.num_of_fallbacks atomic -= 1;
     fi
 
     // If RH is on, then commit.
@@ -222,11 +216,173 @@ begin
     fi
 
     // If HTM lock is taken, then release it.
-    if global_htm_lock != 0 then
-        global_htm_lock = 0;
+    if g_state.htm_lock != 0 then
+        g_state.htm_lock = 0;
     fi
 
     // Update the clock: clear lock bit and increment.
-    global_clock = clear_lock_bit(global_lock) + 1;
-    num_of_fallbacks atomic -= 1;
+    g_state.clock = clear_lock_bit(g_state.clock) + 1;
+    g_state.num_of_fallbacks atomic -= 1;
 end
+
+/**************************************************************************/
+/*                          Slow path read/write                          */
+/**************************************************************************/
+
+// FIXME: Need to implement structural macros to make this easier/cleaner/more
+// maintainable.  This is a mess of duplicated code.
+
+export
+def __rhnorec_slow_path_read_64 (ctx *__rhnorec_ctx, addr *u64) -> u64
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.is_tx_version != g_state.clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+export
+def __rhnorec_slow_path_read_32 (ctx *__rhnorec_ctx, addr *u32) -> u32
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.is_tx_version != g_state.clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+export
+def __rhnorec_slow_path_read_16 (ctx *__rhnorec_ctx, addr *u16) -> u16
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.is_tx_version != g_state.clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+export
+def __rhnorec_slow_path_read_8 (ctx *__rhnorec_ctx, addr *u8) -> u8
+begin
+    if ctx.is_rh_prefix_active then
+        ++ctx.prefix_reads;
+        if ctx.prefix_reads < ctx.max_reads then
+            return addr[0];
+        fi
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    var ret = addr[0];
+    if ctx.is_tx_version != g_state.clock then
+        restart(ctx);
+    fi
+    return ret;
+end
+
+export
+def __rhnorec_slow_path_write_64 (ctx *__rhnorec_ctx, addr *u64, value u64)
+        -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
+end
+
+export
+def __rhnorec_slow_path_write_32 (ctx *__rhnorec_ctx, addr *u32, value u32)
+        -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
+end
+
+export
+def __rhnorec_slow_path_write_16 (ctx *__rhnorec_ctx, addr *u16, value u16)
+        -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
+end
+
+export
+def __rhnorec_slow_path_write_8 (ctx *__rhnorec_ctx, addr *u8, value u8)
+        -> void
+begin
+    if ctx.is_rh_prefix_active then
+        commit_rh_htm_prefix(ctx);
+    fi
+
+    // Algorithm 2.
+    if !ctx.is_write_detected then
+        handle_first_write(ctx);
+    fi
+    addr[0] = value;
+end
+
+/**************************************************************************/
+/*                               Utilities                                */
+/**************************************************************************/
+
+def restart (ctx *__rhnorec_ctx) -> void
+begin
+    g_state.num_of_fallbacks atomic -= 1;
+    __builtin_longjmp(ctx.jump_buffer, 1);
+end
+
+def is_locked (clock u64) -> bool =
+    (0x8000000000000000U64 & clock) != 0U64;
+
+def set_lock_bit (clock u64) -> u64 =
+    0x8000000000000000U64 | clock;
+
+def clear_lock_bit (clock u64) -> u64 =
+    0x7FFFFFFFFFFFFFFFU64 & clock;

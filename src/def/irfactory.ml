@@ -56,6 +56,51 @@ let fcn_attrs =
    ("target-cpu", "x86-64")
   ]
 
+let mini_macro_of =
+  let set = Hashtbl.create 4 in
+  let builtins =
+    [
+      ("__builtin_setjmp",
+       (fun args ->
+         let jumpbuf = List.hd args in
+         let argtp = makeptr (maketype None DefTypeVoid) in
+         let jumpbuftp = makeptr argtp in
+         [ Expr_Binary (Util.faux_pos, OperAssign, false,
+                        makeptr (maketype None DefTypeVoid),
+                        Expr_Index (jumpbuf,
+                                    Expr_Literal (LitI32 0l),
+                                    argtp,
+                                    true, false, false),
+                        Expr_FcnCall ("llvm.frameaddress",
+                                      [Expr_Literal (LitI32 0l)]));
+            Expr_Binary (Util.faux_pos, OperAssign, false,
+                        makeptr (maketype None DefTypeVoid),
+                        Expr_Index (jumpbuf,
+                                    Expr_Literal (LitI32 2l),
+                                    argtp,
+                                    true, false, false),
+                        Expr_FcnCall ("llvm.stacksave", []));
+           Expr_FcnCall ("llvm.eh.sjlj.setjmp",
+                         [Expr_Cast (jumpbuftp, argtp, jumpbuf)])
+         ]));
+
+      ("__builtin_longjmp",
+       (fun args ->
+         let jumpbuf = List.hd args in
+         let argtp = makeptr (maketype None DefTypeVoid) in
+         let jumpbuftp = makeptr argtp in
+         [ Expr_FcnCall ("llvm.eh.sjlj.longjmp",
+                         [Expr_Cast(jumpbuftp, argtp, jumpbuf)])
+         ]))
+    ]
+  in
+  List.iter
+    (fun (macro, expansion) -> Hashtbl.add set macro expansion)
+    builtins;
+  fun name args ->
+  try let expansion = Hashtbl.find set name in Some (expansion args)
+  with _ -> None
+
 let debug_locations = Hashtbl.create 32
 
 let get_fcntype = function
@@ -285,6 +330,7 @@ let bytes tp =
      | PrimF64 -> 8
      end
   | _ ->
+     let () = prerr_endline (string_of_type tp) in
      Report.err_internal __FILE__ __LINE__ "Non primitive type."
 
 let get_debug_location data =
@@ -733,18 +779,28 @@ let process_expr data llvals varmap pos_n_expr =
        in
        obj
     | Expr_FcnCall (name, args) ->
-       let (_, tp, var) = the (lookup_symbol varmap name) in
-       let arg_vals = List.map (expr_gen true) args in
-       (* Protect programmers from this function pointer nonsense. *)
-       let callee = match classify_value var with
-         | ValueKind.Function -> var
-         | _ -> build_load_wrapper var tp "callee" data.bldr
-       in
-       let retname = match tp.bare with
-         | DefTypeFcn (_, { bare = DefTypeVoid }, _) -> ""
-         | _ -> "def_call"
-       in
-       build_call callee (Array.of_list arg_vals) retname data.bldr
+       let mini_macro = mini_macro_of name args in
+       if mini_macro <> None then
+         let ret =
+           List.fold_left
+             (fun _ expr -> Some (expr_gen true expr))
+             None
+             (Util.the mini_macro)
+         in
+         Util.the ret
+       else
+         let (_, tp, var) = the (lookup_symbol varmap name) in
+         let arg_vals = List.map (expr_gen true) args in
+         (* Protect programmers from this function pointer nonsense. *)
+         let callee = match classify_value var with
+           | ValueKind.Function -> var
+           | _ -> build_load_wrapper var tp "callee" data.bldr
+         in
+         let retname = match tp.bare with
+           | DefTypeFcn (_, { bare = DefTypeVoid }, _) -> ""
+           | _ -> "def_call"
+         in
+         build_call callee (Array.of_list arg_vals) retname data.bldr
     | Expr_FcnCall_Refs (nm, args) ->
        let arg_vals =
          List.map Util.the (List.map (lookup_symbol llvals) args) in
@@ -1071,7 +1127,9 @@ let rec get_const_val data = function
   | _ -> Report.err_internal __FILE__ __LINE__
                              "Not implemented case of get_const_val"
 
-let zero_llval data = function
+let rec zero_llval data rawtp =
+  let tp = concrete_of data.prog.deftypemap rawtp in
+  match tp.bare with
   | DefTypePrimitive prim ->
      let primzero = match prim with
        | PrimBool -> LitBool false
@@ -1087,7 +1145,19 @@ let zero_llval data = function
        | PrimF64 -> LitF64 0.0
      in
      process_literal data.typemap primzero
-  | _ -> Report.err_internal __FILE__ __LINE__ "Unknown zero val"
+  | DefTypeArray (subtype, n) ->
+     let llvmtp = convert_deftype2llvmtype data.ctx data.typemap
+                                           data.prog.deftypemap
+                                           (*should wrap?*)true subtype
+     in
+     let static_array = Array.make n (zero_llval data subtype) in
+     const_array llvmtp static_array
+  | DefTypeLiteralStruct (tp_list, _)
+  | DefTypeStaticStruct (tp_list) ->
+     let member_zeroes = List.map (fun t -> zero_llval data t) tp_list in
+     const_struct data.ctx (Array.of_list member_zeroes)
+  | _ -> Report.err_internal
+           __FILE__ __LINE__ ("Unknown zero val: " ^ (string_of_type tp))
 
 let declare_globals data symbols initializers name decl =
   let lltp = deftype2llvmtype data false decl.tp in
@@ -1120,7 +1190,7 @@ let declare_globals data symbols initializers name decl =
                llglobal
              else
                define_global decl.mappedname
-                             (zero_llval data decl.tp.bare)
+                             (zero_llval data decl.tp)
                              data.mdl
          in
          let () = if decl.is_tls then set_thread_local true llglobal in

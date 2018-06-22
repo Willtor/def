@@ -2,7 +2,7 @@ DEF ?= def
 AR = ar
 TARGET = libhytm.a
 
-SRC = software_tran.def
+SRC = software_tran.def rhnorec.def
 OBJ = $(SRC:.def=.o)
 
 all: $(TARGET)

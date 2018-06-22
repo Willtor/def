@@ -93,6 +93,7 @@ let add_builtin_fcns stmts =
   in
   let typify = maketype (Some pos) in
   let void_type = typify DefTypeVoid in
+  let i8_type = typify @@ DefTypePrimitive PrimI8 in
   let i32_type = typify @@ DefTypePrimitive PrimI32 in
   let u64_type = typify @@ DefTypePrimitive PrimU64 in
   let token_type = typify @@ DefTypeLLVMToken in
@@ -106,6 +107,11 @@ let add_builtin_fcns stmts =
       DeclFcn (pos, Types.VisExternal, "__builtin_xend",
                typify
                @@ DefTypeFcn ([], void_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "__builtin_xabort",
+               typify
+               @@ DefTypeFcn ([i8_type], void_type, false),
                []);
 
       DeclFcn (pos, Types.VisExternal, "forkscan_malloc",
@@ -133,6 +139,11 @@ let add_builtin_fcns stmts =
                @@ DefTypeFcn ([], void_type, false),
                []);
 
+      DeclFcn (pos, Types.VisExternal, "llvm.x86.xabort",
+               typify
+               @@ DefTypeFcn ([i8_type], void_type, false),
+               []);
+
       DeclFcn (pos, Types.VisExternal, "__defrts_hybrid_xbegin",
                typify
                @@ DefTypeFcn ([], void_type, false),
@@ -146,6 +157,26 @@ let add_builtin_fcns stmts =
       DeclFcn (pos, Types.VisExternal, "llvm.syncregion.start",
                typify
                @@ DefTypeFcn ([], token_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "llvm.stacksave",
+               typify
+               @@ DefTypeFcn ([], makeptr void_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "llvm.frameaddress",
+               typify
+               @@ DefTypeFcn ([i32_type], makeptr void_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "llvm.eh.sjlj.setjmp",
+               typify
+               @@ DefTypeFcn ([makeptr void_type], i32_type, false),
+               []);
+
+      DeclFcn (pos, Types.VisExternal, "llvm.eh.sjlj.longjmp",
+               typify
+               @@ DefTypeFcn ([makeptr void_type], void_type, false),
                [])
     ]
   in

@@ -275,6 +275,11 @@ let is_pointer_type t = match t.bare with
   | DefTypePtr _ -> true
   | _ -> false
 
+(** Return true iff the type is an array. *)
+let is_array_type t = match t.bare with
+  | DefTypeArray _ -> true
+  | _ -> false
+
 let ptr_size = 8
 
 (** Return the size of the given type in bytes. *)

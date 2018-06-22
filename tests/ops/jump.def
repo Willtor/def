@@ -1,0 +1,18 @@
+// Unit test for __builtin_setjmp and __builtin_longjmp.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var buf [20]*void;
+
+    if 0 == __builtin_setjmp(buf) then
+        printf("First time through.\n");
+        __builtin_longjmp(buf, 1);
+        return 1;
+    fi
+
+    printf("Second time through.\n");
+    return 0;
+end
