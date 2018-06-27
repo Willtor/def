@@ -659,13 +659,16 @@ let rec maybe_cast typemap orig cast_as expr =
 (** Determine whether one type can be cast as another.  This function returns
     unit, as it only reports an error if it fails. *)
 let check_castability pos typemap ltype rtype =
+  let err = fun () -> Report.err_cant_cast
+                        pos (string_of_type ltype) (string_of_type rtype)
+  in
   let rec similar (l, r) =
     match l.bare, r.bare with
     | DefTypePrimitive _, DefTypePrimitive _ ->
        ()  (* FIXME: Implement. *)
     | DefTypeFcn (plist1, ret1, v1), DefTypeFcn (plist2, ret2, v2) ->
        begin
-         List.iter identical (List.combine plist1 plist2);
+         List.iter identical (Util.err_combine err plist1 plist2);
          identical (ret1, ret2);
          if v1 != v2 then Report.err_type_mismatch pos
        end
@@ -680,12 +683,12 @@ let check_castability pos typemap ltype rtype =
        similar (l, (the @@ lookup_symbol typemap nm))
     | DefTypeStaticStruct smembers, DefTypeLiteralStruct (lmembers, _)
     | DefTypeLiteralStruct (lmembers, _), DefTypeStaticStruct smembers ->
-       List.iter similar (List.combine lmembers smembers)
+       List.iter similar (Util.err_combine err lmembers smembers)
     | DefTypeLiteralStruct (lhs, _), DefTypeLiteralStruct (rhs, _) ->
-       List.iter similar (List.combine lhs rhs)
+       List.iter similar (Util.err_combine err lhs rhs)
     | DefTypeLiteralUnion (lmembers, _),
       DefTypeLiteralUnion (smembers, _) ->
-       List.iter similar (List.combine lmembers smembers)
+       List.iter similar (Util.err_combine err lmembers smembers)
     | DefTypePrimitive _, _ ->
        Report.err_internal __FILE__ __LINE__ (format_position pos)
     | DefTypePtr _, DefTypeNullPtr
@@ -723,7 +726,7 @@ let check_castability pos typemap ltype rtype =
            DefTypeLiteralStruct (rmembers, _)
          | DefTypeStaticStruct lmembers,
            DefTypeStaticStruct rmembers ->
-            List.iter similar (List.combine lmembers rmembers)
+            List.iter similar (Util.err_combine err lmembers rmembers)
          | _ ->
             begin
               prerr_endline (string_of_type ltype);

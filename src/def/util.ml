@@ -146,3 +146,10 @@ let explode_string s =
     else explode (n - 1) (s.[n] :: accum)
   in
   explode ((String.length s) - 1) [Char.chr 0]
+
+(** Combine two lists, but use the provided err function in case of failure *)
+let err_combine err l1 l2 =
+  if (List.length l1) <> (List.length l2) then
+    err ()
+  else
+    List.combine l1 l2

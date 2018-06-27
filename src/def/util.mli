@@ -56,3 +56,7 @@ val find_path_to : ?follow_symlinks:bool -> string -> string list -> string
 
 (** Convert a string to a list of chars. *)
 val explode_string : string -> char list
+
+(** Combine two lists, but use the provided err function in case of failure *)
+val err_combine : (unit -> ('a * 'a) list) -> 'a list -> 'a list
+                  -> ('a * 'a) list
