@@ -661,8 +661,8 @@ let rec maybe_cast typemap orig cast_as expr =
 (** Determine whether one type can be cast as another.  This function returns
     unit, as it only reports an error if it fails. *)
 let check_castability pos typemap ltype rtype =
-  let err = fun () -> Report.err_cant_cast
-                        pos (string_of_type ltype) (string_of_type rtype)
+  let err () = Report.err_cant_cast
+                 pos (string_of_type ltype) (string_of_type rtype)
   in
   let rec similar (l, r) =
     match l.bare, r.bare with
@@ -703,11 +703,8 @@ let check_castability pos typemap ltype rtype =
        Report.err_cant_cast pos (string_of_type l) (string_of_type r)
     | _ ->
        if equivalent_types l r then ()
-       else
-         Report.err_internal __FILE__ __LINE__
-                             ("incomplete cast for " ^ (string_of_type l)
-                              ^ " to " ^ (string_of_type r) ^ ": "
-                              ^ (format_position pos))
+       else err ()
+
   and identical (ltype, rtype) =
     let rec concrete_of tp =
       match tp.bare with
