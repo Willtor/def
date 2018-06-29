@@ -484,7 +484,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
        | _ ->
           Report.err_internal __FILE__ __LINE__ "Dereferenced unknown type."
        end
-    | ExprSelectField (_, _, base, field) ->
+    | ExprSelectField (pos, _, base, field) ->
        let rec get_field_tp t =
          match t.bare with
          | DefTypeNamed name ->
@@ -494,7 +494,9 @@ let infer_type_from_expr typemap scope toplevel_expr =
             | FieldNumber n -> List.nth tlist n
             | FieldName s ->
                let f (_, nm) = if s = nm then true else false in
-               let tp, _ = List.find f (List.combine tlist names) in
+               let tp, _ = try List.find f (List.combine tlist names)
+                           with _ -> Report.err_struct_no_such_member pos s
+               in
                tp
             end
          | DefTypeStaticStruct tlist ->
