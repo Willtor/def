@@ -528,11 +528,20 @@ let dwarf_of =
 
 (** If the type is a named type, dereference it using the typemap until a
     non-named type is reached. *)
-let concrete_of typemap tp =
+let concrete_of maybe_pos typemap tp =
   let rec concrete tp =
     match tp.bare with
     | DefTypeNamed name ->
-       concrete (Util.the @@ lookup_symbol typemap name)
+       let t = match lookup_symbol typemap name with
+         | Some t -> t
+         | None ->
+            if maybe_pos <> None then
+              Report.err_unknown_typename (the maybe_pos) name
+            else
+              Report.err_internal __FILE__ __LINE__
+                                  ("unknown type: " ^ name)
+       in
+       concrete t
     | _ -> tp
   in
   concrete tp

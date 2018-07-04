@@ -610,13 +610,8 @@ let rec make_size_expr typemap p tp dimension_opt =
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
 let rec maybe_cast typemap orig cast_as expr =
-  let rec concrete_of tp =
-    match tp.bare with
-    | DefTypeNamed nm -> concrete_of (the @@ lookup_symbol typemap nm)
-    | _ -> tp
-  in
-  let concrete_orig = concrete_of orig
-  and concrete_as = concrete_of cast_as in
+  let concrete_orig = concrete_of None typemap orig
+  and concrete_as = concrete_of None typemap cast_as in
   if equivalent_types concrete_orig concrete_as then expr
   else
     match concrete_as.bare with
@@ -706,14 +701,8 @@ let check_castability pos typemap ltype rtype =
        else err ()
 
   and identical (ltype, rtype) =
-    let rec concrete_of tp =
-      match tp.bare with
-      | DefTypeNamed subtype ->
-         concrete_of (Util.the @@ lookup_symbol typemap subtype)
-      | _ -> tp
-    in
-    let left = concrete_of ltype
-    and right = concrete_of rtype
+    let left = concrete_of (Some pos) typemap ltype
+    and right = concrete_of (Some pos) typemap rtype
     in
     if equivalent_types left right then ()
     else match left.bare, right.bare with

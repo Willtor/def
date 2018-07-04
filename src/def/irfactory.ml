@@ -186,7 +186,7 @@ let build_types ctx deftypes =
     match lookup_symbol typemap name with
     | Some _ -> ()
     | None ->
-       begin match (concrete_of deftypes deftype).bare with
+       begin match (concrete_of None deftypes deftype).bare with
        | DefTypeLiteralStruct _ ->
           add_symbol typemap name (named_struct_type ctx name)
        | DefTypeLiteralUnion _ ->
@@ -200,7 +200,7 @@ let build_types ctx deftypes =
     match lookup_symbol typemap name with
     | Some _ -> ()
     | None ->
-       begin match (concrete_of deftypes deftype).bare with
+       begin match (concrete_of None deftypes deftype).bare with
        | DefTypePrimitive _ ->
           add_symbol typemap name (do_convert deftype)
        | DefTypeEnum _ ->
@@ -228,7 +228,7 @@ let build_types ctx deftypes =
     match lookup_symbol typemap name with
     | Some _ -> ()
     | None ->
-       begin match (concrete_of deftypes deftype).bare with
+       begin match (concrete_of None deftypes deftype).bare with
        | DefTypeLiteralStruct _
        | DefTypeLiteralUnion _
        | DefTypeOpaque _
@@ -464,7 +464,7 @@ let process_expr data llvals varmap pos_n_expr =
     in
     let is_wildcard v = if v = Expr_Wildcard then true else false in
 
-    let basetp = concrete_of data.prog.deftypemap tp in
+    let basetp = concrete_of None data.prog.deftypemap tp in
     let integer_math = (is_integer_type basetp) || (is_pointer_type basetp) in
     let is_signed = if is_integer_type basetp then signed_p basetp else false
     in
@@ -612,8 +612,8 @@ let process_expr data llvals varmap pos_n_expr =
        ("make_llvm_tp incomplete: " ^ (string_of_type deftp))
 
   and build_cast raw_from raw_to e =
-    let from_tp = concrete_of data.prog.deftypemap raw_from
-    and to_tp = concrete_of data.prog.deftypemap raw_to
+    let from_tp = concrete_of None data.prog.deftypemap raw_from
+    and to_tp = concrete_of None data.prog.deftypemap raw_to
     in
     let build_primitive_cast t1 t2 =
       let llvm_to_tp =
@@ -1128,7 +1128,7 @@ let rec get_const_val data = function
                              "Not implemented case of get_const_val"
 
 let rec zero_llval data rawtp =
-  let tp = concrete_of data.prog.deftypemap rawtp in
+  let tp = concrete_of None data.prog.deftypemap rawtp in
   match tp.bare with
   | DefTypePrimitive prim ->
      let primzero = match prim with

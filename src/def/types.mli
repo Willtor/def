@@ -98,4 +98,5 @@ val dwarf_of : deftype -> (int * Llvmext.dwarf_type)
 
 (** If the type is a named type, dereference it using the typemap until a
     non-named type is reached. *)
-val concrete_of : deftype Util.symtab -> deftype -> deftype
+val concrete_of : Lexing.position option -> deftype Util.symtab -> deftype
+                  -> deftype
