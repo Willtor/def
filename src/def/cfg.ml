@@ -138,8 +138,8 @@ type function_scope =
   }
 
 (* Builtin function names. *)
-let hwtm_begin = "llvm.x86.begin"
-let hwtm_end = "llvm.x86.xend"
+let hwtm_begin = "__builtin_xbegin"
+let hwtm_end = "__builtin_xend"
 let hytm_begin = "__defrts_hybrid_xbegin"
 let hytm_end = "__defrts_hybrid_xend"
 let new_fcn = "forkscan_malloc"
