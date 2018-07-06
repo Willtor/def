@@ -127,6 +127,44 @@ LLVMValueRef LLVMDISubroutineType (LLVMContextRef ctx,
 }
 
 static
+LLVMValueRef LLVMDIStructType (LLVMContextRef ctx,
+                               DIBuilderRef dib,
+                               LLVMValueRef scope,
+                               const char *name,
+                               LLVMValueRef file,
+                               unsigned int line,
+                               uint64_t size_in_bits,
+                               uint32_t align_in_bits,
+                               value members)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    std::vector<Metadata*> mvector;
+    int i;
+    for (i = 0; Val_int(0) != members; ++i) {
+        LLVMValueRef member =
+            reinterpret_cast<LLVMValueRef>(Field(members, 0));
+        Metadata *mtype =
+            dyn_cast<Metadata>(unwrap<MetadataAsValue>(member)->getMetadata());
+        mvector.push_back(mtype);
+        members = Field(members, 1);
+    }
+    ArrayRef<Metadata*> marray(mvector);
+    DINodeArray mlist = ((DIBuilder*)dib)->getOrCreateArray(marray);
+    DICompositeType *type =
+        ((DIBuilder*)dib)->createStructType(VALUEREF2METADATA(DIScope, scope),
+                                            name,
+                                            VALUEREF2METADATA(DIFile, file),
+                                            line,
+                                            size_in_bits,
+                                            align_in_bits,
+                                            DINode::FlagZero,
+                                            nullptr,
+                                            mlist // DINodeArray
+                                            );
+    return wrap(MetadataAsValue::get(Context, type));
+}
+
+static
 LLVMValueRef LLVMDIFunction (LLVMContextRef ctx,
                              DIBuilderRef dib,
                              char *fname,
@@ -282,6 +320,41 @@ LLVMValueRef llvm_disubroutine_type (LLVMContextRef ctx,
                                      value ret_and_params)
 {
     return LLVMDISubroutineType(ctx, dib, ret_and_params);
+}
+
+/** Get a new DICompositeType for the given struct members.
+ *  llcontext -> lldibuilder -> llvalue -> string -> llvalue -> int -> int
+ *  -> int -> llvalue list -> llvalue
+ */
+extern "C"
+LLVMValueRef llvm_distruct_type (value ctx,
+                                 value dib,
+                                 value scope,
+                                 value name,
+                                 value file,
+                                 value line,
+                                 value size_in_bits,
+                                 value align_in_bits,
+                                 value members)
+{
+    return LLVMDIStructType(reinterpret_cast<LLVMContextRef>(ctx),
+                            reinterpret_cast<DIBuilderRef>(dib),
+                            reinterpret_cast<LLVMValueRef>(scope),
+                            String_val(name),
+                            reinterpret_cast<LLVMValueRef>(file),
+                            (unsigned int)Int_val(line),
+                            (uint64_t)Int_val(size_in_bits),
+                            (uint32_t)Int_val(align_in_bits),
+                            members);
+}
+
+/** Bytecode wrapper for llvm_distruct_type.
+ */
+extern "C"
+LLVMValueRef llvm_distruct_type_bc (value *argv, int argc)
+{
+    return llvm_distruct_type(argv[0], argv[1], argv[2], argv[3], argv[4],
+                              argv[5], argv[6], argv[7], argv[8]);
 }
 
 /** Create debugging info for a function.

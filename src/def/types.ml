@@ -282,8 +282,8 @@ let is_array_type t = match t.bare with
 
 let ptr_size = 8
 
-(** Return the size of the given type in bytes. *)
-let size_of typemap tp =
+(** Return the size and alignment of the given type in bytes. *)
+let size_and_align_of typemap tp =
   let rec size_n_alignment t =
     match t.bare with
     | DefTypeUnresolved _ ->
@@ -346,7 +346,11 @@ let size_of typemap tp =
     | DefTypeLLVMToken ->
        Report.err_internal __FILE__ __LINE__ "Shouldn't need size of LLVM token."
   in
-  let sz, _ = size_n_alignment tp in sz
+  size_n_alignment tp
+
+(** Return the size of the given type in bytes. *)
+let size_of typemap tp =
+  let sz, _ = size_and_align_of typemap tp in sz
 
 (** Convert the type into its string representation. *)
 let rec string_of_type t = match t.bare with
@@ -522,9 +526,9 @@ let rec contains_wildcard t = match t.bare with
 (** Get the dwarf type of a primitive type. *)
 let dwarf_of =
   let dwarf = Hashtbl.create 16 in
-  List.iter (fun (_, p, _, _, sz, d) -> Hashtbl.add dwarf p (sz, d))
+  List.iter (fun (_, p, _, _, sz, d) -> Hashtbl.add dwarf p.bare (sz, d))
             map_builtin_types;
-  Hashtbl.find dwarf
+  fun tp -> Hashtbl.find dwarf tp.bare
 
 (** If the type is a named type, dereference it using the typemap until a
     non-named type is reached. *)

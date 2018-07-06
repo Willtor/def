@@ -77,6 +77,9 @@ val is_pointer_type : deftype -> bool
 (** Return true iff the type is an array. *)
 val is_array_type : deftype -> bool
 
+(** Return the size and alignment of the given type in bytes. *)
+val size_and_align_of : deftype Util.symtab -> deftype -> int * int
+
 (** Return the size of the given type in bytes. *)
 val size_of : deftype Util.symtab -> deftype -> int
 

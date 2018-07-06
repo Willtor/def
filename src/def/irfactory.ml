@@ -920,6 +920,7 @@ let get_debug_type =
   fun data ->
   let ctx = data.ctx in
   let dib = Util.the data.dib in
+  let typemap = data.prog.deftypemap in
   let rec lookup_type tp =
     try Hashtbl.find debug_types tp
     with _ ->
@@ -938,8 +939,19 @@ let get_debug_type =
          | DefTypePtr p ->
             let base_type = lookup_type p in
             create (dipointer_type ctx dib base_type 64)
+         | DefTypeLiteralStruct (tplist, name_list) ->
+            let mlist = List.map lookup_type tplist in
+            let scope = Util.the data.difile in
+            let name = "" in
+            let file = Util.the data.difile in (* FIXME: #NotAllStructs *)
+            let pos = Util.the tp.dtpos in
+            let size, align = size_and_align_of typemap tp in
+            let size, align = size * 8, align * 8 in
+            create (distruct_type ctx dib scope name file pos.pos_lnum size
+                      align mlist)
          | _ ->
-            Report.err_internal __FILE__ __LINE__ "Incomplete debug type info."
+            Report.err_internal __FILE__ __LINE__
+              ("Incomplete debug type info for " ^ (string_of_type tp))
   in
   lookup_type
 

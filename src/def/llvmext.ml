@@ -90,6 +90,12 @@ external disubroutine_type :
   llcontext -> lldibuilder -> llvalue list -> llvalue
   = "llvm_disubroutine_type"
 
+(** Create debugging info for a struct. *)
+external distruct_type :
+  llcontext -> lldibuilder -> llvalue -> string -> llvalue -> int -> int
+  -> int -> llvalue list -> llvalue
+  = "llvm_distruct_type_bc" "llvm_distruct_type"
+
 (** Create debugging info for a function. *)
 external difunction :
   llcontext -> lldibuilder -> string -> llvalue -> llvalue -> int -> bool
