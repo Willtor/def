@@ -119,6 +119,7 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
        let ret = match lookup_symbol typemap nm with
          | Some t -> t
          | None ->
+            (* Shouldn't be undefined.  Report how far-reaching the bug is. *)
             begin match lookup_symbol deftypemap nm with
               | Some t ->
                  Report.err_internal __FILE__ __LINE__
@@ -273,7 +274,7 @@ let build_types ctx deftypes =
        end
   in
   let build_structs name tp =
-    match tp.bare with
+    match (concrete_of None deftypes tp).bare with
     | DefTypeLiteralStruct (members, _) ->
        let llvm_members =
          List.map do_convert members in
@@ -824,7 +825,7 @@ let process_expr data llvals varmap pos_n_expr =
     | Expr_Variable name ->
        begin match lookup_symbol varmap name with
        | None -> Report.err_internal __FILE__ __LINE__
-          ("Failed to find variable " ^ name ^ ".")
+                   ("Failed to find variable " ^ name ^ ".")
        | Some (_, { bare = DefTypeFcn _ }, llvar) ->
           if not rvalue_p then llvar
           else begin match classify_value llvar with
