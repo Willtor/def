@@ -941,13 +941,13 @@ let get_debug_type =
          | DefTypePrimitive p ->
             let sz, dtype = dwarf_of tp in
             create (dibasic_type ctx dib (primitive2string p) sz dtype)
-         | DefTypePtr p ->
-            let base_type = lookup_type p in
-            create (dipointer_type ctx dib base_type 64)
          | DefTypeFcn (params, ret, (*variadic:*)_) ->
             let plist = List.map lookup_type params in
             let r = lookup_type ret in
             create (disubroutine_type ctx dib (r :: plist))
+         | DefTypePtr p ->
+            let base_type = lookup_type p in
+            create (dipointer_type ctx dib base_type 64)
          | DefTypeEnum _ ->
             (* FIXME: To implement correctly:
                DIBuilder::createEnumerationType() -- for the type.
