@@ -1819,7 +1819,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
          check_castability pos typemap tp ret_type;
          match tp.bare, expr with
          | DefTypeStaticStruct _, Expr_StaticStruct (_, elist) ->
-            let decl = make_decl pos scope "defret" tp in
+            let decl = make_decl pos scope "defret" ret_type in
             let nm = decl.mappedname in
             let () = add_decl decl in
             let structvar = Expr_Variable nm in
