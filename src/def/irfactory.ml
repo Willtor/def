@@ -923,6 +923,8 @@ let get_debug_type =
   let dib = Util.the data.dib in
   let typemap = data.prog.deftypemap in
   let rec lookup_type tp =
+    (* FIXME: Recursive types overflow the stack.  Need to figure out how to
+       forward-declare in DefTypeNamed. *)
     try Hashtbl.find debug_types tp
     with _ ->
          let create t =
