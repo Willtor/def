@@ -948,6 +948,10 @@ let get_debug_type =
          | DefTypePtr p ->
             let base_type = lookup_type p in
             create (dipointer_type ctx dib base_type 64)
+         | DefTypeArray (subtype, n) ->
+            let base_type = lookup_type subtype in
+            let sz, align = size_and_align_of typemap subtype in
+            create (diarray_type ctx dib n sz align base_type)
          | DefTypeEnum _ ->
             (* FIXME: To implement correctly:
                DIBuilder::createEnumerationType() -- for the type.

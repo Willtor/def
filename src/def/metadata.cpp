@@ -105,6 +105,29 @@ LLVMValueRef LLVMDIPointerType (LLVMContextRef ctx,
 }
 
 static
+LLVMValueRef LLVMDIArrayType (LLVMContextRef ctx,
+                              DIBuilderRef dib,
+                              uint64_t dim,
+                              uint64_t size,
+                              uint32_t align,
+                              LLVMValueRef ty)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    std::vector<Metadata*> subvector;
+    subvector.push_back(((DIBuilder*)dib)->getOrCreateSubrange(0, dim));
+    ArrayRef<Metadata*> subs(subvector);
+    DINodeArray subscripts =
+        ((DIBuilder*)dib)->getOrCreateArray(subs);
+    DICompositeType *type =
+        ((DIBuilder*)dib)
+        ->createArrayType(size * dim * 8,
+                          align * 8,
+                          VALUEREF2METADATA(DIType, ty),
+                          subscripts);
+    return wrap(MetadataAsValue::get(Context, type));
+}
+
+static
 LLVMValueRef LLVMDISubroutineType (LLVMContextRef ctx,
                                    DIBuilderRef dib,
                                    value ret_and_params)
@@ -328,6 +351,34 @@ LLVMValueRef llvm_dipointer_type (LLVMContextRef ctx,
                                   value size)
 {
     return LLVMDIPointerType(ctx, dib, base_type, Int_val(size));
+}
+
+/** Get a new array type of the given base type.
+ *  llcontext -> lldibuilder -> int -> int -> int -> llvalue -> llvalue
+ */
+extern "C"
+LLVMValueRef llvm_diarray_type (value ctx,
+                                value dib,
+                                value dim,
+                                value size,
+                                value align,
+                                value ty)
+{
+    return LLVMDIArrayType(reinterpret_cast<LLVMContextRef>(ctx),
+                           reinterpret_cast<DIBuilderRef>(dib),
+                           (uint64_t)Int_val(dim),
+                           (uint64_t)Int_val(size),
+                           (uint32_t)Int_val(align),
+                           reinterpret_cast<LLVMValueRef>(ty));
+}
+
+/** Bytecode wrapper for llvm_diarray_type.
+ */
+extern "C"
+LLVMValueRef llvm_diarray_type_bc (value *argv, int argc)
+{
+    return llvm_diarray_type(argv[0], argv[1], argv[2], argv[3], argv[4],
+                             argv[5]);
 }
 
 /** Get a new DISubroutineType for the given return value + parameters.

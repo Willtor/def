@@ -85,6 +85,11 @@ external dipointer_type :
   llcontext -> lldibuilder -> llvalue -> int -> llvalue
   = "llvm_dipointer_type"
 
+(** Get a new array type of the given base type. *)
+external diarray_type :
+  llcontext -> lldibuilder -> int -> int -> int -> llvalue -> llvalue
+  = "llvm_diarray_type_bc" "llvm_diarray_type"
+
 (** Get a new DISubroutineType for the given return value + parameters. *)
 external disubroutine_type :
   llcontext -> lldibuilder -> llvalue list -> llvalue
