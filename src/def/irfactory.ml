@@ -948,6 +948,15 @@ let get_debug_type =
             let plist = List.map lookup_type params in
             let r = lookup_type ret in
             create (disubroutine_type ctx dib (r :: plist))
+         | DefTypeEnum _ ->
+            (* FIXME: To implement correctly:
+               DIBuilder::createEnumerationType() -- for the type.
+               DIBuilder::createEnumerator()      -- for individual values.
+               This is a hack to just make enums integers.  Don't have time to
+               implement now.
+             *)
+            let sz, dtype = 32, DW_ATE_SIGNED in
+            create (dibasic_type ctx dib "i32" sz dtype)
          | DefTypeLiteralStruct (tplist, name_list) ->
             let mlist = List.map lookup_type tplist in
             let scope = Util.the data.difile in (* FIXME: #NotAllStructs *)
