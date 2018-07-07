@@ -96,6 +96,12 @@ external distruct_type :
   -> int -> llvalue list -> llvalue
   = "llvm_distruct_type_bc" "llvm_distruct_type"
 
+(** Create debugging info for a typedef. *)
+external ditypedef_type :
+  llcontext -> lldibuilder -> llvalue -> string -> llvalue -> int -> llvalue
+  -> llvalue
+  = "llvm_ditypedef_type_bc" "llvm_ditypedef_type"
+
 (** Create debugging info for a function. *)
 external difunction :
   llcontext -> lldibuilder -> string -> llvalue -> llvalue -> int -> bool

@@ -941,14 +941,22 @@ let get_debug_type =
             create (dipointer_type ctx dib base_type 64)
          | DefTypeLiteralStruct (tplist, name_list) ->
             let mlist = List.map lookup_type tplist in
-            let scope = Util.the data.difile in
+            let scope = Util.the data.difile in (* FIXME: #NotAllStructs *)
             let name = "" in
-            let file = Util.the data.difile in (* FIXME: #NotAllStructs *)
+            let file = Util.the data.difile in
             let pos = Util.the tp.dtpos in
             let size, align = size_and_align_of typemap tp in
             let size, align = size * 8, align * 8 in
             create (distruct_type ctx dib scope name file pos.pos_lnum size
                       align mlist)
+         | DefTypeNamed name ->
+            let decl_type = Util.the @@ lookup_symbol typemap name in
+            let lldecl_type = lookup_type decl_type in
+            let file = Util.the data.difile in
+            let scope = Util.the data.difile in (* FIXME: #NotAllTypedefs *)
+            let pos = Util.the tp.dtpos in
+            create (ditypedef_type ctx dib lldecl_type name file pos.pos_lnum
+                      scope)
          | _ ->
             Report.err_internal __FILE__ __LINE__
               ("Incomplete debug type info for " ^ (string_of_type tp))

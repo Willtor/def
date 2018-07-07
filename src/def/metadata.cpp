@@ -165,6 +165,25 @@ LLVMValueRef LLVMDIStructType (LLVMContextRef ctx,
 }
 
 static
+LLVMValueRef LLVMDITypedefType (LLVMContextRef ctx,
+                                DIBuilderRef dib,
+                                LLVMValueRef orig_type,
+                                const char *name,
+                                LLVMValueRef file,
+                                unsigned int line,
+                                LLVMValueRef scope)
+{
+    LLVMContext &Context = *unwrap(ctx);
+    DIDerivedType *type =
+        ((DIBuilder*)dib)->createTypedef(VALUEREF2METADATA(DIType, orig_type),
+                                         name,
+                                         VALUEREF2METADATA(DIFile, file),
+                                         line,
+                                         VALUEREF2METADATA(DIScope, scope));
+    return wrap(MetadataAsValue::get(Context, type));
+}
+
+static
 LLVMValueRef LLVMDIFunction (LLVMContextRef ctx,
                              DIBuilderRef dib,
                              char *fname,
@@ -355,6 +374,37 @@ LLVMValueRef llvm_distruct_type_bc (value *argv, int argc)
 {
     return llvm_distruct_type(argv[0], argv[1], argv[2], argv[3], argv[4],
                               argv[5], argv[6], argv[7], argv[8]);
+}
+
+/** Create debugging info for a typedef.
+ *  llcontext -> lldibuilder -> llvalue -> string -> llvalue -> int -> llvalue
+ *  -> llvalue
+ */
+extern "C"
+LLVMValueRef llvm_ditypedef_type (value ctx,
+                                  value dib,
+                                  value orig_type,
+                                  value name,
+                                  value file,
+                                  value line,
+                                  value scope)
+{
+    return LLVMDITypedefType(reinterpret_cast<LLVMContextRef>(ctx),
+                             reinterpret_cast<DIBuilderRef>(dib),
+                             reinterpret_cast<LLVMValueRef>(orig_type),
+                             String_val(name),
+                             reinterpret_cast<LLVMValueRef>(file),
+                             (unsigned int)Int_val(line),
+                             reinterpret_cast<LLVMValueRef>(scope));
+}
+
+/** Bytecode wrapper for llvm_ditypedef_type.
+ */
+extern "C"
+LLVMValueRef llvm_ditypedef_type_bc (value *argv, int argc)
+{
+    return llvm_ditypedef_type(argv[0], argv[1], argv[2], argv[3], argv[4],
+                               argv[5], argv[6]);
 }
 
 /** Create debugging info for a function.

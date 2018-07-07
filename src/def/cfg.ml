@@ -410,11 +410,11 @@ let resolve_type typemap typename oldtp =
     | DefTypeNullPtr -> t
     | DefTypeEnum _ -> t
     | DefTypeLiteralStruct (fields, names) ->
-       maketype None (DefTypeLiteralStruct (List.map v fields, names))
+       maketype t.dtpos (DefTypeLiteralStruct (List.map v fields, names))
     | DefTypeStaticStruct members ->
-       maketype None (DefTypeStaticStruct (List.map v members))
+       maketype t.dtpos (DefTypeStaticStruct (List.map v members))
     | DefTypeLiteralUnion (fields, names) ->
-       maketype None (DefTypeLiteralUnion (List.map v fields, names))
+       maketype t.dtpos (DefTypeLiteralUnion (List.map v fields, names))
     | DefTypeVAList -> t
     | DefTypeWildcard -> t
     | DefTypeLLVMToken -> t
