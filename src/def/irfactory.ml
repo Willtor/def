@@ -930,16 +930,24 @@ let get_debug_type =
            t
          in
          match tp.bare with
-         | DefTypeFcn (params, ret, (*variadic:*)_) ->
-            let plist = List.map lookup_type params in
-            let r = lookup_type ret in
-            create (disubroutine_type ctx dib (r :: plist))
+         | DefTypeNamed name ->
+            let decl_type = Util.the @@ lookup_symbol typemap name in
+            let lldecl_type = lookup_type decl_type in
+            let file = Util.the data.difile in
+            let scope = Util.the data.difile in (* FIXME: #NotAllTypedefs *)
+            let pos = Util.the tp.dtpos in
+            create (ditypedef_type ctx dib lldecl_type name file pos.pos_lnum
+                      scope)
          | DefTypePrimitive p ->
             let sz, dtype = dwarf_of tp in
             create (dibasic_type ctx dib (primitive2string p) sz dtype)
          | DefTypePtr p ->
             let base_type = lookup_type p in
             create (dipointer_type ctx dib base_type 64)
+         | DefTypeFcn (params, ret, (*variadic:*)_) ->
+            let plist = List.map lookup_type params in
+            let r = lookup_type ret in
+            create (disubroutine_type ctx dib (r :: plist))
          | DefTypeLiteralStruct (tplist, name_list) ->
             let mlist = List.map lookup_type tplist in
             let scope = Util.the data.difile in (* FIXME: #NotAllStructs *)
@@ -950,14 +958,6 @@ let get_debug_type =
             let size, align = size * 8, align * 8 in
             create (distruct_type ctx dib scope name file pos.pos_lnum size
                       align mlist)
-         | DefTypeNamed name ->
-            let decl_type = Util.the @@ lookup_symbol typemap name in
-            let lldecl_type = lookup_type decl_type in
-            let file = Util.the data.difile in
-            let scope = Util.the data.difile in (* FIXME: #NotAllTypedefs *)
-            let pos = Util.the tp.dtpos in
-            create (ditypedef_type ctx dib lldecl_type name file pos.pos_lnum
-                      scope)
          | _ ->
             Report.err_internal __FILE__ __LINE__
               ("Incomplete debug type info for " ^ (string_of_type tp))
