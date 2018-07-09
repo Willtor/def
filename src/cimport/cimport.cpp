@@ -16,6 +16,12 @@
    02110-1301, USA.
  */
 
+/*
+  NOTE: ESCAPE comments indicate a place where an OCaml [value] might escape
+  the garbage collector.  It isn't clear to me how to (or whether one can)
+  store [value]s in a C++ structure, such as an STL hash map.
+ */
+
 // Based on the Xinhuang Clang FindDecl tutorial at:
 // https://github.com/xinhuang/clang-playground
 
