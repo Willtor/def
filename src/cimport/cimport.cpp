@@ -16,12 +16,6 @@
    02110-1301, USA.
  */
 
-/*
-  NOTE: ESCAPE comments indicate a place where an OCaml [value] might escape
-  the garbage collector.  It isn't clear to me how to (or whether one can)
-  store [value]s in a C++ structure, such as an STL hash map.
- */
-
 // Based on the Xinhuang Clang FindDecl tutorial at:
 // https://github.com/xinhuang/clang-playground
 
@@ -51,7 +45,7 @@ using namespace clang::tooling;
 using namespace llvm;
 using namespace std;
 
-static vector<value> cvalues;
+static value cv_list;
 static map<SourceLocation, string> fund_types;
 
 static value reverse_list (value list)
@@ -67,6 +61,17 @@ static value reverse_list (value list)
         list = cdr;
     }
     CAMLreturn(reversed_list);
+}
+
+void push_cv (value v)
+{
+    CAMLparam1(v);
+    CAMLlocal1(tmp);
+    tmp = caml_alloc(2, 0);
+    Store_field(tmp, 0, v);
+    Store_field(tmp, 1, cv_list);
+    cv_list = tmp;
+    CAMLreturn0;
 }
 
 class DeclVisitor : public clang::RecursiveASTVisitor<DeclVisitor> {
@@ -286,8 +291,7 @@ private:
         Store_field(fcn, 3, is_variadic);
         Store_field(fcn, 4, rettp);
 
-        // ESCAPE
-        cvalues.push_back(fcn);
+        push_cv(fcn);
 
         CAMLreturn0;
     }
@@ -351,8 +355,7 @@ private:
         Store_field(sdecl, 0, pos);
         Store_field(sdecl, 1, sname);
         Store_field(sdecl, 2, type_opt);
-        // ESCAPE
-        cvalues.push_back(sdecl);
+        push_cv(sdecl);
 
         CAMLreturn0;
     }
@@ -377,8 +380,7 @@ private:
         Store_field(tdecl, 0, pos);
         Store_field(tdecl, 1, tname);
         Store_field(tdecl, 2, SomeT);
-        // ESCAPE
-        cvalues.push_back(tdecl);
+        push_cv(tdecl);
 
         CAMLreturn0;
     }
@@ -398,8 +400,7 @@ private:
         Store_field(vdecl, 1, vname);
         Store_field(vdecl, 2, vtype);
         Store_field(vdecl, 3, Val_bool(decl->hasExternalFormalLinkage()));
-        // ESCAPE
-        cvalues.push_back(vdecl);
+        push_cv(vdecl);
 
         CAMLreturn0;
     }
@@ -434,6 +435,10 @@ public:
 value cimport_file (const char *filename, int argc, const char **argv)
 {
     CAMLparam0();
+
+    cv_list = Val_int(0);
+    caml_register_global_root(&cv_list);
+
     std::vector<std::string> source_files;
     source_files.push_back(filename);
 
@@ -446,28 +451,18 @@ value cimport_file (const char *filename, int argc, const char **argv)
         abort();
     }
 
-    // Build the list of cvalues.
-    CAMLlocal1 (cv_list);
-    cv_list = Val_int(0);
-    for (vector<value>::iterator cvi = cvalues.begin();
-         cvi != cvalues.end();
-         ++cvi) {
-        CAMLlocal1 (tmp);
-        tmp = caml_alloc(2, 0);
-        Store_field(tmp, 0, *cvi);
-        Store_field(tmp, 1, cv_list);
-        cv_list = tmp;
-    }
     cv_list = reverse_list(cv_list);
 
-    // Empty the cvalues and fund_types sets in case this function gets called
-    // again.  It would be "very bad" to have stale data lying around.
-    // ESCAPE?
-    cvalues.clear();
-    // ESCAPE?
+    CAMLlocal1 (ret_list);
+    ret_list = cv_list;
+    cv_list = Val_int(0);
+    caml_remove_global_root(&cv_list);
+
+    // Empty the fund_types sets in case this function gets called again.  It
+    // would be "very bad" to have stale data lying around.
     fund_types.clear();
 
-    CAMLreturn(cv_list);
+    CAMLreturn(ret_list);
 }
 
 /** import_c_file f p: Import the C header file, f, using the include
@@ -477,22 +472,23 @@ extern "C"
 CAMLprim value cimport_import_c_file (value filename, value paths)
 {
     CAMLparam2 (filename, paths);
-    char *file = String_val(filename);
+    string file(String_val(filename));
 
     std::vector<std::string> path_vec;
     for ( ; paths != Val_int(0); paths = Field(paths, 1)) {
-        // ESCAPE?
+        // String_val(...) is GC-safe, here.  The STL string will duplicate
+        // the char*'s contents.
         path_vec.push_back(std::string("-I") + String_val(Field(paths, 0)));
     }
     path_vec.push_back(std::string("-D__def=1"));
     int argc = path_vec.size() + 3;
     const char *argv[argc];
     argv[0] = "def";
-    argv[1] = file;
+    argv[1] = file.c_str();
     argv[2] = "--";
     for (int i = 3; i < argc; ++i) {
         argv[i] = path_vec[i - 3].c_str();
     }
 
-    CAMLreturn(cimport_file(file, argc, argv));
+    CAMLreturn(cimport_file(file.c_str(), argc, argv));
 }
