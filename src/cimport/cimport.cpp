@@ -201,9 +201,10 @@ private:
             }
             param_list = reverse_list(param_list);
 
-            value pos = position_of_SourceLocation(loc);
-            value rettype = readType(ftype->getReturnType(), loc);
-            value prototype = caml_alloc(4, 3);
+            CAMLlocal3 (pos, rettype, prototype);
+            pos = position_of_SourceLocation(loc);
+            rettype = readType(ftype->getReturnType(), loc);
+            prototype = caml_alloc(4, 3);
             Store_field(prototype, 0, pos);
             Store_field(prototype, 1, param_list);
             Store_field(prototype, 2, Val_int(ftype->isVariadic()));
