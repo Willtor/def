@@ -2073,6 +2073,8 @@ let resolve_builtins stmts typemap defined_syms =
   let rec process_stmt = function
     | StmtExpr (p, e) -> StmtExpr (p, process_expr e)
     | Block (p, stmts) -> Block (p, List.map process_stmt stmts)
+    | TransactionBlock (p, stmts) ->
+       TransactionBlock (p, List.map process_stmt stmts)
     | DefFcn (p, doc, vis, name, tp, params, stmts) ->
        DefFcn(p, doc, vis, name, tp, params, List.map process_stmt stmts)
     | VarDecl (decl, vars, inits, tp, vis) ->
