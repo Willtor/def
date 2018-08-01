@@ -36,7 +36,7 @@ let position_of_stmt = function
   | DefTemplateFcn (pos, _, _, _, _, _, _)
   | VarDecl ({td_pos = pos}, _, _, _, _)
   | InlineStructVarDecl ({td_pos = pos}, _, _)
-  | TransactionBlock (pos, _)
+  | TransactionBlock (pos, _, _)
   | IfStmt (pos, _, _, _)
   | ForLoop (pos, _, _, _, _, _, _)
   | WhileLoop (pos, _, _, _)
@@ -76,8 +76,12 @@ let kill_dead_code =
          proc (stmt :: accum) rest
       | InlineStructVarDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
-      | TransactionBlock (pos, body) :: rest ->
-         let stmt = TransactionBlock (pos, proc [] body) in
+      | TransactionBlock (pos, body, None) :: rest ->
+         let stmt = TransactionBlock (pos, proc [] body, None) in
+         proc (stmt :: accum) rest
+      | TransactionBlock (pos, body, Some (fpos, fbody)) :: rest ->
+         let stmt = TransactionBlock (pos, proc [] body,
+                                      Some (fpos, proc [] fbody)) in
          proc (stmt :: accum) rest
       | IfStmt (pos, cond, thenblk, maybe_else) :: rest ->
          let stmt = IfStmt (pos, cond, proc [] thenblk,

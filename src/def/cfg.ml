@@ -192,6 +192,10 @@ let make_fcn_scope scope_pos vars =
     fs_scope_pos  = scope_pos
   }
 
+let is_hardware_xact = function
+  | XACT_HARDWARE -> true
+  | _ -> false
+
 let combine3 a b c =
   let rec combine accum = function
     | [], [], [] -> List.rev accum
@@ -1341,7 +1345,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
     }
   in
 
-  let begin_xact prev_bb pos scope =
+  let begin_xact prev_bb pos scope fallback_bb fallback_end_bb =
     let label = label_of_pos pos in
     match !xact_kind with
     | XACT_HARDWARE ->
@@ -1355,7 +1359,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
        begin
          add_next prev_bb bb;
          add_next bb xact_bb;
-         add_next bb bb;
+         add_next bb fallback_bb;
+         add_next fallback_end_bb bb;
          xact_bb
        end
     | XACT_HYBRID ->
@@ -1555,10 +1560,23 @@ let rec build_bbs name decltable typemap fcn_pos body =
          make_sequential_bb (label_of_pos p) ((p, cexpr) :: inits) in
        let () = add_next prev_bb bb in
        process_bb scope bb rest
-    | TransactionBlock (pos, body) :: rest ->
+    | TransactionBlock (pos, body, xfail_opt) :: rest ->
        (* FIXME: Breaking/continuing/goto-ing out of the block should commit
                  the transaction. *)
-       let enter_bb = begin_xact prev_bb pos scope in
+       let fallback_bb = make_sequential_bb ("xfail." ^ (label_of_pos pos)) []
+       in
+       let fallback_end_bb = match xfail_opt with
+         | None -> fallback_bb
+         | Some (fpos, fstmts) ->
+            if not (is_hardware_xact !xact_kind) then
+              Report.err_internal __FILE__ __LINE__
+                "xfail not supported except in hardware-only mode."
+            else
+              let fscope = push_scope fpos scope in
+              process_bb fscope fallback_bb fstmts
+       in
+       let enter_bb = begin_xact prev_bb pos scope fallback_bb fallback_end_bb
+       in
 
        let body_scope = push_scope ~xaction:true pos scope in
        let body_end_bb = process_bb body_scope enter_bb body in
@@ -2073,8 +2091,11 @@ let resolve_builtins stmts typemap defined_syms =
   let rec process_stmt = function
     | StmtExpr (p, e) -> StmtExpr (p, process_expr e)
     | Block (p, stmts) -> Block (p, List.map process_stmt stmts)
-    | TransactionBlock (p, stmts) ->
-       TransactionBlock (p, List.map process_stmt stmts)
+    | TransactionBlock (p, stmts, None) ->
+       TransactionBlock (p, List.map process_stmt stmts, None)
+    | TransactionBlock (p, stmts, Some (fp, fstmts)) ->
+       TransactionBlock (p, List.map process_stmt stmts,
+                         Some (fp, List.map process_stmt fstmts))
     | DefFcn (p, doc, vis, name, tp, params, stmts) ->
        DefFcn(p, doc, vis, name, tp, params, List.map process_stmt stmts)
     | VarDecl (decl, vars, inits, tp, vis) ->
