@@ -1915,7 +1915,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
   in
   let replace_gotos table () = function
     | BB_Goto (label, block) as old_bb ->
-       let replacement = BB_Seq ("goto_stmt", block) in
+       let newbb_label = "goto_stmt." ^ (Util.unique_id ()) in
+       let replacement = BB_Seq (newbb_label, block) in
        let replace_in_prev = function
          | BB_Seq (_, blk) -> blk.seq_next <- replacement
          | BB_Cond (_, blk) ->
