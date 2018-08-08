@@ -423,8 +423,15 @@ let process_expr data llvals varmap pos_n_expr =
         else build_fneg)
          llvm_expr "neg" bldr
     | OperLogicalNot ->
+       (* FIXME: I think this may be wrong.  Investigate build_not, which may
+          do bitwise... pretty sure is bitwise...
+
+          Do a compare against zero and then zext? *)
        let llvm_expr = expr_gen true expr in
        build_not llvm_expr "lnot" bldr
+    | OperBitwiseNot ->
+       let llvm_expr = expr_gen true expr in
+       build_not llvm_expr "bnot" bldr
     | _ ->
        Report.err_internal __FILE__ __LINE__
                            ("llvm_unop not fully implemented: operator "
