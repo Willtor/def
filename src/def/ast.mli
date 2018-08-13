@@ -49,7 +49,7 @@ and expr =
   | ExprCast of position * Types.deftype * expr
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * field_id
-  | ExprStaticStruct of position * (position * expr) list
+  | ExprStaticStruct of (*is_packed=*)bool * position * (position * expr) list
   | ExprStaticArray of position * (position * expr) list
   | ExprType of position * Types.deftype
   | ExprTypeString of position * expr

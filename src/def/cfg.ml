@@ -43,7 +43,8 @@ type cfg_expr =
                   * (*deref_base=*)bool * (*array=*)bool
                   * (*is_volatile=*)bool
   | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
-  | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
+  | Expr_StaticStruct of (*is_packed=*)bool * string option
+                         * (Types.deftype * cfg_expr) list
   | Expr_StaticArray of cfg_expr list
   | Expr_Nil
   | Expr_Wildcard
@@ -323,8 +324,8 @@ let rec get_field_types typemap tp =
   match tp.bare with
   | DefTypeNamed nm ->
      get_field_types typemap (Util.the @@ lookup_symbol typemap nm)
-  | DefTypeLiteralStruct (types, _) -> types
-  | DefTypeStaticStruct types -> types
+  | DefTypeLiteralStruct (_, types, _) -> types
+  | DefTypeStaticStruct (_, types) -> types
   | DefTypeLiteralUnion (types, _) -> types
   | _ -> Report.err_internal __FILE__ __LINE__ "Unable to get field types."
 
@@ -413,10 +414,12 @@ let resolve_type typemap typename oldtp =
     | DefTypeArray (tp, n) -> maketype None (DefTypeArray (v tp, n))
     | DefTypeNullPtr -> t
     | DefTypeEnum _ -> t
-    | DefTypeLiteralStruct (fields, names) ->
-       maketype t.dtpos (DefTypeLiteralStruct (List.map v fields, names))
-    | DefTypeStaticStruct members ->
-       maketype t.dtpos (DefTypeStaticStruct (List.map v members))
+    | DefTypeLiteralStruct (is_packed, fields, names) ->
+       maketype t.dtpos
+         (DefTypeLiteralStruct (is_packed, List.map v fields, names))
+    | DefTypeStaticStruct (is_packed, members) ->
+       maketype t.dtpos
+         (DefTypeStaticStruct (is_packed, List.map v members))
     | DefTypeLiteralUnion (fields, names) ->
        maketype t.dtpos (DefTypeLiteralUnion (List.map v fields, names))
     | DefTypeVAList -> t
@@ -493,7 +496,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
          match t.bare with
          | DefTypeNamed name ->
             get_field_tp (Util.the (lookup_symbol typemap name))
-         | DefTypeLiteralStruct (tlist, names) ->
+         | DefTypeLiteralStruct (_, tlist, names) ->
             begin match field with
             | FieldNumber n -> List.nth tlist n
             | FieldName s ->
@@ -503,7 +506,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
                in
                tp
             end
-         | DefTypeStaticStruct tlist ->
+         | DefTypeStaticStruct (_, tlist) ->
             begin match field with
             | FieldNumber n -> List.nth tlist n
             | _ -> Report.err_internal __FILE__ __LINE__
@@ -515,10 +518,10 @@ let infer_type_from_expr typemap scope toplevel_expr =
                                     "Trying to get field from non-struct."
        in
        get_field_tp (infer base)
-    | ExprStaticStruct (_, fields) ->
+    | ExprStaticStruct (is_packed, _, fields) ->
        let ftypes = List.map (fun (_, e) -> infer e) fields in
        (* Becomes a literal struct since variables are never static structs. *)
-       maketype None (DefTypeLiteralStruct (ftypes, []))
+       maketype None (DefTypeLiteralStruct (is_packed, ftypes, []))
     | ExprStaticArray (pos, elements) ->
        let atypes = List.map (fun (_, e) -> infer e) elements in
        let tp = most_general_type pos typemap atypes in
@@ -619,9 +622,9 @@ let rec maybe_cast typemap orig cast_as expr =
   if equivalent_types concrete_orig concrete_as then expr
   else
     match concrete_as.bare with
-    | DefTypeLiteralStruct (tplist, _) ->
+    | DefTypeLiteralStruct (p1, tplist, _) ->
        begin match expr with
-       | Expr_StaticStruct (_, exprmembers) ->
+       | Expr_StaticStruct (p2, _, exprmembers) when p1 = p2 ->
           let castmembers =
             List.map2
               (fun to_tp (from_tp, e) ->
@@ -633,7 +636,7 @@ let rec maybe_cast typemap orig cast_as expr =
             | DefTypeNamed name -> Some name
             | _ -> None
           in
-          Expr_StaticStruct (name_opt, castmembers)
+          Expr_StaticStruct (p2, name_opt, castmembers)
        | _ ->
           let () = prerr_endline (string_of_type orig) in
           let () = prerr_endline (string_of_type cast_as) in
@@ -682,11 +685,15 @@ let check_castability pos typemap ltype rtype =
        similar ((the @@ lookup_symbol typemap nm), r)
     | _, DefTypeNamed nm ->
        similar (l, (the @@ lookup_symbol typemap nm))
-    | DefTypeStaticStruct smembers, DefTypeLiteralStruct (lmembers, _)
-    | DefTypeLiteralStruct (lmembers, _), DefTypeStaticStruct smembers ->
-       List.iter similar (Util.err_combine err lmembers smembers)
-    | DefTypeLiteralStruct (lhs, _), DefTypeLiteralStruct (rhs, _) ->
-       List.iter similar (Util.err_combine err lhs rhs)
+    | DefTypeStaticStruct (p1, smembers),
+      DefTypeLiteralStruct (p2, lmembers, _)
+    | DefTypeLiteralStruct (p1, lmembers, _),
+      DefTypeStaticStruct (p2, smembers) ->
+       if p1 <> p2 then err ()
+       else List.iter similar (Util.err_combine err lmembers smembers)
+    | DefTypeLiteralStruct (p1, lhs, _), DefTypeLiteralStruct (p2, rhs, _) ->
+       if p1 <> p2 then err ()
+       else List.iter similar (Util.err_combine err lhs rhs)
     | DefTypeLiteralUnion (lmembers, _),
       DefTypeLiteralUnion (smembers, _) ->
        List.iter similar (Util.err_combine err lmembers smembers)
@@ -710,15 +717,16 @@ let check_castability pos typemap ltype rtype =
     in
     if equivalent_types left right then ()
     else match left.bare, right.bare with
-         | DefTypeLiteralStruct (lmembers, _),
-           DefTypeLiteralStruct (rmembers, _)
-         | DefTypeLiteralStruct (lmembers, _),
-           DefTypeStaticStruct rmembers
-         | DefTypeStaticStruct lmembers,
-           DefTypeLiteralStruct (rmembers, _)
-         | DefTypeStaticStruct lmembers,
-           DefTypeStaticStruct rmembers ->
-            List.iter similar (Util.err_combine err lmembers rmembers)
+         | DefTypeLiteralStruct (p1, lmembers, _),
+           DefTypeLiteralStruct (p2, rmembers, _)
+         | DefTypeLiteralStruct (p1, lmembers, _),
+           DefTypeStaticStruct (p2, rmembers)
+         | DefTypeStaticStruct (p1, lmembers),
+           DefTypeLiteralStruct (p2, rmembers, _)
+         | DefTypeStaticStruct (p1, lmembers),
+           DefTypeStaticStruct (p2, rmembers) ->
+            if p1 <> p2 then err ()
+            else List.iter similar (Util.err_combine err lmembers rmembers)
          | _ ->
             begin
               prerr_endline (string_of_type ltype);
@@ -983,7 +991,7 @@ let convert_expr typemap fcnscope =
           let mtypes, fields = match tp.bare with
             | DefTypeNamed sname ->
                begin match (the (lookup_symbol typemap sname)).bare with
-               | DefTypeLiteralStruct (mtypes, fields) -> mtypes, fields
+               | DefTypeLiteralStruct (_, mtypes, fields) -> mtypes, fields
                | _ ->
                   Report.err_internal __FILE__ __LINE__
                                       ("Struct " ^ sname ^ " is not literal")
@@ -1091,7 +1099,7 @@ let convert_expr typemap fcnscope =
        let otype, converted_obj = convert obj in
        let rec record_select obj tp =
          match tp.bare with
-         | DefTypeLiteralStruct (mtypes, fields) ->
+         | DefTypeLiteralStruct (_, mtypes, fields) ->
             let id = match field with
             | FieldNumber n ->
                if n >= (List.length mtypes) then
@@ -1129,12 +1137,12 @@ let convert_expr typemap fcnscope =
     | ExprCast (pos, to_tp, e) ->
        let from_tp, converted_expr = convert e in
        to_tp, maybe_cast typemap from_tp to_tp converted_expr
-    | ExprStaticStruct (_, members) ->
+    | ExprStaticStruct (is_packed, _, members) ->
        let cmembers = List.map (fun (_, e) -> convert e) members in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
                                  (t :: taccum)) [] cmembers) in
-       maketype None (DefTypeStaticStruct tlist),
-       Expr_StaticStruct (None, cmembers)
+       maketype None (DefTypeStaticStruct (is_packed, tlist)),
+       Expr_StaticStruct (is_packed, None, cmembers)
     | ExprStaticArray (pos, elements) ->
        let ce = List.map (fun (_, e) -> convert e) elements in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
@@ -1735,8 +1743,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
          match tp.bare with
          | DefTypeNamed nm ->
             get_member_types (Util.the @@ lookup_symbol typemap nm)
-         | DefTypeLiteralStruct (mtypes, _) -> mtypes
-         | DefTypeStaticStruct mtypes -> mtypes
+         | DefTypeLiteralStruct (_, mtypes, _) -> mtypes
+         | DefTypeStaticStruct (_, mtypes) -> mtypes
          | DefTypeLiteralUnion (mtypes, _) -> mtypes
          | _ -> Report.err_internal __FILE__ __LINE__ "No members"
        in
@@ -1756,7 +1764,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
          let rec wildcards = function
            | _, (_, Expr_Wildcard) -> Expr_Literal (LitBool true)
            | (ltype, lexpr),
-             (rtype, Expr_StaticStruct (_, rmembers)) ->
+             (rtype, Expr_StaticStruct (_, _, rmembers)) ->
               let mtypes = get_member_types ltype in
               let vtypes, vexprs = List.split rmembers in
               let equals =
@@ -1836,7 +1844,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
        begin
          check_castability pos typemap tp ret_type;
          match tp.bare, expr with
-         | DefTypeStaticStruct _, Expr_StaticStruct (_, elist) ->
+         | DefTypeStaticStruct _, Expr_StaticStruct (_, _, elist) ->
             let decl = make_decl pos scope "defret" ret_type in
             let nm = decl.mappedname in
             let () = add_decl decl in
@@ -2072,8 +2080,9 @@ let resolve_builtins stmts typemap defined_syms =
        ExprIndex (p1, process_expr base, p2, process_expr idx)
     | ExprSelectField (p1, p2, e, field) ->
        ExprSelectField (p1, p2, process_expr e, field)
-    | ExprStaticStruct (p, elist) ->
-       ExprStaticStruct (p, List.map (fun (p, e) -> p, process_expr e) elist)
+    | ExprStaticStruct (is_packed, p, elist) ->
+       ExprStaticStruct (is_packed, p,
+                         List.map (fun (p, e) -> p, process_expr e) elist)
     | ExprStaticArray (p, elements) ->
        ExprStaticArray (p, List.map (fun (p, e) -> p, process_expr e) elements)
     | ExprVar (p, name) ->

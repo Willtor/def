@@ -45,8 +45,8 @@ type baretype =
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeEnum of string list
-  | DefTypeLiteralStruct of deftype list * string list
-  | DefTypeStaticStruct of deftype list
+  | DefTypeLiteralStruct of (*is_packed=*)bool * deftype list * string list
+  | DefTypeStaticStruct of (*is_packed=*)bool * deftype list
   | DefTypeLiteralUnion of deftype list * string list
   | DefTypeVAList
   | DefTypeWildcard
@@ -161,7 +161,15 @@ let rec equivalent_types t1 t2 =
   | DefTypePtr sub1, DefTypePtr sub2
   | DefTypeArray (sub1, _), DefTypeArray (sub2, _) ->
      equivalent_types sub1 sub2
-  | DefTypeLiteralStruct (sub1, nm1), DefTypeLiteralStruct (sub2, nm2)
+  | DefTypeLiteralStruct (p1, sub1, nm1), DefTypeLiteralStruct (p2, sub2, nm2) ->
+     begin
+       if p1 <> p2 then false
+       else
+         try
+           (List.fold_left2 type_folder true sub1 sub2)
+           && nm1 = nm2
+         with _ -> false
+     end
   | DefTypeLiteralUnion (sub1, nm1), DefTypeLiteralUnion (sub2, nm2) ->
      begin
        try
@@ -317,10 +325,11 @@ let size_and_align_of typemap tp =
        (* FIXME: Clang always seems to make enums 4 bytes, even if they could
           be smaller.  Need to investigate this further. *)
        4, 4
-    | DefTypeLiteralStruct (members, _)
-    | DefTypeStaticStruct members ->
+    | DefTypeLiteralStruct (is_packed, members, _)
+    | DefTypeStaticStruct (is_packed, members) ->
        let member_proc (accum_sz, accum_align) member =
-         let sz, align = size_n_alignment member in
+         let sz, m_align = size_n_alignment member in
+         let align = if is_packed then 1 else m_align in
          let depth_into_alignment = accum_sz mod align in
          let aligned_sz = if depth_into_alignment = 0 then accum_sz
                           else accum_sz + (align - depth_into_alignment)
@@ -369,12 +378,14 @@ let rec string_of_type t = match t.bare with
      "[" ^ (string_of_int n) ^ "]" ^ (string_of_type tp)
   | DefTypeNullPtr -> "nil"
   | DefTypeEnum variants -> "enum | " ^ (String.concat " | " variants)
-  | DefTypeLiteralStruct (members, _) ->
-     "{ "
+  | DefTypeLiteralStruct (is_packed, members, _) ->
+     (if is_packed then "packed " else "")
+     ^ "{ "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
-  | DefTypeStaticStruct members ->
-     "<static>{ "
+  | DefTypeStaticStruct (is_packed, members) ->
+     (if is_packed then "packed " else "")
+     ^ "<static>{ "
      ^ (String.concat ", " (List.map string_of_type members))
      ^ " }"
   | DefTypeLiteralUnion (members, _) ->
@@ -480,20 +491,29 @@ let most_general_type pos typemap =
     | DefTypeLiteralStruct _, DefTypeLiteralStruct _ ->
        if t1 = t2 then t1
        else generalizing_error ()
-    | DefTypeLiteralStruct (tplist1, _), DefTypeStaticStruct tplist2 ->
-       let reconciled = reconcile_member_types tplist1 tplist2 in
-       let bare = DefTypeStaticStruct reconciled in
-       maketype None bare
-    | DefTypeStaticStruct tplist1, DefTypeLiteralStruct (tplist2, _) ->
-       let reconciled = reconcile_member_types tplist1 tplist2 in
-       let bare = DefTypeStaticStruct reconciled in
-       maketype None bare
+    | DefTypeLiteralStruct (p1, tplist1, _),
+      DefTypeStaticStruct (p2, tplist2) ->
+       if p1 <> p2 then generalizing_error ()
+       else
+         let reconciled = reconcile_member_types tplist1 tplist2 in
+         let bare = DefTypeStaticStruct (p1, reconciled) in
+         maketype None bare
+    | DefTypeStaticStruct (p1, tplist1),
+      DefTypeLiteralStruct (p2, tplist2, _) ->
+       if p1 <> p2 then generalizing_error ()
+       else
+         let reconciled = reconcile_member_types tplist1 tplist2 in
+         let bare = DefTypeStaticStruct (p1, reconciled) in
+         maketype None bare
     | DefTypeLiteralStruct _, _
     | _, DefTypeLiteralStruct _ ->
        generalizing_error ()
-    | DefTypeStaticStruct tplist1, DefTypeStaticStruct tplist2 ->
-       let bare = DefTypeStaticStruct (reconcile_member_types tplist1 tplist2)
-       in maketype None bare
+    | DefTypeStaticStruct (p1, tplist1), DefTypeStaticStruct (p2, tplist2) ->
+       if p1 <> p2 then generalizing_error ()
+       else
+         let bare =
+           DefTypeStaticStruct (p1, reconcile_member_types tplist1 tplist2)
+         in maketype None bare
     | DefTypeStaticStruct _, _
     | _, DefTypeStaticStruct _ ->
        generalizing_error ()
@@ -519,8 +539,8 @@ let most_general_type pos typemap =
 (** Return true iff the given type contains a wildcard. *)
 let rec contains_wildcard t = match t.bare with
   | DefTypeWildcard -> true
-  | DefTypeLiteralStruct (tps, _)
-  | DefTypeStaticStruct tps -> List.exists contains_wildcard tps
+  | DefTypeLiteralStruct (_, tps, _)
+  | DefTypeStaticStruct (_, tps) -> List.exists contains_wildcard tps
   | _ -> false
 
 (** Get the dwarf type of a primitive type. *)

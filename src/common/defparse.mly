@@ -29,7 +29,7 @@
 %token <Parsetree.tokendata * float> LITERALF32 LITERALF64
 %token <Parsetree.tokendata> IDENT
 %token <Parsetree.tokendata * string> STRING
-%token <Parsetree.tokendata> IMPORT TYPE TYPEDEF ENUM
+%token <Parsetree.tokendata> IMPORT TYPE TYPEDEF ENUM PACKED
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR GLOBAL RETURN BEGIN END
 %token <Parsetree.tokendata> IF THEN ELIF ELSE FI
 %token <Parsetree.tokendata> FOR PARFOR WHILE DO OD SWITCH
@@ -176,8 +176,10 @@ deftype:
 | IDENT { PTT_Name $1 }
 | STAR deftype { PTT_Ptr ($1, $2) }
 | LSQUARE expr? RSQUARE deftype { PTT_Array ($1, $2, $3, $4) }
-| LCURLY structcontents RCURLY { PTT_Struct ($1, $2, $3) }
-| LCURLY unnamedplist RCURLY { PTT_StructUnnamed ($1, $2, $3) }
+| LCURLY structcontents RCURLY { PTT_Struct (None, $1, $2, $3) }
+| LCURLY unnamedplist RCURLY { PTT_StructUnnamed (None, $1, $2, $3) }
+| PACKED LCURLY structcontents RCURLY { PTT_Struct (Some $1, $2, $3, $4) }
+| PACKED LCURLY unnamedplist RCURLY { PTT_StructUnnamed (Some $1, $2, $3, $4) }
 | ENUM nonempty_list(pair(VBAR, IDENT))
     (* FIXME: shift/reduce conflict since "type enum | foo" can appear
        as part of an expression where the vbar can be interpreted as
@@ -292,7 +294,8 @@ expr:
   }
 | IDENT { PTE_Var $1 }
 | LPAREN expr RPAREN { $2 }
-| LCURLY exprlist RCURLY { PTE_StaticStruct ($1, $2, $3) }
+| LCURLY exprlist RCURLY { PTE_StaticStruct (None, $1, $2, $3) }
+| PACKED LCURLY exprlist RCURLY { PTE_StaticStruct (Some $1, $2, $3, $4) }
 | LSQUARE exprlist RSQUARE { PTE_StaticArray ($1, $2, $3) }
 | expr LSQUARE expr RSQUARE { PTE_Index ($1, $2, $3, $4) }
 | expr DOT IDENT { PTE_SelectField ($1, $2, $3) }

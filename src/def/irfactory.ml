@@ -160,10 +160,11 @@ let convert_deftype2llvmtype ctx typemap deftypemap =
     | DefTypeEnum _ ->
        let sz = size_of deftypemap tp in
        integer_type ctx (sz * 8)
-    | DefTypeStaticStruct members
-    | DefTypeLiteralStruct (members, _) ->
+    | DefTypeStaticStruct (is_packed, members)
+    | DefTypeLiteralStruct (is_packed, members, _) ->
        let llvm_members = List.map (convert wrap_fcn_ptr) members in
-       struct_type ctx (Array.of_list llvm_members)
+       let f = if is_packed then packed_struct_type else struct_type in
+       f ctx (Array.of_list llvm_members)
     | DefTypeLiteralUnion _ ->
        (* FIXME: This should take alignment into account.  There're going to
           be troubles if we don't. *)
@@ -275,11 +276,11 @@ let build_types ctx deftypes =
   in
   let build_structs name tp =
     match (concrete_of None deftypes tp).bare with
-    | DefTypeLiteralStruct (members, _) ->
+    | DefTypeLiteralStruct (is_packed, members, _) ->
        let llvm_members =
          List.map do_convert members in
        let llvm_struct = the (lookup_symbol typemap name) in
-       struct_set_body llvm_struct (Array.of_list llvm_members) false
+       struct_set_body llvm_struct (Array.of_list llvm_members) is_packed
     | DefTypeLiteralUnion _ ->
        let sz = Types.size_of deftypes tp in
        let array = array_type (the @@ lookup_symbol typemap "i8") sz in
@@ -522,7 +523,7 @@ let process_expr data llvals varmap pos_n_expr =
     | OperLogicalAnd, true -> standard_op build_and "def_land" (* FIXME!!! *)
     | OperAssign, _ ->
        begin match left, right with
-       | Expr_StaticStruct (_, members), _ ->
+       | Expr_StaticStruct (_, _, members), _ ->
           let rhs = expr_gen false right in
           let member_assign n (_, expr) =
             let lhs = expr_gen false expr in
@@ -532,8 +533,8 @@ let process_expr data llvals varmap pos_n_expr =
           in
           let () = List.iteri member_assign members in
           rhs
-       | _, Expr_Cast (_, _, Expr_StaticStruct (_, members))
-       | _, Expr_StaticStruct (_, members) ->
+       | _, Expr_Cast (_, _, Expr_StaticStruct (_, _, members))
+       | _, Expr_StaticStruct (_, _, members) ->
           let base = expr_gen false left in
           let assign n (_, expr) =
             let v = expr_gen true expr in
@@ -876,11 +877,11 @@ let process_expr data llvals varmap pos_n_expr =
          let () = if is_volatile then set_volatile true instr in
          instr
        else addr
-    | Expr_StaticStruct (None, members) ->
+    | Expr_StaticStruct (is_packed, None, members) ->
        let _, elements = List.split members in
-       const_struct data.ctx
-         (Array.of_list (List.map (expr_gen true) elements))
-    | Expr_StaticStruct (Some nm, members) ->
+       let f = if is_packed then const_packed_struct else const_struct in
+       f data.ctx (Array.of_list (List.map (expr_gen true) elements))
+    | Expr_StaticStruct (_, Some nm, members) ->
        let _, elements = List.split members in
        const_named_struct (the (lookup_symbol data.typemap nm))
          (Array.of_list (List.map (expr_gen true) elements))
@@ -970,7 +971,8 @@ let get_debug_type =
              *)
             let sz, dtype = 32, DW_ATE_SIGNED in
             create (dibasic_type ctx dib "i32" sz dtype)
-         | DefTypeLiteralStruct (tplist, name_list) ->
+         | DefTypeLiteralStruct (_, tplist, name_list) ->
+            (* FIXME: Need to account for packing? *)
             let mlist = List.map lookup_type tplist in
             let scope = Util.the data.difile in (* FIXME: #NotAllStructs *)
             let name = "" in
@@ -1195,10 +1197,11 @@ let rec zero_llval data rawtp =
      in
      let static_array = Array.make n (zero_llval data subtype) in
      const_array llvmtp static_array
-  | DefTypeLiteralStruct (tp_list, _)
-  | DefTypeStaticStruct (tp_list) ->
+  | DefTypeLiteralStruct (is_packed, tp_list, _)
+  | DefTypeStaticStruct (is_packed, tp_list) ->
      let member_zeroes = List.map (fun t -> zero_llval data t) tp_list in
-     const_struct data.ctx (Array.of_list member_zeroes)
+     let f = if is_packed then const_packed_struct else const_struct in
+     f data.ctx (Array.of_list member_zeroes)
   | _ -> Report.err_internal
            __FILE__ __LINE__ ("Unknown zero val: " ^ (string_of_type tp))
 

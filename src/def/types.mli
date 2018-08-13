@@ -23,8 +23,8 @@ type baretype =
   | DefTypeArray of deftype * int
   | DefTypeNullPtr
   | DefTypeEnum of string list
-  | DefTypeLiteralStruct of deftype list * string list
-  | DefTypeStaticStruct of deftype list
+  | DefTypeLiteralStruct of (*is_packed=*)bool * deftype list * string list
+  | DefTypeStaticStruct of (*is_packed=*)bool * deftype list
   | DefTypeLiteralUnion of deftype list * string list
   | DefTypeVAList
   | DefTypeWildcard

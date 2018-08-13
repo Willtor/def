@@ -4,8 +4,8 @@
 # across the compiler and libraries.
 
 VERSION_MAJOR=0
-VERSION_MINOR=15
-VERSION_PATCH=2
+VERSION_MINOR=16
+VERSION_PATCH=0
 VERSION_SUFFIX=a
 VERSION_BUILD=`git rev-parse HEAD | cut -c -12`
 BUILD_DATE=`date -I`

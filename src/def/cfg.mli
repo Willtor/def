@@ -13,7 +13,8 @@ type cfg_expr =
                   * (*deref_base=*)bool * (*array=*)bool
                   * (*is_volatile=*)bool
   | Expr_SelectField of cfg_expr * int * (*is_volatile=*)bool
-  | Expr_StaticStruct of string option * (Types.deftype * cfg_expr) list
+  | Expr_StaticStruct of (*is_packed=*)bool * string option
+                         * (Types.deftype * cfg_expr) list
   | Expr_StaticArray of cfg_expr list
   | Expr_Nil
   | Expr_Wildcard

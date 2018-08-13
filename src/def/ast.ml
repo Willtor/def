@@ -73,7 +73,7 @@ and expr =
   | ExprCast of position * Types.deftype * expr
   | ExprIndex of position * expr * position * expr
   | ExprSelectField of position * position * expr * field_id
-  | ExprStaticStruct of position * (position * expr) list
+  | ExprStaticStruct of (*is_packed=*)bool * position * (position * expr) list
   | ExprStaticArray of position * (position * expr) list
   | ExprType of position * Types.deftype
   | ExprTypeString of position * expr
@@ -436,16 +436,26 @@ let of_parsetree =
        (* FIXME: The array dimension *should* be int64.  This is ridiculous. *)
        let szi = Int64.to_int sz in
        maketype (Some lsquare.td_pos) (DefTypeArray (deftype_of tp, szi))
-    | PTT_Struct (lcurly, name_tp_pairs, _) ->
+    | PTT_Struct (packed_maybe, lcurly, name_tp_pairs, _) ->
+       let is_packed = match packed_maybe with
+         | Some _ -> true
+         | None -> false
+       in
        let el_list = List.map (fun (n, t) -> deftype_of t, n.td_text)
                               name_tp_pairs
        in
        let types, names = List.split el_list in
-       maketype (Some lcurly.td_pos) (DefTypeLiteralStruct (types, names))
-    | PTT_StructUnnamed (lcurly, tp_list, _) ->
+       maketype (Some lcurly.td_pos)
+         (DefTypeLiteralStruct (is_packed, types, names))
+    | PTT_StructUnnamed (packed_maybe, lcurly, tp_list, _) ->
+       let is_packed = match packed_maybe with
+         | Some _ -> true
+         | None -> false
+       in
        let el_list = List.map (fun t -> deftype_of t, "") tp_list in
        let types, names = List.split el_list in
-       maketype (Some lcurly.td_pos) (DefTypeLiteralStruct (types, names))
+       maketype (Some lcurly.td_pos)
+         (DefTypeLiteralStruct (is_packed, types, names))
     | PTT_Enum (enum, alts) ->
        let alt_names = List.map (fun tok -> tok.td_text) alts in
        maketype (Some enum.td_pos) (DefTypeEnum alt_names)
@@ -518,8 +528,12 @@ let of_parsetree =
        ExprFcnCall fcn_call
     | PTE_Var var ->
        ExprVar (var.td_pos, var.td_text)
-    | PTE_StaticStruct (lcurly, fields, _) ->
-       ExprStaticStruct (lcurly.td_pos,
+    | PTE_StaticStruct (packed_maybe, lcurly, fields, _) ->
+       let is_packed, pos = match packed_maybe with
+         | None -> false, lcurly.td_pos
+         | Some packed -> true, packed.td_pos
+       in
+       ExprStaticStruct (is_packed, lcurly.td_pos,
                          List.map (fun e -> pt_expr_pos e, expr_of e) fields)
     | PTE_StaticArray (lsquare, elements, _) ->
        ExprStaticArray (lsquare.td_pos,
@@ -624,9 +638,9 @@ let of_cimport cimport =
          deptr_fcns subtype
       | DefTypeArray (subtype, n) ->
          replace_raw @@ DefTypeArray (deptr_fcns subtype, n)
-      | DefTypeLiteralStruct (raw_tplist, names) ->
+      | DefTypeLiteralStruct (is_packed, raw_tplist, names) ->
          let tplist = List.map deptr_fcns raw_tplist in
-         replace_raw @@ DefTypeLiteralStruct (tplist, names)
+         replace_raw @@ DefTypeLiteralStruct (is_packed, tplist, names)
       | DefTypeLiteralUnion (raw_tplist, names) ->
          let tplist = List.map deptr_fcns raw_tplist in
          replace_raw @@ DefTypeLiteralUnion (tplist, names)
@@ -675,7 +689,8 @@ let of_cimport cimport =
          let names, types = List.split @@ List.map field_convert fields in
          let (pos, _, _) = List.hd fields in
          let bare = match kind with
-           | CR_Struct -> DefTypeLiteralStruct (types, names)
+           (* FIXME: Need to capture if the type is packed. *)
+           | CR_Struct -> DefTypeLiteralStruct (false, types, names)
            | CR_Union -> DefTypeLiteralUnion (types, names)
          in
          let ret = maketype (Some pos) bare in
@@ -821,7 +836,7 @@ let rec pos_of_astexpr = function
   | ExprCast (pos, _, _)
   | ExprIndex (pos, _, _, _)
   | ExprSelectField (pos, _, _, _)
-  | ExprStaticStruct (pos, _)
+  | ExprStaticStruct (_, pos, _)
   | ExprStaticArray (pos, _)
   | ExprType (pos, _)
   | ExprTypeString (pos, _)
@@ -864,7 +879,7 @@ let visit_expr f =
          visit idx
        end
     | ExprSelectField (_, _, e, _) -> visit e
-    | ExprStaticStruct (_, members) ->
+    | ExprStaticStruct (_, _, members) ->
        List.iter (fun (_, e) -> visit e) members
     | ExprStaticArray (_, elements) ->
        List.iter (fun (_, e) -> visit e) elements

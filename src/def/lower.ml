@@ -30,8 +30,8 @@ let lift_lhs_static_structs program =
       | Expr_Binary (pos,
                      OperAssign,
                      is_atomic,
-                     ({ bare = DefTypeStaticStruct mtypes } as dtp),
-                     Expr_StaticStruct (_, members),
+                     ({ bare = DefTypeStaticStruct (_, mtypes) } as dtp),
+                     Expr_StaticStruct (_, _, members),
                      rhs) ->
          let decl = { decl_pos = pos;
                       mappedname = "__defstatic"; (* FIXME: unique name. *)
@@ -57,8 +57,9 @@ let lift_lhs_static_structs program =
                             Expr_Variable "__defstatic", rhs)) :: exprs
       | Expr_Binary (pos, OperAssign,
                      is_atomic,
-                     ({ bare = DefTypeLiteralStruct (mtypes, mnames) } as dtp),
-                     Expr_StaticStruct (_, members),
+                     ({ bare = DefTypeLiteralStruct (_, mtypes, mnames) }
+                      as dtp),
+                     Expr_StaticStruct (_, _, members),
                      rhs) ->
          let decl = { decl_pos = pos;
                       mappedname = "__defstatic"; (* FIXME: unique name. *)

@@ -105,8 +105,10 @@ and pt_type =
   | PTT_Name of tokendata
   | PTT_Ptr of tokendata * pt_type
   | PTT_Array of tokendata * pt_expr option * tokendata * pt_type
-  | PTT_Struct of tokendata * (tokendata * pt_type) list * tokendata
-  | PTT_StructUnnamed of tokendata * pt_type list * tokendata
+  | PTT_Struct of tokendata option * tokendata * (tokendata * pt_type) list
+                  * tokendata
+  | PTT_StructUnnamed of tokendata option * tokendata * pt_type list
+                         * tokendata
   | PTT_Enum of tokendata * tokendata list
 
 and pt_param =
@@ -157,7 +159,7 @@ and pt_expr =
   | PTE_Wildcard of tokendata
   | PTE_FcnCall of pt_fcn_call
   | PTE_Var of tokendata
-  | PTE_StaticStruct of tokendata * pt_expr list * tokendata
+  | PTE_StaticStruct of tokendata option * tokendata * pt_expr list * tokendata
   | PTE_StaticArray of tokendata * pt_expr list * tokendata
   | PTE_Index of pt_expr * tokendata * pt_expr * tokendata
   | PTE_SelectField of pt_expr * tokendata * tokendata
@@ -171,8 +173,10 @@ let pt_type_pos = function
   | PTT_Name tok
   | PTT_Ptr (tok, _)
   | PTT_Array (tok, _, _, _)
-  | PTT_Struct (tok, _, _)
-  | PTT_StructUnnamed (tok, _, _)
+  | PTT_Struct (Some tok, _, _, _)
+  | PTT_StructUnnamed (Some tok, _, _, _)
+  | PTT_Struct (_, tok, _, _)
+  | PTT_StructUnnamed (_, tok, _, _)
   | PTT_Enum (tok, _) ->
      tok.td_pos
 
@@ -195,7 +199,8 @@ let rec pt_expr_pos = function
   | PTE_Wildcard tok
   | PTE_FcnCall { ptfc_name = tok }
   | PTE_Var tok
-  | PTE_StaticStruct (tok, _, _)
+  | PTE_StaticStruct (None, tok, _, _)
+  | PTE_StaticStruct (Some tok, _, _, _)
   | PTE_StaticArray (tok, _, _)
   | PTE_PreUni (tok, _) ->
      tok.td_pos

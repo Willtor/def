@@ -62,8 +62,9 @@ let rec output_deftype oc =
          output_string oc "]";
          print_type width tp
        end
-    | PTT_Struct (_, members, _) ->
+    | PTT_Struct (packed_maybe, _, members, _) ->
        begin
+         if packed_maybe <> None then output_string oc "packed ";
          output_string oc "{";
          ignore(List.fold_left
                   (fun init (nm, tp) ->
@@ -74,8 +75,9 @@ let rec output_deftype oc =
                   members);
          output_string oc "}"
        end
-    | PTT_StructUnnamed (_, members, _) ->
+    | PTT_StructUnnamed (packed_maybe, _, members, _) ->
        begin
+         if packed_maybe <> None then output_string oc "packed ";
          output_string oc "{";
          ignore(List.fold_left
                   (fun init tp ->

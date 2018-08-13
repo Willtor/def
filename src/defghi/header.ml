@@ -67,14 +67,18 @@ let rec output_deftype oc name depth tp =
        build_string ("*" ^ accum) depth tp
     | PTT_Array (_, expr, _, tp) ->
        Error.fatal_error "No arrays, yet."
-    | PTT_Struct (_, members, _) ->
+    | PTT_Struct (packed_maybe, _, members, _) ->
+       if packed_maybe <> None then
+         Error.fatal_error "no packed structs, yet.";
        let proc_member accum (nm, tp) =
          let member = build_string nm.td_text (tab ^ depth) tp in
          accum ^ tab ^ depth ^ member ^ ";\n"
        in
        let body = List.fold_left proc_member "" members in
        "struct " ^ accum ^ "\n" ^ depth ^ "{\n" ^ body ^ depth ^ "};\n"
-    | PTT_StructUnnamed (_, members, _) ->
+    | PTT_StructUnnamed (packed_maybe, _, members, _) ->
+       if packed_maybe <> None then
+         Error.fatal_error "no packed structs, yet.";
        let proc_member accum tp =
          let member = build_string "" (tab ^ depth) tp in
          accum ^ depth ^ member ^ ";\n"
@@ -120,7 +124,7 @@ let output_exported_type oc = function
   | PTS_Type (Some (export, None),
               _,
               typename,
-              Some (_, (PTT_Struct (_, members, _) as tp)),
+              Some (_, (PTT_Struct (_, _, members, _) as tp)),
               _) ->
      begin
        dump_doc oc export;
