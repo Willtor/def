@@ -51,10 +51,9 @@ static map<SourceLocation, string> fund_types;
 static value reverse_list (value list)
 {
     CAMLparam1 (list);
-    CAMLlocal1 (reversed_list);
+    CAMLlocal2 (reversed_list, cdr);
     reversed_list = Val_int(0);
     while (list != Val_int(0)) {
-        CAMLlocal1 (cdr);
         cdr = Field(list, 1);
         Store_field(list, 1, reversed_list);
         reversed_list = list;
@@ -126,12 +125,12 @@ private:
     value position_of_SourceLocation (const SourceLocation src_loc)
     {
         CAMLparam0 ();
+        CAMLlocal2 (pos, ocamlstr);
 
         SourceLocation spelling_loc = sm.getSpellingLoc(src_loc);
         unsigned int file_offset = sm.getFileOffset(spelling_loc);
         unsigned int column = sm.getSpellingColumnNumber(src_loc) - 1;
 
-        CAMLlocal2 (pos, ocamlstr);
         pos = caml_alloc(4, 0);
         ocamlstr = caml_copy_string(sm.getFilename(spelling_loc).str()
                                     .c_str());
@@ -147,11 +146,11 @@ private:
     value readFundamentalType (QualType qtype, SourceLocation loc)
     {
         CAMLparam0 ();
+        CAMLlocal3 (tname, pos, ret);
 
         string t(qtype.getAsString());
         fund_types[loc] = t;
 
-        CAMLlocal3 (tname, pos, ret);
         tname = caml_copy_string(t.c_str());
         pos = position_of_SourceLocation(loc);
         ret = caml_alloc(2, 0);
@@ -164,6 +163,9 @@ private:
     value readType (QualType fulltype, SourceLocation loc)
     {
         CAMLparam0 ();
+        CAMLlocal2(ret, pos);
+        CAMLlocal3(pointee, param_list, tmp);
+        CAMLlocal3(rettype, prototype, subtype);
 
         // ---
         // FIXME: Shouldn't get rid of qualifications.  Need to deal with them.
@@ -171,10 +173,7 @@ private:
         // ---
 
         const Type *type = qtype.getTypePtr();
-
-        if (type->isPointerType()) {
-            // CT_Pointer
-            CAMLlocal3 (pointee, pos, ret);
+        if (type->isPointerType()) {            // CT_Pointer
             pointee = readType(type->getPointeeType(), loc);
             pos = position_of_SourceLocation(loc);
             ret = caml_alloc(2, 1);
@@ -190,10 +189,8 @@ private:
             // CT_Function
             const FunctionProtoType *ftype = type->castAs<FunctionProtoType>();
 
-            CAMLlocal1 (param_list);
             param_list = Val_int(0);
             for (const QualType param : ftype->param_types()) {
-                CAMLlocal1 (tmp);
                 tmp = caml_alloc(2, 0);
                 Store_field(tmp, 0, readType(param, loc));
                 Store_field(tmp, 1, param_list);
@@ -201,7 +198,6 @@ private:
             }
             param_list = reverse_list(param_list);
 
-            CAMLlocal3 (pos, rettype, prototype);
             pos = position_of_SourceLocation(loc);
             rettype = readType(ftype->getReturnType(), loc);
             prototype = caml_alloc(4, 3);
@@ -222,12 +218,10 @@ private:
                 CAMLreturn(readFundamentalType(qtype, loc));
             }
 
-            CAMLlocal1 (pos);
             pos = position_of_SourceLocation(loc);
             if (type->isConstantArrayType()) {
                 const ConstantArrayType *atype =
                     static_cast<const ConstantArrayType*>(type);
-                CAMLlocal2 (subtype, ret);
                 subtype = readType(atype->getElementType(), loc);
                 ret = caml_alloc(3, 4);
                 Store_field(ret, 0, pos);
@@ -237,7 +231,6 @@ private:
             } else if (type->isIncompleteArrayType()) {
                 const IncompleteArrayType *atype =
                     static_cast<const IncompleteArrayType*>(type);
-                CAMLlocal2 (subtype, ret);
                 subtype = readType(atype->getElementType(), loc);
                 ret = caml_alloc(3, 4);
                 Store_field(ret, 0, pos);
@@ -257,17 +250,19 @@ private:
     void declareFunction (NamedDecl *decl)
     {
         CAMLparam0 ();
+        CAMLlocal3 (pos, fname, param_list);
+        CAMLlocal2 (param_n, tmp);
+        CAMLlocal2 (rettp, is_variadic);
+        CAMLlocal1 (fcn);
 
         const FunctionDecl *fdecl = decl->getAsFunction();
 
-        CAMLlocal3 (pos, fname, param_list);
         pos = position_of_SourceLocation(fdecl->getLocStart());
         fname = caml_copy_string(fdecl->getQualifiedNameAsString().c_str());
 
         // Read the parameters into a list.
         param_list = Val_int(0);
         for (const ParmVarDecl *param : fdecl->parameters()) {
-            CAMLlocal2 (param_n, tmp);
             param_n = readType(param->getOriginalType(),
                                param->getLocStart());
             tmp = caml_alloc(2, 0);
@@ -278,13 +273,11 @@ private:
         param_list = reverse_list(param_list);
 
         // Function's return type.
-        CAMLlocal2 (rettp, is_variadic);
         rettp = readType(fdecl->getReturnType(),
                          fdecl->getReturnTypeSourceRange().getBegin());
         is_variadic = Val_bool(fdecl->isVariadic());
 
         // CV_Function of string * ctype list * ctype
-        CAMLlocal1 (fcn);
         fcn = caml_alloc(5, 0);
         Store_field(fcn, 0, pos);
         Store_field(fcn, 1, fname);
@@ -300,6 +293,11 @@ private:
     void declareRecord (NamedDecl *decl)
     {
         CAMLparam0 ();
+        CAMLlocal3 (pos, sname, type_opt);
+        CAMLlocal2 (rec_kind, fields);
+        CAMLlocal5 (fpos, fname, ftype, frec, tmp);
+        CAMLlocal1 (struct_def);
+        CAMLlocal1 (sdecl);
 
         string name = decl->getNameAsString();
         SourceLocation loc = decl->getLocStart();
@@ -314,7 +312,6 @@ private:
                 CAMLreturn0;
             }
         }
-        CAMLlocal3 (pos, sname, type_opt);
         pos = position_of_SourceLocation(loc);
         sname = caml_copy_string(name.c_str());
 
@@ -322,11 +319,9 @@ private:
         RecordDecl *defn = record->getDefinition();
         if (NULL != defn) {
             // Read the record's fields.
-            CAMLlocal2 (rec_kind, fields);
             rec_kind = Val_int(defn->getTypeForDecl()->isUnionType() ? 1 : 0);
             fields = Val_int(0);
             for (const FieldDecl *field : defn->fields()) {
-                CAMLlocal5 (fpos, fname, ftype, frec, tmp);
                 fpos = position_of_SourceLocation(field->getLocStart());
                 fname = caml_copy_string(field->getNameAsString().c_str());
                 ftype = readType(field->getType(), field->getLocStart());
@@ -341,7 +336,6 @@ private:
                 Store_field(fields, 0, frec);
                 Store_field(fields, 1, tmp);
             }
-            CAMLlocal1 (struct_def);
             struct_def = caml_alloc(2, 2);
             Store_field(struct_def, 0, rec_kind);
             Store_field(struct_def, 1, reverse_list(fields));
@@ -351,7 +345,6 @@ private:
             // No definition for this record.
             type_opt = Val_int(0); // OCaml: None
         }
-        CAMLlocal1 (sdecl);
         sdecl = caml_alloc(3, 1);
         Store_field(sdecl, 0, pos);
         Store_field(sdecl, 1, sname);
@@ -364,8 +357,9 @@ private:
     void declareTypedef (NamedDecl *decl)
     {
         CAMLparam0 ();
-        SourceLocation src_loc = decl->getLocStart();
         CAMLlocal3 (pos, tname, t);
+        CAMLlocal2 (SomeT, tdecl);
+        SourceLocation src_loc = decl->getLocStart();
         pos = position_of_SourceLocation(src_loc);
         tname = caml_copy_string(decl->getNameAsString().c_str());
 
@@ -373,7 +367,6 @@ private:
         t = readType(typedefdecl->getUnderlyingType(), src_loc);
 
         // OCaml: Some type
-        CAMLlocal2 (SomeT, tdecl);
         SomeT = caml_alloc(1, 0);
         Store_field(SomeT, 0, t);
 
@@ -389,8 +382,8 @@ private:
     void declareVariable (NamedDecl *decl)
     {
         CAMLparam0 ();
-        SourceLocation src_loc = decl->getLocStart();
         CAMLlocal4 (pos, vname, vtype, vdecl);
+        SourceLocation src_loc = decl->getLocStart();
         pos = position_of_SourceLocation(src_loc);
         vname = caml_copy_string(decl->getNameAsString().c_str());
         ValueDecl *valuedecl = static_cast<ValueDecl*>(decl);
@@ -436,6 +429,7 @@ public:
 value cimport_file (const char *filename, int argc, const char **argv)
 {
     CAMLparam0();
+    CAMLlocal1 (ret_list);
 
     cv_list = Val_int(0);
     caml_register_global_root(&cv_list);
@@ -454,7 +448,6 @@ value cimport_file (const char *filename, int argc, const char **argv)
 
     cv_list = reverse_list(cv_list);
 
-    CAMLlocal1 (ret_list);
     ret_list = cv_list;
     cv_list = Val_int(0);
     caml_remove_global_root(&cv_list);
