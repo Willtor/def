@@ -40,7 +40,10 @@ type llvm_data =
     d_scope_table  : (cfg_scope, cfg_scope) Hashtbl.t;
 
     (* Constant values. *)
+    zero_i8  : llvalue;
+    zero_i16 : llvalue;
     zero_i32 : llvalue;
+    zero_i64 : llvalue;
     one_i8   : llvalue;
     one_i16  : llvalue;
     one_i32  : llvalue;
@@ -424,12 +427,16 @@ let process_expr data llvals varmap pos_n_expr =
         else build_fneg)
          llvm_expr "neg" bldr
     | OperLogicalNot ->
-       (* FIXME: I think this may be wrong.  Investigate build_not, which may
-          do bitwise... pretty sure is bitwise...
-
-          Do a compare against zero and then zext? *)
+       let zero, zexttp = match size_of data.prog.deftypemap tp with
+         | 1 -> data.zero_i8, i8_type data.ctx
+         | 2 -> data.zero_i16, i16_type data.ctx
+         | 4 -> data.zero_i32, i32_type data.ctx
+         | 8 -> data.zero_i64, i64_type data.ctx
+         | _ -> Report.err_internal __FILE__ __LINE__ "lnot: unexpected size"
+       in
        let llvm_expr = expr_gen true expr in
-       build_not llvm_expr "lnot" bldr
+       let cmp = build_icmp Icmp.Eq llvm_expr zero "lnot_cmp" bldr in
+       build_zext cmp zexttp "lnot_zext" bldr
     | OperBitwiseNot ->
        let llvm_expr = expr_gen true expr in
        build_not llvm_expr "bnot" bldr
@@ -1300,8 +1307,11 @@ let process_cfg module_name program =
                difile = None;
                dib = None;
                d_scope_table = program.scope_table;
+               zero_i8 = const_null (the (lookup_symbol typemap "i8"));
+               zero_i16 = const_null (the (lookup_symbol typemap "i16"));
                zero_i32 = const_null (the (lookup_symbol typemap "i32"));
-               one_i8 = const_int (the (lookup_symbol typemap "bool")) 1;
+               zero_i64 = const_null (the (lookup_symbol typemap "i64"));
+               one_i8 = const_int (the (lookup_symbol typemap "i8")) 1;
                one_i16 = const_int (the (lookup_symbol typemap "i16")) 1;
                one_i32 = const_int (the (lookup_symbol typemap "i32")) 1;
                one_i64 = const_int (the (lookup_symbol typemap "i64")) 1;

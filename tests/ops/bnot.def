@@ -1,0 +1,21 @@
+// Unit test for the bitwise not operator.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var a i32 = 0;
+    printf("a: 0x%x, ~a = 0x%x\n", a, ~a);
+
+    a = 1;
+    printf("a: 0x%x, ~a = 0x%x\n", a, ~a);
+
+    a = -1;
+    printf("a: 0x%x, ~a = 0x%x\n", a, ~a);
+
+    // Done.
+    printf("done.\n");
+
+    return 0;
+end
