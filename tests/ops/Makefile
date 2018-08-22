@@ -1,6 +1,6 @@
 include ../common.mk
 
-UNIT = neg plus minus lshift atomic fcn_ptr jump
+UNIT = incr decr neg plus minus lshift atomic fcn_ptr jump
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 

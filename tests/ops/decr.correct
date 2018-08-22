@@ -1,0 +1,21 @@
+Signed 32.
+orig:  0
+pre:   -1
+post:  -1
+final: -2
+Signed 64.
+orig:  0
+pre:   -1
+post:  -1
+final: -2
+Unsigned 32.
+orig:  0
+pre:   4294967295
+post:  4294967295
+final: 4294967294
+Unsigned 64.
+orig:  0
+pre:   18446744073709551615
+post:  18446744073709551615
+final: 18446744073709551614
+done.

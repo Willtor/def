@@ -1,0 +1,45 @@
+// Unit test for the decrement operators.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var a_i32 i32;
+    var a_u32 u32;
+    var a_i64 i64;
+    var a_u64 u64;
+
+    // Signed decrement.
+    a_i32 = 0I32;
+    printf("Signed 32.\n");
+    printf("orig:  %d\n", a_i32);
+    printf("pre:   %d\n", --a_i32);
+    printf("post:  %d\n", a_i32--);
+    printf("final: %d\n", a_i32);
+    a_i64 = 0I64;
+    printf("Signed 64.\n");
+    printf("orig:  %lld\n", a_i64);
+    printf("pre:   %lld\n", --a_i64);
+    printf("post:  %lld\n", a_i64--);
+    printf("final: %lld\n", a_i64);
+
+    // Unigned decrement.
+    a_u32 = 0U32;
+    printf("Unsigned 32.\n");
+    printf("orig:  %u\n", a_u32);
+    printf("pre:   %u\n", --a_u32);
+    printf("post:  %u\n", a_u32--);
+    printf("final: %u\n", a_u32);
+    a_u64 = 0U64;
+    printf("Unsigned 64.\n");
+    printf("orig:  %llu\n", a_u64);
+    printf("pre:   %llu\n", --a_u64);
+    printf("post:  %llu\n", a_u64--);
+    printf("final: %llu\n", a_u64);
+
+    // Done.
+    printf("done.\n");
+
+    return 0;
+end
