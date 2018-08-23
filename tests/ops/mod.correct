@@ -1,0 +1,16 @@
+signed 7 % 42 = 7
+signed 7 % -42 = 7
+signed -42 % 4 = -2
+signed 2147483647 % 2 = 1
+signed const 7 % 42 = 7
+signed const 7 % -42 = 7
+signed const 2147483647 % 3 = 1
+unsigned 7 % 42 = 7
+unsigned 7 % 4294967254 = 7
+unsigned 4294967254 % 4 = 2
+unsigned 2147483647 % 3 = 1
+unsigned 4294967295 % 3 = 0
+unsigned const 7 % 42 = 7
+unsigned const 7 % 4294967254 = 7
+unsigned const 4294967295 % 4 = 3
+done.

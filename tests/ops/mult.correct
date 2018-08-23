@@ -1,0 +1,20 @@
+signed 7 * 42 = 294
+signed 7 * -42 = -294
+signed -42 * 7 = -294
+signed 2147483647 * 1 = 2147483647
+signed const 7 * 42 = 294
+signed const 7 * -42 = -294
+signed const 2147483647 * 1 = 2147483647
+unsigned 7 * 42 = 294
+unsigned 7 * 4294967254 = 4294967002
+unsigned 4294967254 * 7 = 4294967002
+unsigned 2147483647 * 1 = 2147483647
+unsigned 4294967295 * 1 = 4294967295
+unsigned const 7 * 42 = 294
+unsigned const 7 * 4294967254 = 4294967002
+unsigned const 4294967295 * 1 = 4294967295
+float 7.0000 * 42.0000 = 294.0000
+float 7.0000 * -42.0000 = -294.0000
+float const 7.0000 * 42.0000 = 294.0000
+float const 7.0000 * -42.0000 = -294.0000
+done.

@@ -1,10 +1,9 @@
 include ../common.mk
 
-# how to test addr-of?  Could be a diff address every time the program is
-# executed...
-UNIT =	incr decr neg		\
+UNIT =	incr decr neg addrof	\
 	minus plus 		\
 	lnot bnot		\
+	mult div mod 		\
 	lshift atomic fcn_ptr jump
 SMOKE =
 ALL = $(SMOKE) $(UNIT)

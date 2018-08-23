@@ -1,0 +1,21 @@
+// Unit test for the addr-of operator.
+
+decl printf (*char, ...) -> i32;
+
+def printer (val *i64) -> void
+begin
+    printf("val = 0x%llX\n", val[0]);
+end
+
+export
+def main () -> i32
+begin
+    var val i64 = 0xDEFDEFDEFDEFDEF0I64;
+
+    printer(&val);
+
+    // Done.
+    printf("done.\n");
+
+    return 0;
+end
