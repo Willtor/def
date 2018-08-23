@@ -197,6 +197,18 @@ rule deflex = parse
 | ['A'-'Z''a'-'z''_']['A'-'Z''a'-'z''_''0'-'9']* as ident
     { IDENT (get_token_data ident lexbuf) }
 
+(* A few specific integers: We do this because twos-complement means that
+   there exists one more negative value than positive values.  Therefore,
+   when OCaml has to parse certain specific negative numbers, the positive
+   value (without the leading minus) may not fit in the specified size,  *)
+
+| "-2147483648I32" as istr
+    { LITERALI32 (get_token_data istr lexbuf,
+                  Int32.of_string (remove_suffix istr 3)) }
+| "-9223372036854775808I64" as istr
+    { LITERALI64 (get_token_data istr lexbuf,
+                  Int64.of_string (remove_suffix istr 3)) }
+
 (* Operators. *)
 | "`" as tok { BACKTICK (get_token_data (String.make 1 tok) lexbuf) }
 | "..." as tok { ELLIPSIS (get_token_data tok lexbuf) }
