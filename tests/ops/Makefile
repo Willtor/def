@@ -4,7 +4,8 @@ UNIT =	incr decr neg addrof	\
 	minus plus 		\
 	lnot bnot		\
 	mult div mod 		\
-	lshift atomic fcn_ptr jump
+	lshift rshift		\
+	atomic fcn_ptr jump
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 
