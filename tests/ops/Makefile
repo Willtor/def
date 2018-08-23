@@ -6,6 +6,7 @@ UNIT =	incr decr neg addrof	\
 	mult div mod 		\
 	lshift rshift		\
 	compare			\
+	bitwise			\
 	atomic fcn_ptr jump
 SMOKE =
 ALL = $(SMOKE) $(UNIT)

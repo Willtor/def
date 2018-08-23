@@ -1,0 +1,27 @@
+// Unit test for the comparison operators.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var a, b u32;
+
+    a = 0x55555555;
+    b = 0xAAAAAAAA;
+
+    printf("a = 0x%X, b = 0x%X.  a & b = 0x%X.\n", a, b, a & b);
+    printf("a = 0x%X, b = 0x%X.  a | b = 0x%X.\n", a, b, a | b);
+    printf("a = 0x%X, b = 0x%X.  a ^ b = 0x%X.\n", a, b, a ^ b);
+
+    a = 0xFFFFFFFF;
+    b = 0xFFFFFFFF;
+
+    printf("a = 0x%X, b = 0x%X.  a & b = 0x%X.\n", a, b, a & b);
+    printf("a = 0x%X, b = 0x%X.  a | b = 0x%X.\n", a, b, a | b);
+    printf("a = 0x%X, b = 0x%X.  a ^ b = 0x%X.\n", a, b, a ^ b);
+
+    printf("done.\n");
+
+    return 0;
+end
