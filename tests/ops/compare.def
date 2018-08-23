@@ -1,0 +1,144 @@
+// Unit test for the comparison operators.
+
+decl printf (*char, ...) -> i32;
+
+export
+def main () -> i32
+begin
+    var a_16, b_16 i16;
+    var a_32, b_32 i32;
+    var a_64, b_64 i64;
+    var f_64, g_64 f64;
+
+    var correct i32 = 0;
+
+    // 16-bit comparisons.
+    a_16 = 7;
+    b_16 = 7;
+
+    correct += !(a_16 < b_16);
+    correct += !(a_16 > b_16);
+    correct += (a_16 <= b_16);
+    correct += (a_16 >= b_16);
+    correct += (a_16 == b_16);
+    correct += !(a_16 != b_16);
+
+    a_16 = -1;
+    b_16 = 0;
+
+    correct += (a_16 < b_16);
+    correct += !(a_16 > b_16);
+    correct += (a_16 <= b_16);
+    correct += !(a_16 >= b_16);
+    correct += !(a_16 == b_16);
+    correct += (a_16 != b_16);
+
+    a_16 = 12;
+    b_16 = 1;
+
+    correct += !(a_16 < b_16);
+    correct += (a_16 > b_16);
+    correct += !(a_16 <= b_16);
+    correct += (a_16 >= b_16);
+    correct += !(a_16 == b_16);
+    correct += (a_16 != b_16);
+
+    // 32-bit comparisons.
+    a_32 = 7;
+    b_32 = 7;
+
+    correct += !(a_32 < b_32);
+    correct += !(a_32 > b_32);
+    correct += (a_32 <= b_32);
+    correct += (a_32 >= b_32);
+    correct += (a_32 == b_32);
+    correct += !(a_32 != b_32);
+
+    a_32 = -1;
+    b_32 = 0;
+
+    correct += (a_32 < b_32);
+    correct += !(a_32 > b_32);
+    correct += (a_32 <= b_32);
+    correct += !(a_32 >= b_32);
+    correct += !(a_32 == b_32);
+    correct += (a_32 != b_32);
+
+    a_32 = 12;
+    b_32 = 1;
+
+    correct += !(a_32 < b_32);
+    correct += (a_32 > b_32);
+    correct += !(a_32 <= b_32);
+    correct += (a_32 >= b_32);
+    correct += !(a_32 == b_32);
+    correct += (a_32 != b_32);
+
+    // 64-bit comparisons.
+    a_64 = 7;
+    b_64 = 7;
+
+    correct += !(a_64 < b_64);
+    correct += !(a_64 > b_64);
+    correct += (a_64 <= b_64);
+    correct += (a_64 >= b_64);
+    correct += (a_64 == b_64);
+    correct += !(a_64 != b_64);
+
+    a_64 = -1;
+    b_64 = 0;
+
+    correct += (a_64 < b_64);
+    correct += !(a_64 > b_64);
+    correct += (a_64 <= b_64);
+    correct += !(a_64 >= b_64);
+    correct += !(a_64 == b_64);
+    correct += (a_64 != b_64);
+
+    a_64 = 12;
+    b_64 = 1;
+
+    correct += !(a_64 < b_64);
+    correct += (a_64 > b_64);
+    correct += !(a_64 <= b_64);
+    correct += (a_64 >= b_64);
+    correct += !(a_64 == b_64);
+    correct += (a_64 != b_64);
+
+    // Float comparisons.
+    f_64 = 7.0;
+    g_64 = 7.0;
+
+    correct += !(f_64 < g_64);
+    correct += !(f_64 > g_64);
+    correct += (f_64 <= g_64);
+    correct += (f_64 >= g_64);
+    correct += (f_64 == g_64);
+    correct += !(f_64 != g_64);
+
+    f_64 = -1.0;
+    g_64 = 0.0;
+
+    correct += (f_64 < g_64);
+    correct += !(f_64 > g_64);
+    correct += (f_64 <= g_64);
+    correct += !(f_64 >= g_64);
+    correct += !(f_64 == g_64);
+    correct += (f_64 != g_64);
+
+    f_64 = 12.0;
+    g_64 = 1.0;
+
+    correct += !(f_64 < g_64);
+    correct += (f_64 > g_64);
+    correct += !(f_64 <= g_64);
+    correct += (f_64 >= g_64);
+    correct += !(f_64 == g_64);
+    correct += (f_64 != g_64);
+
+    printf("correct: %d\n", correct);
+
+    printf("done.\n");
+
+    return 0;
+end
