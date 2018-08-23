@@ -40,6 +40,7 @@ type llvm_data =
     d_scope_table  : (cfg_scope, cfg_scope) Hashtbl.t;
 
     (* Constant values. *)
+    zero_i1  : llvalue;
     zero_i8  : llvalue;
     zero_i16 : llvalue;
     zero_i32 : llvalue;
@@ -428,7 +429,11 @@ let process_expr data llvals varmap pos_n_expr =
          llvm_expr "neg" bldr
     | OperLogicalNot ->
        let zero, zexttp = match size_of data.prog.deftypemap tp with
-         | 1 -> data.zero_i8, i8_type data.ctx
+         | 1 ->
+            if tp.bare = (DefTypePrimitive PrimBool) then
+              data.zero_i1, i1_type data.ctx
+            else
+              data.zero_i8, i8_type data.ctx
          | 2 -> data.zero_i16, i16_type data.ctx
          | 4 -> data.zero_i32, i32_type data.ctx
          | 8 -> data.zero_i64, i64_type data.ctx
@@ -1307,6 +1312,7 @@ let process_cfg module_name program =
                difile = None;
                dib = None;
                d_scope_table = program.scope_table;
+               zero_i1 = const_null (the (lookup_symbol typemap "bool"));
                zero_i8 = const_null (the (lookup_symbol typemap "i8"));
                zero_i16 = const_null (the (lookup_symbol typemap "i16"));
                zero_i32 = const_null (the (lookup_symbol typemap "i32"));
