@@ -313,11 +313,11 @@ let of_parsetree =
                               }
        in
        StmtExpr (r.td_pos, expr)
-    | PTS_Transaction (xbegin, stmts, xend) ->
-       TransactionBlock (xbegin.td_pos, List.map stmt_of stmts, None)
-    | PTS_TransactionFail (xbegin, stmts, xfail, fstmts, xend) ->
+    | PTS_Transaction (atomic, xbegin, stmts, xend) ->
+       TransactionBlock (atomic.td_pos, List.map stmt_of stmts, None)
+    | PTS_TransactionFail (atomic, xbegin, stmts, xfail, fstmts, xend) ->
        let failure = xfail.td_pos, List.map stmt_of fstmts in
-       TransactionBlock (xbegin.td_pos, List.map stmt_of stmts, Some failure)
+       TransactionBlock (atomic.td_pos, List.map stmt_of stmts, Some failure)
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
        let else_clause = match maybe_else with
          | None -> None
