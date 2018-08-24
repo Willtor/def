@@ -18,6 +18,7 @@
 
 %{
   open Lexing
+  open Operator
   open Parsetree
 %}
 
@@ -299,53 +300,53 @@ expr:
 | LSQUARE exprlist RSQUARE { PTE_StaticArray ($1, $2, $3) }
 | expr LSQUARE expr RSQUARE { PTE_Index ($1, $2, $3, $4) }
 | expr DOT IDENT { PTE_SelectField ($1, $2, $3) }
-| expr INCREMENT { PTE_PostUni ($1, $2) }
-| expr DECREMENT { PTE_PostUni ($1, $2) }
-| INCREMENT expr %prec PREINCR { PTE_PreUni ($1, $2) }
-| DECREMENT expr %prec PREDECR { PTE_PreUni ($1, $2) }
-| MINUS expr %prec NEGATIVE { PTE_PreUni ($1, $2) }
-| PLUS expr %prec POSITIVE { PTE_PreUni ($1, $2) }
-| LNOT expr { PTE_PreUni ($1, $2) }
-| BNOT expr { PTE_PreUni ($1, $2) }
-| AMPERSAND expr %prec ADDR_OF { PTE_PreUni ($1, $2) }
-| expr STAR expr { PTE_Bin ($1, None, $2, $3) }
-| expr SLASH expr { PTE_Bin ($1, None, $2, $3) }
-| expr PERCENT expr { PTE_Bin ($1, None, $2, $3) }
-| expr PLUS expr { PTE_Bin ($1, None, $2, $3) }
-| expr MINUS expr { PTE_Bin ($1, None, $2, $3) }
-| expr DBLLANGLE expr { PTE_Bin ($1, None, $2, $3) }
-| expr DBLRANGLE expr { PTE_Bin ($1, None, $2, $3) }
-| expr LANGLE expr { PTE_Bin ($1, None, $2, $3) }
-| expr RANGLE expr { PTE_Bin ($1, None, $2, $3) }
-| expr LEQ expr { PTE_Bin ($1, None, $2, $3) }
-| expr GEQ expr { PTE_Bin ($1, None, $2, $3) }
-| expr EQUALSEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr BANGEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr AMPERSAND expr { PTE_Bin ($1, None, $2, $3) }
-| expr CARAT expr { PTE_Bin ($1, None, $2, $3) }
-| expr VBAR expr { PTE_Bin ($1, None, $2, $3) }
-| expr DBLAMPERSAND expr { PTE_Bin ($1, None, $2, $3) }
-| expr DBLVBAR expr { PTE_Bin ($1, None, $2, $3) }
-| expr ELLIPSIS expr { PTE_Bin ($1, None, $2, $3) }
-| expr EQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr PLUSEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr MINUSEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr STAREQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr SLASHEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr PERCENTEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr DBLLANGLEEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr DBLRANGLEEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr AMPERSANDEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr CARATEQUALS expr { PTE_Bin ($1, None, $2, $3) }
-| expr VBAREQUALS expr { PTE_Bin ($1, None, $2, $3) }
+| expr INCREMENT { PTE_PostUni ($1, (OperIncr, $2)) }
+| expr DECREMENT { PTE_PostUni ($1, (OperDecr, $2)) }
+| INCREMENT expr %prec PREINCR { PTE_PreUni ((OperIncr, $1), $2) }
+| DECREMENT expr %prec PREDECR { PTE_PreUni ((OperDecr, $1), $2) }
+| MINUS expr %prec NEGATIVE { PTE_PreUni ((OperMinus, $1), $2) }
+| PLUS expr %prec POSITIVE { PTE_PreUni ((OperPlus, $1), $2) }
+| LNOT expr { PTE_PreUni ((OperLogicalNot, $1), $2) }
+| BNOT expr { PTE_PreUni ((OperBitwiseNot, $1), $2) }
+| AMPERSAND expr %prec ADDR_OF { PTE_PreUni ((OperAddrOf, $1), $2) }
+| expr STAR expr { PTE_Bin ($1, None, (OperMult, $2), $3) }
+| expr SLASH expr { PTE_Bin ($1, None, (OperDiv, $2), $3) }
+| expr PERCENT expr { PTE_Bin ($1, None, (OperRemainder, $2), $3) }
+| expr PLUS expr { PTE_Bin ($1, None, (OperPlus, $2), $3) }
+| expr MINUS expr { PTE_Bin ($1, None, (OperMinus, $2), $3) }
+| expr DBLLANGLE expr { PTE_Bin ($1, None, (OperLShift, $2), $3) }
+| expr DBLRANGLE expr { PTE_Bin ($1, None, (OperRShift, $2), $3) }
+| expr LANGLE expr { PTE_Bin ($1, None, (OperLT, $2), $3) }
+| expr RANGLE expr { PTE_Bin ($1, None, (OperGT, $2), $3) }
+| expr LEQ expr { PTE_Bin ($1, None, (OperLTE, $2), $3) }
+| expr GEQ expr { PTE_Bin ($1, None, (OperGTE, $2), $3) }
+| expr EQUALSEQUALS expr { PTE_Bin ($1, None, (OperEquals, $2), $3) }
+| expr BANGEQUALS expr { PTE_Bin ($1, None, (OperNEquals, $2), $3) }
+| expr AMPERSAND expr { PTE_Bin ($1, None, (OperBitwiseAnd, $2), $3) }
+| expr CARAT expr { PTE_Bin ($1, None, (OperBitwiseXor, $2), $3) }
+| expr VBAR expr { PTE_Bin ($1, None, (OperBitwiseOr, $2), $3) }
+| expr DBLAMPERSAND expr { PTE_Bin ($1, None, (OperLogicalAnd, $2), $3) }
+| expr DBLVBAR expr { PTE_Bin ($1, None, (OperLogicalOr, $2), $3) }
+| expr ELLIPSIS expr { PTE_Bin ($1, None, (OperEllipsis, $2), $3) }
+| expr EQUALS expr { PTE_Bin ($1, None, (OperAssign, $2), $3) }
+| expr PLUSEQUALS expr { PTE_Bin ($1, None, (OperPlusAssign, $2), $3) }
+| expr MINUSEQUALS expr { PTE_Bin ($1, None, (OperMinusAssign, $2), $3) }
+| expr STAREQUALS expr { PTE_Bin ($1, None, (OperMultAssign, $2), $3) }
+| expr SLASHEQUALS expr { PTE_Bin ($1, None, (OperDivAssign, $2), $3) }
+| expr PERCENTEQUALS expr { PTE_Bin ($1, None, (OperRemAssign, $2), $3) }
+| expr DBLLANGLEEQUALS expr { PTE_Bin ($1, None, (OperLShiftAssign, $2), $3) }
+| expr DBLRANGLEEQUALS expr { PTE_Bin ($1, None, (OperRShiftAssign, $2), $3) }
+| expr AMPERSANDEQUALS expr { PTE_Bin ($1, None, (OperBAndAssign, $2), $3) }
+| expr CARATEQUALS expr { PTE_Bin ($1, None, (OperBXorAssign, $2), $3) }
+| expr VBAREQUALS expr { PTE_Bin ($1, None, (OperBOrAssign, $2), $3) }
 
-| expr ATOMIC PLUSEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC MINUSEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC STAREQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC SLASHEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC PERCENTEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC DBLLANGLEEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC DBLRANGLEEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC AMPERSANDEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC CARATEQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
-| expr ATOMIC VBAREQUALS expr { PTE_Bin ($1, Some $2, $3, $4) }
+| expr ATOMIC PLUSEQUALS expr { PTE_Bin ($1, Some $2, (OperPlusAssign, $3), $4) }
+| expr ATOMIC MINUSEQUALS expr { PTE_Bin ($1, Some $2, (OperMinusAssign, $3), $4) }
+| expr ATOMIC STAREQUALS expr { PTE_Bin ($1, Some $2, (OperMultAssign, $3), $4) }
+| expr ATOMIC SLASHEQUALS expr { PTE_Bin ($1, Some $2, (OperDivAssign, $3), $4) }
+| expr ATOMIC PERCENTEQUALS expr { PTE_Bin ($1, Some $2, (OperRemAssign, $3), $4) }
+| expr ATOMIC DBLLANGLEEQUALS expr { PTE_Bin ($1, Some $2, (OperLShiftAssign, $3), $4) }
+| expr ATOMIC DBLRANGLEEQUALS expr { PTE_Bin ($1, Some $2, (OperRShiftAssign, $3), $4) }
+| expr ATOMIC AMPERSANDEQUALS expr { PTE_Bin ($1, Some $2, (OperBAndAssign, $3), $4) }
+| expr ATOMIC CARATEQUALS expr { PTE_Bin ($1, Some $2, (OperBXorAssign, $3), $4) }
+| expr ATOMIC VBAREQUALS expr { PTE_Bin ($1, Some $2, (OperBOrAssign, $3), $4) }

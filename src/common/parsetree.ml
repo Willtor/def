@@ -163,9 +163,9 @@ and pt_expr =
   | PTE_StaticArray of tokendata * pt_expr list * tokendata
   | PTE_Index of pt_expr * tokendata * pt_expr * tokendata
   | PTE_SelectField of pt_expr * tokendata * tokendata
-  | PTE_PostUni of pt_expr * tokendata
-  | PTE_PreUni of tokendata * pt_expr
-  | PTE_Bin of pt_expr * tokendata option * tokendata * pt_expr
+  | PTE_PostUni of pt_expr * (Operator.t * tokendata)
+  | PTE_PreUni of (Operator.t * tokendata) * pt_expr
+  | PTE_Bin of pt_expr * tokendata option * (Operator.t * tokendata) * pt_expr
 
 let pt_type_pos = function
   | PTT_Fcn (tok, _, _, _, _)
@@ -202,7 +202,7 @@ let rec pt_expr_pos = function
   | PTE_StaticStruct (None, tok, _, _)
   | PTE_StaticStruct (Some tok, _, _, _)
   | PTE_StaticArray (tok, _, _)
-  | PTE_PreUni (tok, _) ->
+  | PTE_PreUni ((_, tok), _) ->
      tok.td_pos
   | PTE_Index (e, _, _, _)
   | PTE_SelectField (e, _, _)

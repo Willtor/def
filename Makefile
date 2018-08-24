@@ -20,6 +20,8 @@ COMMONFILES =		\
 	error.ml	\
 	error.mli	\
 	Makefile	\
+	operator.ml	\
+	operator.mli	\
 	parsetree.ml	\
 	parsetree.mli	\
 	version.ml
@@ -55,8 +57,6 @@ DEFFILES = 		\
 	main.mli	\
 	Makefile	\
 	metadata.cpp	\
-	operator.ml	\
-	operator.mli	\
 	osspecific.ml	\
 	osspecific.mli	\
 	report.ml	\

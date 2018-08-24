@@ -193,51 +193,6 @@ let of_parsetree =
     | PTT_Name { td_text = "void" } -> true
     | _ -> false
   in
-  let unop_of = function
-    | { td_text = "++" } -> OperIncr
-    | { td_text = "--" } -> OperDecr
-    | { td_text = "-" } -> OperMinus
-    | { td_text = "+" } -> OperPlus
-    | { td_text = "!" } -> OperLogicalNot
-    | { td_text = "~" } -> OperBitwiseNot
-    | { td_text = "&" } -> OperAddrOf
-    | op -> Report.err_internal __FILE__ __LINE__
-                                ("unknown unary operator: " ^ op.td_text)
-  in
-  let binop_of = function
-    | { td_text = "*" } -> OperMult
-    | { td_text = "/" } -> OperDiv
-    | { td_text = "%" } -> OperRemainder
-    | { td_text = "+" } -> OperPlus
-    | { td_text = "-" } -> OperMinus
-    | { td_text = "<<" } -> OperLShift
-    | { td_text = ">>" } -> OperRShift
-    | { td_text = "<" } -> OperLT
-    | { td_text = ">" } -> OperGT
-    | { td_text = "<=" } -> OperLTE
-    | { td_text = ">=" } -> OperGTE
-    | { td_text = "==" } -> OperEquals
-    | { td_text = "!=" } -> OperNEquals
-    | { td_text = "&" } -> OperBitwiseAnd
-    | { td_text = "^" } -> OperBitwiseXor
-    | { td_text = "|" } -> OperBitwiseOr
-    | { td_text = "&&" } -> OperLogicalAnd
-    | { td_text = "||" } -> OperLogicalOr
-    | { td_text = "..." } -> OperEllipsis
-    | { td_text = "=" } -> OperAssign
-    | { td_text = "+=" } -> OperPlusAssign
-    | { td_text = "-=" } -> OperMinusAssign
-    | { td_text = "*=" } -> OperMultAssign
-    | { td_text = "/=" } -> OperDivAssign
-    | { td_text = "%=" } -> OperRemAssign
-    | { td_text = "<<=" } -> OperLShiftAssign
-    | { td_text = ">>=" } -> OperRShiftAssign
-    | { td_text = "&=" } -> OperBAndAssign
-    | { td_text = "^=" } -> OperBXorAssign
-    | { td_text = "|=" } -> OperBOrAssign
-    | op -> Report.err_internal __FILE__ __LINE__
-                                ("unknown binary operator: " ^ op.td_text)
-  in
   let rec stmt_of = function
     | PTS_Import (importtok, (pathtok, _), _) -> Import (importtok, pathtok)
     | PTS_Begin (b, stmts, _) -> Block (b.td_pos, List.map stmt_of stmts)
@@ -548,27 +503,27 @@ let of_parsetree =
                         field.td_pos,
                         expr_of obj,
                         FieldName field.td_text)
-    | PTE_PostUni (e, op) ->
+    | PTE_PostUni (e, (unop, op)) ->
        let oper = { op_pos = op.td_pos;
-                    op_op = unop_of op;
+                    op_op = unop;
                     op_left = expr_of e;
                     op_right = None;
                     op_atomic = false;
                   }
        in
        ExprPostUnary oper
-    | PTE_PreUni (op, e) ->
+    | PTE_PreUni ((unop, op), e) ->
        let oper = { op_pos = op.td_pos;
-                    op_op = unop_of op;
+                    op_op = unop;
                     op_left = expr_of e;
                     op_right = None;
                     op_atomic = false;
                   }
        in
        ExprPreUnary oper
-    | PTE_Bin (left, atomic_opt, op, right) ->
+    | PTE_Bin (left, atomic_opt, (binop, op), right) ->
        let oper = { op_pos = op.td_pos;
-                    op_op = binop_of op;
+                    op_op = binop;
                     op_left = expr_of left;
                     op_right = Some (expr_of right);
                     op_atomic = if atomic_opt = None then false

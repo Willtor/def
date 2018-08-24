@@ -1,7 +1,7 @@
 OCAMLC = ocamlfind ocamlopt -g
 PACKAGE = -package str,unix
 
-SRC = version.ml error.ml parsetree.ml defparse.mly deflex.mll
+SRC = version.ml operator.ml error.ml parsetree.ml defparse.mly deflex.mll
 FILES1 = $(SRC:.mly=.ml)
 FILES2 = $(FILES1:.mll=.ml)
 COMMON_OBJS = $(FILES2:.ml=.cmx)
