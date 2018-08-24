@@ -25,21 +25,14 @@ type tokendata =
                                   was read. *)
   }
 
-type pt_template =
-  { tmp_backtick : tokendata;                     (* ` *)
-    tmp_lparen   : tokendata;                     (* ( *)
-    tmp_args     : (tokendata * tokendata) list;  (* type T, type U, <etc.> *)
-    tmp_rparen   : tokendata                      (* ) *)
-  }
-
 type pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of
-      (tokendata option * tokendata * tokendata * pt_template option * pt_type)
+      (tokendata option * tokendata * tokendata * pt_type)
       * tokendata * pt_expr * tokendata
   | PTS_FcnDefBlock of
-      (tokendata option * tokendata * tokendata * pt_template option * pt_type)
+      (tokendata option * tokendata * tokendata * pt_type)
       * pt_stmt
   | PTS_FcnDecl of tokendata * tokendata * pt_type * tokendata
   | PTS_Expr of pt_expr * tokendata
@@ -126,17 +119,9 @@ and pt_field_init =
 and pt_fcn_call =
   { ptfc_spawn    : tokendata option;
     ptfc_name     : tokendata;
-    ptfc_template : pt_template_inst option;
     ptfc_lparen   : tokendata;
     ptfc_args     : pt_expr list;
     ptfc_rparen   : tokendata
-  }
-
-and pt_template_inst =
-  { ptti_bt     : tokendata;
-    ptti_lparen : tokendata option;
-    ptti_args   : pt_type list;
-    ptti_rparen : tokendata option
   }
 
 and pt_expr =

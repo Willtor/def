@@ -581,9 +581,6 @@ let global_decls decltable typemap = function
      List.iter add_decl vars
   | Import _ -> ()
   | TypeDecl _ -> ()
-  | DefTemplateFcn _ ->
-     Report.err_internal __FILE__ __LINE__
-                         "Templates should have been resolved."
   | _ -> Report.err_internal __FILE__ __LINE__
      "FIXME: Incomplete implementation of Cfg.global_decls."
 
@@ -1495,8 +1492,6 @@ let rec build_bbs name decltable typemap fcn_pos body =
        Report.err_internal __FILE__ __LINE__
                            ("At " ^ (format_position pos)
                             ^ ": local functions not yet implemented.")
-    | DefTemplateFcn _ :: _ ->
-       Report.err_internal __FILE__ __LINE__ "DefTemplateFcn not supported."
     | VarDecl (decl, vars, inits, raw_tp, _) :: rest ->
        let () = if decl.td_text = "global" then
                   Report.err_global_local_var_decl decl.td_pos
@@ -2042,7 +2037,6 @@ let resolve_builtins stmts typemap defined_syms =
             ExprFcnCall
               { fc_pos = f.fc_pos;
                 fc_name = f.fc_name;
-                fc_template = f.fc_template;
                 fc_args = List.map process_expr f.fc_args;
                 fc_spawn = f.fc_spawn
               }

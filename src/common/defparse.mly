@@ -41,7 +41,7 @@
 %token <Parsetree.tokendata> EXPORT
 
 (* Operators *)
-%token <Parsetree.tokendata> BACKTICK ELLIPSIS RARROW
+%token <Parsetree.tokendata> ELLIPSIS RARROW
 %token <Parsetree.tokendata> INCREMENT DECREMENT PLUSEQUALS MINUSEQUALS
 %token <Parsetree.tokendata> STAREQUALS SLASHEQUALS PERCENTEQUALS
 %token <Parsetree.tokendata> DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS
@@ -200,20 +200,8 @@ unnamedplist:
 variabledecl:
 | IDENT deftype { $1, $2 }
 
-%inline telement:
-| TYPE IDENT { $1, $2 }
-
-template:
-| BACKTICK LPAREN separated_nonempty_list(COMMA, telement) RPAREN
-  { { tmp_backtick = $1;
-      tmp_lparen = $2;
-      tmp_args = $3;
-      tmp_rparen = $4
-    }
-  }
-
 fcndef:
-| EXPORT? DEF IDENT template? fcntype { $1, $2, $3, $4, $5 }
+| EXPORT? DEF IDENT fcntype { $1, $2, $3, $4 }
 
 exprlist:
 | separated_nonempty_list(COMMA, expr) { $1 }
@@ -238,24 +226,6 @@ struct_init:
 | LCURLY separated_nonempty_list(COMMA, field_init) RCURLY
     { $1, $2, $3 }
 
-%inline template_inst:
-| BACKTICK deftype
-    { { ptti_bt     = $1;
-        ptti_lparen = None;
-        ptti_args   = [$2];
-        ptti_rparen = None
-      }
-    }
-(* shift/reduce with the lparen (a function type can start with lparen)
-| BACKTICK LPAREN separated_nonempty_list(COMMA, deftype) RPAREN
-    { { ptti_bt     = $1;
-        ptti_lparen = Some $2;
-        ptti_args   = $3;
-        ptti_rparen = Some $4
-      }
-    }
- *)
-
 expr:
 | NEW deftype struct_init? { PTE_New ($1, $2, $3) }
 | NIL { PTE_Nil $1 }
@@ -273,24 +243,22 @@ expr:
 | LITERALF32 { PTE_F32 $1 }
 | STRING { PTE_String $1 }
 | WILDCARD { PTE_Wildcard $1 }
-| SPAWN IDENT template_inst? LPAREN separated_list(COMMA, expr) RPAREN
+| SPAWN IDENT LPAREN separated_list(COMMA, expr) RPAREN
   { PTE_FcnCall
       { ptfc_spawn = Some $1;
         ptfc_name = $2;
-        ptfc_template = $3;
-        ptfc_lparen = $4;
-        ptfc_args = $5;
-        ptfc_rparen = $6
-      }
-  }
-| IDENT template_inst? LPAREN separated_list(COMMA, expr) RPAREN
-  { PTE_FcnCall
-      { ptfc_spawn = None;
-        ptfc_name = $1;
-        ptfc_template = $2;
         ptfc_lparen = $3;
         ptfc_args = $4;
         ptfc_rparen = $5
+      }
+  }
+| IDENT LPAREN separated_list(COMMA, expr) RPAREN
+  { PTE_FcnCall
+      { ptfc_spawn = None;
+        ptfc_name = $1;
+        ptfc_lparen = $2;
+        ptfc_args = $3;
+        ptfc_rparen = $4
       }
   }
 | IDENT { PTE_Var $1 }

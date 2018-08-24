@@ -134,8 +134,8 @@ let output_exported_type oc = function
   | _ -> ()
 
 let output_exported_function oc = function
-  | PTS_FcnDefExpr ((Some export, _, name, _, deftype), _, _, _)
-  | PTS_FcnDefBlock ((Some export, _, name, _ , deftype), _) ->
+  | PTS_FcnDefExpr ((Some export, _, name, deftype), _, _, _)
+  | PTS_FcnDefBlock ((Some export, _, name, deftype), _) ->
      begin
        dump_doc oc export;
        output_deftype oc name.td_text "" deftype;

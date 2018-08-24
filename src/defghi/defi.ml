@@ -127,8 +127,8 @@ let output_exported_type oc = function
   | _ -> ()
 
 let output_exported_func oc = function
-  | PTS_FcnDefExpr ((Some export, _, name, _, tp), _, _, _)
-  | PTS_FcnDefBlock ((Some export, _, name, _, tp), _) ->
+  | PTS_FcnDefExpr ((Some export, _, name, tp), _, _, _)
+  | PTS_FcnDefBlock ((Some export, _, name, tp), _) ->
      begin
        dump_doc oc export;
        output_string oc ("decl " ^ name.td_text ^ " ");

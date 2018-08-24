@@ -208,7 +208,6 @@ rule deflex = parse
                   Int64.of_string (remove_suffix istr 3)) }
 
 (* Operators. *)
-| "`" as tok { BACKTICK (get_token_data (String.make 1 tok) lexbuf) }
 | "..." as tok { ELLIPSIS (get_token_data tok lexbuf) }
 | "->" as tok { RARROW (get_token_data tok lexbuf) }
 | "++" as tok { INCREMENT (get_token_data tok lexbuf) }

@@ -40,7 +40,6 @@ type literal =
 type fcn_call =
   { fc_pos      : position;
     fc_name     : string;
-    fc_template : Parsetree.tokendata list;
     fc_args     : expr list;
     fc_spawn    : bool
   }
@@ -90,9 +89,6 @@ type stmt =
               * Types.deftype
               * (position * string) list
               * stmt list
-  | DefTemplateFcn of position * Parsetree.pt_template * string option
-                      * Types.visibility
-                      * string * Types.deftype * stmt list
   | VarDecl of Parsetree.tokendata * Parsetree.tokendata list
                * expr list * Types.deftype * Types.visibility
   | InlineStructVarDecl of Parsetree.tokendata
@@ -196,25 +192,17 @@ let of_parsetree =
   let rec stmt_of = function
     | PTS_Import (importtok, (pathtok, _), _) -> Import (importtok, pathtok)
     | PTS_Begin (b, stmts, _) -> Block (b.td_pos, List.map stmt_of stmts)
-    | PTS_FcnDefExpr ((exp, def, id, template_maybe, tp), equals, e, _) ->
+    | PTS_FcnDefExpr ((exp, def, id, tp), equals, e, _) ->
        let vis, doc = visdoc exp in
        let contents = if void_rettp_p tp then StmtExpr (def.td_pos, expr_of e)
                       else Return (equals.td_pos, expr_of e)
        in
-       if template_maybe = None then
-         DefFcn (def.td_pos, doc, vis, id.td_text, deftype_of tp,
-                 params_of tp, [contents])
-       else
-         DefTemplateFcn (def.td_pos, Util.the template_maybe, doc, vis,
-                         id.td_text, deftype_of tp, [contents])
-    | PTS_FcnDefBlock ((exp, def, id, template_maybe, tp), stmt) ->
+       DefFcn (def.td_pos, doc, vis, id.td_text, deftype_of tp,
+               params_of tp, [contents])
+    | PTS_FcnDefBlock ((exp, def, id, tp), stmt) ->
        let vis, doc = visdoc exp in
-       if template_maybe = None then
-         DefFcn (def.td_pos, doc, vis, id.td_text, deftype_of tp,
-                 params_of tp, [stmt_of stmt])
-       else
-         DefTemplateFcn (def.td_pos, Util.the template_maybe, doc, vis,
-                         id.td_text, deftype_of tp, [stmt_of stmt])
+       DefFcn (def.td_pos, doc, vis, id.td_text, deftype_of tp,
+               params_of tp, [stmt_of stmt])
     | PTS_FcnDecl (decl, id, tp, _) ->
        DeclFcn (decl.td_pos, VisExported decl.td_pos, id.td_text,
                 deftype_of tp, params_of tp)
@@ -253,7 +241,6 @@ let of_parsetree =
     | PTS_DeleteExpr (d, e, _) ->
        let expr = ExprFcnCall { fc_pos = d.td_pos;
                                 fc_name = "forkscan_free";
-                                fc_template = [];
                                 fc_args = [ expr_of e ];
                                 fc_spawn = false
                               }
@@ -262,7 +249,6 @@ let of_parsetree =
     | PTS_RetireExpr (r, e, _) ->
        let expr = ExprFcnCall { fc_pos = r.td_pos;
                                 fc_name = "forkscan_retire";
-                                fc_template = [];
                                 fc_args = [ expr_of e ];
                                 fc_spawn = false
                               }
@@ -462,19 +448,8 @@ let of_parsetree =
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
     | PTE_Wildcard tok -> ExprWildcard tok.td_pos
     | PTE_FcnCall fcn ->
-       let template = match fcn.ptfc_template with
-         | None -> []
-         | Some tinst ->
-            let get_template_name = function
-              | PTT_Name tok -> tok
-              | _ -> Report.err_internal __FILE__ __LINE__
-                                         "Unexpected template type."
-            in
-            List.map get_template_name tinst.ptti_args
-       in
        let fcn_call = { fc_pos = fcn.ptfc_name.td_pos;
                         fc_name = fcn.ptfc_name.td_text;
-                        fc_template = template;
                         fc_args = List.map expr_of fcn.ptfc_args;
                         fc_spawn =
                           if fcn.ptfc_spawn = None then false else true

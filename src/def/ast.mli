@@ -16,7 +16,6 @@ type literal =
 type fcn_call =
   { fc_pos      : position;
     fc_name     : string;
-    fc_template : Parsetree.tokendata list;
     fc_args     : expr list;
     fc_spawn    : bool
   }
@@ -66,9 +65,6 @@ type stmt =
               * Types.deftype
               * (position * string) list
               * stmt list
-  | DefTemplateFcn of position * Parsetree.pt_template * string option
-                      * Types.visibility
-                      * string * Types.deftype * stmt list
   | VarDecl of Parsetree.tokendata * Parsetree.tokendata list
                * expr list * Types.deftype * Types.visibility
   | InlineStructVarDecl of Parsetree.tokendata
