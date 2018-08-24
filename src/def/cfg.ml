@@ -451,7 +451,8 @@ let infer_type_from_expr typemap scope toplevel_expr =
               (* FIXME: Need to recode this with a table of builtins. *)
               match f.fc_name with
               | "__builtin_cas" -> bool_type
-              | _ -> Report.err_unknown_fcn_call f.fc_pos f.fc_name
+              | _ -> Report.err_unknown_fcn_call
+                       (pos_of_cr f.fc_pos) f.fc_name
             end
        end
     | ExprString _ -> string_type
@@ -1005,24 +1006,22 @@ let convert_expr typemap fcnscope =
             in
             lookup 0 (mtypes, fields)
           in
-          let init_convert = function
-            | (fp, f, None, ep, e) ->
-               let mtype, n = lookup_field fp f in
-               let conv_tp, conv_e = convert e in
-               let () = check_castability ep typemap conv_tp mtype in
-               n, maybe_cast typemap conv_tp mtype conv_e
-            | (fp, f, Some (ap, ae), ep, e) ->
-               Report.err_internal __FILE__ __LINE__ "Not implemented, yet."
+          let init_convert (fp, f, ep, e) =
+            let mtype, n = lookup_field fp f in
+            let conv_tp, conv_e = convert e in
+            let () = check_castability ep typemap conv_tp mtype in
+            n, maybe_cast typemap conv_tp mtype conv_e
           in
           let field_inits = List.map init_convert init in
           makeptr tp, Expr_New (tp, i64sz, field_inits)
        end
     | ExprFcnCall call ->
+       let pos = pos_of_cr call.fc_pos in
        if call.fc_spawn then
-         Report.err_bad_spawn_loc call.fc_pos
+         Report.err_bad_spawn_loc pos
        else
          let converted_args = List.map convert call.fc_args in
-         build_fcn_call scope typemap call.fc_pos call.fc_name converted_args
+         build_fcn_call scope typemap pos call.fc_name converted_args
     | ExprString (pos, str) ->
        let raw =
          List.fold_left
@@ -1440,7 +1439,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
             let detach, call = make_spawn fc.fc_name None fc.fc_args in
             let reattach =
               make_reattach_bb (label ^ ".reattach") sync_label
-                               [(fc.fc_pos, call)] in
+                               [(pos_of_cr fc.fc_pos, call)] in
             let end_bb = make_sequential_bb (label ^ ".cont") [] in
             let () = add_next detach reattach in
             let () = add_next reattach end_bb in
@@ -1469,7 +1468,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
             in
             let reattach =
               make_reattach_bb (label ^ ".reattach") sync_label
-                               [(fc.fc_pos, expr)] in
+                               [(pos_of_cr fc.fc_pos, expr)] in
             let end_bb = make_sequential_bb (label ^ ".cont") [] in
             let () = add_next detach reattach in
             let () = add_next reattach end_bb in
@@ -2026,12 +2025,14 @@ let resolve_builtins stmts typemap defined_syms =
             begin match f.fc_args with
             | [ ExprType (p, tp); e ] ->
                ExprCast (p, tp, process_expr e)
-            | _ -> Report.err_bad_args_for_builtin f.fc_pos "cast"
+            | _ -> Report.err_bad_args_for_builtin
+                     (pos_of_cr f.fc_pos) "cast"
             end
          | "typestr" ->
+            let pos = pos_of_cr f.fc_pos in
             begin match f.fc_args with
-            | [ expr ] -> ExprTypeString (f.fc_pos, expr)
-            | _ -> Report.err_bad_args_for_builtin f.fc_pos "typestr"
+            | [ expr ] -> ExprTypeString (pos, expr)
+            | _ -> Report.err_bad_args_for_builtin pos "typestr"
             end
          | _ ->
             ExprFcnCall

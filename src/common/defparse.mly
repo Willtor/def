@@ -209,16 +209,8 @@ exprlist:
 field_init:
 | IDENT COLON expr
   {  { ptfi_fname = $1;
-       ptfi_array = None;
        ptfi_colon = $2;
        ptfi_expr  = $3
-     }
-  }
-| IDENT LSQUARE expr RSQUARE COLON expr
-  {  { ptfi_fname = $1;
-       ptfi_array = Some ($2, $3, $4);
-       ptfi_colon = $5;
-       ptfi_expr  = $6
      }
   }
 

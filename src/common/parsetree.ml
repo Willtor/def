@@ -111,7 +111,6 @@ and pt_param =
 
 and pt_field_init =
   { ptfi_fname : tokendata;
-    ptfi_array : (tokendata * pt_expr * tokendata) option;
     ptfi_colon : tokendata;
     ptfi_expr  : pt_expr;
   }

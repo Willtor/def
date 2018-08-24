@@ -37,8 +37,12 @@ type literal =
   | LitF32 of float
   | LitF64 of float
 
+type code_relation =
+  | CRExpr of pt_expr
+  | CRApproximate of position
+
 type fcn_call =
-  { fc_pos      : position;
+  { fc_pos      : code_relation;
     fc_name     : string;
     fc_args     : expr list;
     fc_spawn    : bool
@@ -60,7 +64,7 @@ and expr =
   | ExprNew of
       position * Types.deftype
       * (*array dimension=*)expr
-      * (position * string * (position * expr) option * position * expr) list
+      * (position * string * position * expr) list
   | ExprFcnCall of fcn_call
   | ExprString of position * string
   | ExprBinary of operation
@@ -239,7 +243,7 @@ let of_parsetree =
        in
        InlineStructVarDecl (decl, cvlist, (pt_expr_pos e, expr_of e))
     | PTS_DeleteExpr (d, e, _) ->
-       let expr = ExprFcnCall { fc_pos = d.td_pos;
+       let expr = ExprFcnCall { fc_pos = CRExpr e;
                                 fc_name = "forkscan_free";
                                 fc_args = [ expr_of e ];
                                 fc_spawn = false
@@ -247,7 +251,7 @@ let of_parsetree =
        in
        StmtExpr (d.td_pos, expr)
     | PTS_RetireExpr (r, e, _) ->
-       let expr = ExprFcnCall { fc_pos = r.td_pos;
+       let expr = ExprFcnCall { fc_pos = CRExpr e;
                                 fc_name = "forkscan_retire";
                                 fc_args = [ expr_of e ];
                                 fc_spawn = false
@@ -401,27 +405,19 @@ let of_parsetree =
        let alt_names = List.map (fun tok -> tok.td_text) alts in
        maketype (Some enum.td_pos) (DefTypeEnum alt_names)
 
-  and expr_of = function
+  and expr_of e =
+    match e with
     | PTE_New (newtok, tp, init_p) ->
        let init = match init_p with
          | None -> []
          | Some (_, field_inits, _) ->
             List.map (fun field ->
-                match field.ptfi_array with
-                | None ->
-                   field.ptfi_fname.td_pos,
-                   field.ptfi_fname.td_text,
-                   None,
-                   pt_expr_pos field.ptfi_expr,
-                   expr_of field.ptfi_expr
-                | Some (lsquare, e, _) ->
-                   field.ptfi_fname.td_pos,
-                   field.ptfi_fname.td_text,
-                   Some (lsquare.td_pos, expr_of e),
-                   pt_expr_pos field.ptfi_expr,
-                   expr_of field.ptfi_expr
+                field.ptfi_fname.td_pos,
+                field.ptfi_fname.td_text,
+                pt_expr_pos field.ptfi_expr,
+                expr_of field.ptfi_expr
               )
-                     field_inits
+              field_inits
        in
        let array_pos = pt_type_pos tp in
        let array_dim = match tp with
@@ -448,7 +444,7 @@ let of_parsetree =
     | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
     | PTE_Wildcard tok -> ExprWildcard tok.td_pos
     | PTE_FcnCall fcn ->
-       let fcn_call = { fc_pos = fcn.ptfc_name.td_pos;
+       let fcn_call = { fc_pos = CRExpr e;
                         fc_name = fcn.ptfc_name.td_text;
                         fc_args = List.map expr_of fcn.ptfc_args;
                         fc_spawn =
@@ -754,9 +750,13 @@ let of_cimport cimport =
   List.iter verify ret;
   ret
 
+let pos_of_cr = function
+  | CRExpr pte -> pt_expr_pos pte
+  | CRApproximate p -> p
+
 let rec pos_of_astexpr = function
+  | ExprFcnCall fc -> pos_of_cr fc.fc_pos
   | ExprNew (pos, _, _, _)
-  | ExprFcnCall { fc_pos = pos }
   | ExprString (pos, _)
   | ExprPreUnary { op_pos = pos }
   | ExprPostUnary { op_pos = pos }

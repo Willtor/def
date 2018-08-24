@@ -13,8 +13,12 @@ type literal =
   | LitF32 of float
   | LitF64 of float
 
+type code_relation =
+  | CRExpr of Parsetree.pt_expr
+  | CRApproximate of position
+
 type fcn_call =
-  { fc_pos      : position;
+  { fc_pos      : code_relation;
     fc_name     : string;
     fc_args     : expr list;
     fc_spawn    : bool
@@ -36,7 +40,7 @@ and expr =
   | ExprNew of
       position * Types.deftype
       * (*array dimension=*)expr
-      * (position * string * (position * expr) option * position * expr) list
+      * (position * string * position * expr) list
   | ExprFcnCall of fcn_call
   | ExprString of position * string
   | ExprBinary of operation
@@ -94,6 +98,8 @@ val of_parsetree : Parsetree.pt_stmt list -> stmt list
 val of_cimport : Cimportext.cvalue list -> stmt list
 
 val literal2primitive : literal -> Types.primitive
+
+val pos_of_cr : code_relation -> position
 
 val pos_of_astexpr : expr -> position
 
