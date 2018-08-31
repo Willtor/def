@@ -437,18 +437,19 @@ let resolve_types stmts =
        in
        let ifvars = push_symtab_scope varmap in
        let resolved_if = List.map (stmt_to_stmt rettp ifvars) ifbody in
-       IfStmt (p, resolve varmap cond, resolved_if, resolved_else)
+       IfStmt (p, implicit_cast bool_type (resolve varmap cond), resolved_if,
+               resolved_else)
     | ForLoop (p, is_par, init, (cp, cond), iter, p2, body) ->
        let loopvars = push_symtab_scope varmap in
        let resolved_init = option_map (stmt_to_stmt rettp loopvars) init in
-       let resolved_cond = resolve loopvars cond in
+       let resolved_cond = implicit_cast bool_type (resolve loopvars cond) in
        let resolved_iter =
          option_map (fun (p, e) -> p, resolve loopvars e) iter in
        let resolved_body = List.map (stmt_to_stmt rettp loopvars) body in
        ForLoop (p, is_par, resolved_init, (cp, resolved_cond), resolved_iter,
                 p2, resolved_body)
     | WhileLoop (p, pre, cond, body) ->
-       let resolved_cond = resolve varmap cond in
+       let resolved_cond = implicit_cast bool_type (resolve varmap cond) in
        let bodyvars = push_symtab_scope varmap in
        let resolved_body = List.map (stmt_to_stmt rettp bodyvars) body in
        WhileLoop (p, pre, resolved_cond, resolved_body)

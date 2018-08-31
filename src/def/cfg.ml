@@ -484,8 +484,7 @@ let rec maybe_cast typemap orig cast_as expr =
           let () = prerr_endline (string_of_type orig) in
           let () = prerr_endline (string_of_type cast_as) in
           let () = prerr_endline (classify_expr expr) in
-          Report.err_internal __FILE__ __LINE__
-                              "Bad struct cast."
+          Report.err_internal __FILE__ __LINE__ "Bad struct cast."
        end
     | DefTypePrimitive p1 ->
        begin match orig.bare with
