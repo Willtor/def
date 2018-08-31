@@ -171,7 +171,9 @@ let resolve_types stmts =
             let t = mgt () in
             bool_type, implicit_cast t left, implicit_cast t right
          | OperLogicalAnd | OperLogicalOr ->
-            bool_type, left, right
+            bool_type,
+            implicit_cast bool_type left,
+            implicit_cast bool_type right
          | OperAssign ->
             left.expr_tp, left, implicit_cast left.expr_tp right
          | _ ->

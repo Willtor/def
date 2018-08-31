@@ -581,67 +581,6 @@ let check_castability pos typemap ltype rtype =
   in
   similar (ltype, rtype)
 
-(** Reconcile the types of two subexpressions connected by a binary operator
-    and return the result.  The result may include implicit casts. *)
-let binary_reconcile typemap =
-  let reconcile pos op (ltype, lexpr) (rtype, rexpr) =
-    match op with
-    | OperPlus | OperMinus | OperMult | OperDiv
-    | OperLShift | OperRShift ->
-       let tp = most_general_type pos typemap [ltype; rtype] in
-       tp,
-       (maybe_cast typemap ltype tp lexpr),
-       (maybe_cast typemap rtype tp rexpr)
-    | OperRemainder ->
-       if (not (is_integer_type ltype)) || (not (is_integer_type rtype)) then
-         Report.err_modulo_on_non_integer
-           pos (string_of_type ltype) (string_of_type rtype)
-       else
-         let tp = most_general_type pos typemap [ltype; rtype] in
-         tp,
-         (maybe_cast typemap ltype tp lexpr),
-         (maybe_cast typemap rtype tp rexpr)
-    | OperLT | OperLTE
-    | OperGT | OperGTE
-    | OperEquals | OperNEquals ->
-       let tp = most_general_type pos typemap [ltype; rtype] in
-       tp,
-       (maybe_cast typemap ltype tp lexpr),
-       (maybe_cast typemap rtype tp rexpr)
-    | OperBitwiseAnd | OperBitwiseOr | OperBitwiseXor ->
-       let tp = most_general_type pos typemap [ltype; rtype] in
-       tp,
-       maybe_cast typemap ltype tp lexpr,
-       maybe_cast typemap rtype tp rexpr
-    | OperLogicalOr | OperLogicalAnd ->
-       let primbool = type_definition pos (DefTypePrimitive PrimBool) in
-       begin
-         check_castability pos typemap ltype primbool;
-         check_castability pos typemap rtype primbool;
-         primbool,
-         maybe_cast typemap ltype primbool lexpr,
-         maybe_cast typemap rtype primbool rexpr
-       end
-    | OperAssign
-    | OperPlusAssign | OperMinusAssign
-    | OperMultAssign | OperDivAssign ->
-       begin
-         (* FIXME: Do automatic casting of static structs to named or literal
-            structs, if possible.  Otherwise, casting doesn't work.  Literal
-            structs need to be the correct type at instantiation. *)
-         check_castability pos typemap ltype rtype;
-         ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
-       end
-    | OperBAndAssign | OperBOrAssign | OperBXorAssign ->
-       begin
-         check_castability pos typemap ltype rtype;
-         ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
-       end
-    | _ -> Report.err_internal __FILE__ __LINE__
-       ("FIXME: Incomplete implementation Cfg.reconcile (operator "
-        ^ (string_of_operator op) ^ ").")
-  in reconcile
-
 (** Convert a function call, verifying the function profile and matching
     arguments with parameters. *)
 let build_fcn_call scope typemap pos name args =
@@ -882,10 +821,8 @@ let convert_expr typemap fcnscope =
        tp, Expr_String (label_of_pos pos, raw)
     | ExprBinary op ->
        let () = Hashtbl.add scope_table (ScopeLeaf op.op_pos) lexical in
-       let tp, lhs, rhs =
-         binary_reconcile typemap op.op_pos op.op_op
-                          (convert op.op_left) (convert (the op.op_right))
-       in
+       let tp, lhs = convert op.op_left
+       and _, rhs = convert (the op.op_right) in
        let rettp = expr.expr_tp in
        (* FIXME: Should we make non-integers work using transactions?  We
           _could_.  Do users want that? *)
@@ -1605,9 +1542,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
                                           [pos, switch_assign] in
        let exit_bb = make_sequential_bb ("switch_exit." ^ label) [] in
        let reconcile pos l r =
-         let reconciled_tp, left, right =
-           binary_reconcile typemap pos OperEquals l r
-         in
+         let reconciled_tp, left = l
+         and _, right = r in
          Expr_Binary (pos, OperEquals, false, reconciled_tp, left, right)
        in
        let rec get_member_types tp =
