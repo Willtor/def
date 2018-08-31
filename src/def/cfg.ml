@@ -273,8 +273,8 @@ let label_of_pos pos =
 
 (* Evaluate the expression, if possible, and return a literal value. *)
 let static_eval_expr = function
-  | ExprLit (_, lit) -> Some lit
-  | ExprBinary _ -> Report.err_internal __FILE__ __LINE__
+  | { expr_ast = ExprLit lit } -> Some lit
+  | { expr_ast = ExprBinary _ } -> Report.err_internal __FILE__ __LINE__
      "Don't know nothin' 'bout no maths in array dimensions."
   | _ -> None
 
@@ -427,6 +427,7 @@ let resolve_type typemap typename oldtp =
     | DefTypeLLVMToken -> t
   in Some (v oldtp)
 
+(*
 let infer_type_from_expr typemap scope toplevel_expr =
   let rec infer expr =
     match expr with
@@ -536,6 +537,7 @@ let infer_type_from_expr typemap scope toplevel_expr =
        Report.err_internal __FILE__ __LINE__ "Type of wildcard?"
   in
   infer toplevel_expr
+ *)
 
 let global_decls decltable typemap = function
   | DeclFcn (pos, vis, name, tp, params)
@@ -559,7 +561,7 @@ let global_decls decltable typemap = function
      let tp = match raw_tp.bare with
        | DefTypeUnresolved "" ->
           let init_types =
-            List.map (infer_type_from_expr typemap decltable) inits in
+            List.map (fun e -> e.expr_tp) inits in
           most_general_type decl.td_pos typemap init_types
        | _ -> raw_tp
      in
@@ -591,10 +593,16 @@ let get_fcntype_profile tp =
   | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
 let rec make_size_expr typemap p tp dimension_opt =
+  let expr_of e =
+    { expr_cr = CRApproximate p;
+      expr_tp = tp;
+      expr_ast = e
+    }
+  in
   match tp.bare with
   | DefTypeArray (subtype, n) ->
      let lhs =
-       if n > 0 then ExprLit (p, LitI32 (Int32.of_int n))
+       if n > 0 then expr_of (ExprLit (LitI32 (Int32.of_int n)))
        else if dimension_opt = None then
          Report.err_cant_resolve_array_dim p
        else Util.the dimension_opt
@@ -607,10 +615,10 @@ let rec make_size_expr typemap p tp dimension_opt =
                 op_atomic = false
               }
      in
-     ExprBinary op
+     expr_of (ExprBinary op)
   | _ ->
      let sz = size_of typemap tp in
-     ExprLit (p, LitU32 (Int32.of_int sz))
+     expr_of (ExprLit (LitU32 (Int32.of_int sz)))
 
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
@@ -683,6 +691,8 @@ let check_castability pos typemap ltype rtype =
        similar ((the @@ lookup_symbol typemap nm), r)
     | _, DefTypeNamed nm ->
        similar (l, (the @@ lookup_symbol typemap nm))
+    | DefTypeStaticStruct (p1, smembers),
+      DefTypeStaticStruct (p2, lmembers)
     | DefTypeStaticStruct (p1, smembers),
       DefTypeLiteralStruct (p2, lmembers, _)
     | DefTypeLiteralStruct (p1, lmembers, _),
@@ -969,8 +979,10 @@ let build_fcn_call scope typemap pos name args =
 let convert_expr typemap fcnscope =
   let scope = fcnscope.fs_vars in
   let lexical = fcnscope.fs_scope_pos in
-  let rec convert = function
-    | ExprNew (pos, t, dim, init) ->
+  let rec convert expr =
+    match expr.expr_ast with
+    | ExprNew (dim, t, init) ->
+       let pos = pos_of_cr expr.expr_cr in
        let () = set_ref_bit fcnscope.fs_vars new_fcn in
        let tp = match t.bare with
          (* Throw away an initial ArrayType, since that's only relevant for
@@ -980,9 +992,7 @@ let convert_expr typemap fcnscope =
        in
        (* FIXME: Fix size for variable-sized array members. *)
        let i32tp, i32sz = convert (make_size_expr typemap pos t (Some dim)) in
-       let i64sz =
-         maybe_cast typemap i32tp i64_type i32sz
-       in
+       let i64sz = maybe_cast typemap i32tp i64_type i32sz in
        begin match init with
        | [] -> makeptr tp, Expr_New (tp, i64sz, [])
        | _ ->
@@ -1006,29 +1016,31 @@ let convert_expr typemap fcnscope =
             in
             lookup 0 (mtypes, fields)
           in
-          let init_convert (fp, f, ep, e) =
-            let mtype, n = lookup_field fp f in
+          let init_convert (ftok, e) =
+            let mtype, n = lookup_field ftok.td_pos ftok.td_text in
             let conv_tp, conv_e = convert e in
-            let () = check_castability ep typemap conv_tp mtype in
+            let epos = pos_of_cr e.expr_cr in
+            let () = check_castability epos typemap conv_tp mtype in
             n, maybe_cast typemap conv_tp mtype conv_e
           in
           let field_inits = List.map init_convert init in
           makeptr tp, Expr_New (tp, i64sz, field_inits)
        end
-    | ExprFcnCall call ->
-       let pos = pos_of_cr call.fc_pos in
-       if call.fc_spawn then
+    | ExprFcnCall (name, args, is_spawn) ->
+       let pos = pos_of_cr expr.expr_cr in
+       if is_spawn then
          Report.err_bad_spawn_loc pos
        else
-         let converted_args = List.map convert call.fc_args in
-         build_fcn_call scope typemap pos call.fc_name converted_args
-    | ExprString (pos, str) ->
+         let converted_args = List.map convert args in
+         build_fcn_call scope typemap pos name converted_args
+    | ExprString str ->
        let raw =
          List.fold_left
            (fun s (re, subst) -> global_replace re subst s)
            str
            re_set
        in
+       let pos = pos_of_cr expr.expr_cr in
        (* FIXME: Should be const. *)
        let tp =
          type_definition pos (DefTypeArray (char_type, String.length raw))
@@ -1057,19 +1069,25 @@ let convert_expr typemap fcnscope =
        let tp, subexpr = convert op.op_left in
        let rettp = tp in
        rettp, Expr_Unary (op.op_op, tp, subexpr, false)
-    | ExprVar (pos, name) ->
+    | ExprVar name ->
        begin match lookup_symbol scope name with
        | Some var ->
           let () = var.decl_ref <- true in
           var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
        | None ->
-          Report.err_undefined_var pos name
+          Report.err_undefined_var (pos_of_cr expr.expr_cr) name
        end
-    | ExprLit (pos, literal) ->
+    | ExprLit literal ->
        (typeof_literal literal), Expr_Literal literal
-    | ExprEnum (pos, name, lit, tp) ->
-       tp, Expr_Literal lit
-    | ExprIndex (bpos, base, ipos, idx) ->
+    | ExprEnum (name, lit) ->
+       expr.expr_tp, Expr_Literal lit
+    | ExprIndex (base, idx) ->
+       let bpos, ipos = match expr.expr_cr with
+         | CRExpr (PTE_Index (b, _, i, _)) ->
+            pt_expr_pos b, pt_expr_pos i
+         | CRApproximate p -> p, p
+         | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected non-index."
+       in
        let btype, converted_base = convert base
        and itype, converted_idx = convert idx
        in begin match btype.bare with
@@ -1091,7 +1109,13 @@ let convert_expr typemap fcnscope =
             Report.err_non_integer_index ipos
        | _ -> Report.err_index_non_ptr ipos
        end
-    | ExprSelectField (dpos, fpos, obj, field) ->
+    | ExprSelectField (obj, field) ->
+       let dpos, fpos = match expr.expr_cr with
+         | CRExpr (PTE_SelectField (_, dtok, ftok)) ->
+            dtok.td_pos, ftok.td_pos
+         | CRApproximate pos -> pos, pos
+         | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected non-field."
+       in
        let otype, converted_obj = convert obj in
        let rec record_select obj tp =
          match tp.bare with
@@ -1130,31 +1154,33 @@ let convert_expr typemap fcnscope =
          | _ -> Report.err_non_struct_member_access dpos
        in
        record_select converted_obj otype
-    | ExprCast (pos, to_tp, e) ->
-       let from_tp, converted_expr = convert e in
+    | ExprCast (from_tp, to_tp, e) ->
+       let _, converted_expr = convert e in
        to_tp, maybe_cast typemap from_tp to_tp converted_expr
-    | ExprStaticStruct (is_packed, _, members) ->
-       let cmembers = List.map (fun (_, e) -> convert e) members in
+    | ExprStaticStruct (is_packed, members) ->
+       let cmembers = List.map convert members in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
                                  (t :: taccum)) [] cmembers) in
        maketype None (DefTypeStaticStruct (is_packed, tlist)),
        Expr_StaticStruct (is_packed, None, cmembers)
-    | ExprStaticArray (pos, elements) ->
-       let ce = List.map (fun (_, e) -> convert e) elements in
+    | ExprStaticArray elements ->
+       let pos = pos_of_cr expr.expr_cr in
+       let ce = List.map convert elements in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
                                  (t :: taccum)) [] ce) in
        let tp = most_general_type pos typemap tlist in
        let cast_ce = List.map (fun (t, e) -> maybe_cast typemap t tp e) ce in
        type_definition pos (DefTypeArray (tp, List.length tlist)),
        Expr_StaticArray cast_ce
-    | ExprType (pos, _) -> Report.err_unexpected_type_expr pos
-    | ExprTypeString (pos, subexpr) ->
+    | ExprType _ -> Report.err_unexpected_type_expr (pos_of_cr expr.expr_cr)
+    | ExprTypeString subexpr ->
+       let pos = pos_of_cr expr.expr_cr in
        let nm = (label_of_pos pos) ^ ".type_str" in
-       let expr_tp = infer_type_from_expr typemap scope subexpr in
+       let expr_tp = subexpr.expr_tp in
        makeptr char_type,
        Expr_String (nm, string_of_type expr_tp)
-    | ExprNil _ -> nil_type, Expr_Nil
-    | ExprWildcard _ -> wildcard_type, Expr_Wildcard
+    | ExprNil -> nil_type, Expr_Nil
+    | ExprWildcard -> wildcard_type, Expr_Wildcard
   in convert
 
 let nonconflicting_name pos scope name =
@@ -1422,7 +1448,12 @@ let rec build_bbs name decltable typemap fcn_pos body =
                                           op_atomic = false;
                                         }
               in
-              Some (convert_expr typemap scope lvalue)
+              let lexpr = { expr_cr = CRApproximate faux_pos;
+                            expr_tp = makeptr lhs.expr_tp;
+                            expr_ast = lvalue
+                          }
+              in
+              Some (convert_expr typemap scope lexpr)
          in
          let detach = make_detach_bb ("detach." ^ label) sync_label args ret in
          let block = match detach with
@@ -1434,12 +1465,12 @@ let rec build_bbs name decltable typemap fcn_pos body =
                                                     block.detach_args)
          in detach, call
        in
-       let begin_bb, end_bb = match expr with
-         | ExprFcnCall ({ fc_spawn = true } as fc) ->
-            let detach, call = make_spawn fc.fc_name None fc.fc_args in
+       let begin_bb, end_bb = match expr.expr_ast with
+         | ExprFcnCall (name, args, (*is_spawn=*)true) ->
+            let detach, call = make_spawn name None args in
             let reattach =
               make_reattach_bb (label ^ ".reattach") sync_label
-                               [(pos_of_cr fc.fc_pos, call)] in
+                               [(pos_of_cr expr.expr_cr, call)] in
             let end_bb = make_sequential_bb (label ^ ".cont") [] in
             let () = add_next detach reattach in
             let () = add_next reattach end_bb in
@@ -1448,27 +1479,28 @@ let rec build_bbs name decltable typemap fcn_pos body =
          | ExprBinary ({ op_op = OperAssign;
                          op_left = lhs;
                          op_right =
-                           Some (ExprFcnCall ({ fc_spawn = true } as fc))
+                           Some ({ expr_ast =
+                                     ExprFcnCall (name, args, true) })
                        } as binop) ->
             (* FIXME: Do casting of return value, if necessary. *)
-            let detach, call = make_spawn fc.fc_name (Some lhs) fc.fc_args in
+            let detach, call = make_spawn name (Some lhs) args in
             let lhslabel = match detach with
               | BB_Detach (_, _, { detach_ret = Some (retlabel, _) }) ->
                  retlabel
               | _ -> Report.err_internal __FILE__ __LINE__ "ruh roh!"
             in
-            let decl = Util.the (lookup_symbol scope.fs_vars fc.fc_name) in
+            let decl = Util.the (lookup_symbol scope.fs_vars name) in
             let tp = match decl.tp.bare with
               | DefTypeFcn (_, rettp, _) -> rettp
               | _ -> Report.err_internal __FILE__ __LINE__ "Bad function type."
             in
-            let expr =
+            let retval =
               Expr_Binary (binop.op_pos, OperAssign, false, tp,
                            Expr_Val_Ref lhslabel, call)
             in
             let reattach =
               make_reattach_bb (label ^ ".reattach") sync_label
-                               [(pos_of_cr fc.fc_pos, expr)] in
+                [(pos_of_cr expr.expr_cr, retval)] in
             let end_bb = make_sequential_bb (label ^ ".cont") [] in
             let () = add_next detach reattach in
             let () = add_next reattach end_bb in
@@ -1498,7 +1530,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let tp = match raw_tp.bare with
          | DefTypeUnresolved "" ->
             let init_types =
-              List.map (infer_type_from_expr typemap scope.fs_vars) inits in
+              List.map (fun e -> e.expr_tp) inits in
             most_general_type decl.td_pos typemap init_types
          | _ -> raw_tp
        in
@@ -1520,19 +1552,22 @@ let rec build_bbs name decltable typemap fcn_pos body =
                else decl.td_pos
        in
        let temp_struct_nm = "inline_struct." ^ (unique_id ()) in
-       let target_tp = infer_type_from_expr typemap scope.fs_vars expr in
+       let target_tp = expr.expr_tp in
        let target_struct = make_decl p scope temp_struct_nm target_tp
        in
        let () = add_symbol scope.fs_vars temp_struct_nm target_struct in
        let () = add_decl target_struct in
-       let _, cexpr = convert_expr typemap scope
-         (ExprBinary { op_pos = epos;
-                       op_op = OperAssign;
-                       op_left = ExprVar (p, temp_struct_nm);
-                       op_right = Some expr;
-                       op_atomic = false
-                     })
-       in
+       let var = { expr_cr = CRApproximate epos;
+                   expr_tp = target_tp;
+                   expr_ast = ExprVar temp_struct_nm } in
+       let assign = { expr_cr = CRApproximate epos;
+                      expr_tp = target_tp;
+                      expr_ast = ExprBinary { op_pos = epos;
+                                              op_op = OperAssign;
+                                              op_left = var;
+                                              op_right = Some expr;
+                                              op_atomic = false } } in
+       let _, cexpr = convert_expr typemap scope assign in
        let field_types = get_field_types typemap target_tp in
        let var_init n (pos, nm, tp) =
          let field_type = List.nth field_types n in
@@ -1543,18 +1578,20 @@ let rec build_bbs name decltable typemap fcn_pos body =
          let decl = make_decl pos scope nm vartp in
          let () = add_symbol scope.fs_vars nm decl in
          let () = add_decl decl in
-         let rhs = ExprSelectField (pos, pos,
-                                    ExprVar (pos, temp_struct_nm),
-                                    FieldNumber n) in
-         let _, cexpr =
-           convert_expr typemap scope
-                        (ExprBinary { op_pos = pos;
-                                      op_op = OperAssign;
-                                      op_left = ExprVar (pos, nm);
-                                      op_right = Some rhs;
-                                      op_atomic = false
-                        })
-         in
+         let rhs = { expr_cr = CRApproximate pos;
+                     expr_tp = vartp;
+                     expr_ast = ExprSelectField (var, FieldNumber n) } in
+         let lhs = { expr_cr = CRApproximate pos;
+                     expr_tp = vartp;
+                     expr_ast = ExprVar nm } in
+         let assign = { expr_cr = CRApproximate pos;
+                        expr_tp = vartp;
+                        expr_ast = ExprBinary { op_pos = pos;
+                                                op_op = OperAssign;
+                                                op_left = lhs;
+                                                op_right = Some rhs;
+                                                op_atomic = false } } in
+         let _, cexpr = convert_expr typemap scope assign in
          pos, cexpr
        in
        let inits = List.mapi var_init vars in
@@ -2009,38 +2046,41 @@ let builtin_types () =
   map
 
 let resolve_builtins stmts typemap defined_syms =
-  let rec process_expr = function
-    | ExprFcnCall f ->
-       begin match f.fc_name with
+  let rec process_expr expr =
+    let replace ast =
+      { expr_cr = expr.expr_cr;
+        expr_tp = expr.expr_tp;
+        expr_ast = ast
+      }
+    in
+    match expr.expr_ast with
+    | ExprFcnCall (name, args, is_spawn) ->
+       let pos = pos_of_cr expr.expr_cr in
+       begin match name with
          | "sizeof" ->
-            begin match f.fc_args with
-            | [ ExprType (p, tp) ] ->
-               make_size_expr typemap p tp None
+            begin match args with
+            | [{ expr_ast = ExprType tp }] ->
+               make_size_expr typemap pos tp None
             | _ :: [] -> Report.err_internal __FILE__ __LINE__
                "FIXME: No error message for this."
             | _ -> Report.err_internal __FILE__ __LINE__
                "FIXME: No error message for this."
             end
          | "cast" ->
-            begin match f.fc_args with
-            | [ ExprType (p, tp); e ] ->
-               ExprCast (p, tp, process_expr e)
+            begin match args with
+            | [ { expr_ast = ExprType tp }; e ] ->
+               replace (ExprCast (e.expr_tp, tp, process_expr e))
             | _ -> Report.err_bad_args_for_builtin
-                     (pos_of_cr f.fc_pos) "cast"
+                     (pos_of_cr expr.expr_cr) "cast"
             end
          | "typestr" ->
-            let pos = pos_of_cr f.fc_pos in
-            begin match f.fc_args with
-            | [ expr ] -> ExprTypeString (pos, expr)
+            let pos = pos_of_cr expr.expr_cr in
+            begin match args with
+            | [ expr ] -> replace (ExprTypeString expr)
             | _ -> Report.err_bad_args_for_builtin pos "typestr"
             end
          | _ ->
-            ExprFcnCall
-              { fc_pos = f.fc_pos;
-                fc_name = f.fc_name;
-                fc_args = List.map process_expr f.fc_args;
-                fc_spawn = f.fc_spawn
-              }
+            replace (ExprFcnCall (name, List.map process_expr args, is_spawn))
        end
     | ExprBinary op ->
        let newop =
@@ -2050,7 +2090,7 @@ let resolve_builtins stmts typemap defined_syms =
            op_right = Some (process_expr (Util.the op.op_right));
            op_atomic = op.op_atomic
          }
-       in ExprBinary newop
+       in replace (ExprBinary newop)
     | ExprPreUnary op ->
        let newop =
          { op_pos = op.op_pos;
@@ -2059,7 +2099,7 @@ let resolve_builtins stmts typemap defined_syms =
            op_right = None;
            op_atomic = op.op_atomic
          }
-       in ExprPreUnary newop
+       in replace (ExprPreUnary newop)
     | ExprPostUnary op ->
        let newop =
          { op_pos = op.op_pos;
@@ -2068,19 +2108,18 @@ let resolve_builtins stmts typemap defined_syms =
            op_right = None;
            op_atomic = op.op_atomic
          }
-       in ExprPostUnary newop
-    | ExprCast (p, v, e) ->
-       ExprCast (p, v, process_expr e)
-    | ExprIndex (p1, base, p2, idx) ->
-       ExprIndex (p1, process_expr base, p2, process_expr idx)
-    | ExprSelectField (p1, p2, e, field) ->
-       ExprSelectField (p1, p2, process_expr e, field)
-    | ExprStaticStruct (is_packed, p, elist) ->
-       ExprStaticStruct (is_packed, p,
-                         List.map (fun (p, e) -> p, process_expr e) elist)
-    | ExprStaticArray (p, elements) ->
-       ExprStaticArray (p, List.map (fun (p, e) -> p, process_expr e) elements)
-    | ExprVar (p, name) ->
+       in replace (ExprPostUnary newop)
+    | ExprCast (from_tp, to_tp, e) ->
+       replace (ExprCast (from_tp, to_tp, process_expr e))
+    | ExprIndex (base, idx) ->
+       replace (ExprIndex (process_expr base, process_expr idx))
+    | ExprSelectField (e, field) ->
+       replace (ExprSelectField (process_expr e, field))
+    | ExprStaticStruct (is_packed, elist) ->
+       replace (ExprStaticStruct (is_packed, List.map process_expr elist))
+    | ExprStaticArray elements ->
+       replace (ExprStaticArray (List.map process_expr elements))
+    | ExprVar name ->
        begin
          match lookup_symbol defined_syms name with
 
@@ -2088,10 +2127,14 @@ let resolve_builtins stmts typemap defined_syms =
               type in the revised literal.  defined_syms should keep the enum.
             *)
 
-         | Some (v, t) -> ExprEnum (p, name, v, t)
-         | None -> ExprVar (p, name)
+         | Some (v, t) ->
+            { expr_cr = expr.expr_cr;
+              expr_tp = t;
+              expr_ast = ExprEnum (name, v)
+            }
+         | None -> replace (ExprVar name)
        end
-    | e -> e
+    | _ -> expr
   in
   let rec process_stmt = function
     | StmtExpr (p, e) -> StmtExpr (p, process_expr e)

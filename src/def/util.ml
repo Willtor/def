@@ -153,3 +153,8 @@ let err_combine err l1 l2 =
     err ()
   else
     List.combine l1 l2
+
+(** Apply a function to the object contained in an option variable. *)
+let option_map f = function
+  | None -> None
+  | Some v -> Some (f v)

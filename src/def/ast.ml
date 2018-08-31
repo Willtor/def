@@ -21,6 +21,7 @@ open Lexing
 open Operator
 open Parsetree
 open Types
+open Util
 
 type position = Lexing.position
 
@@ -41,13 +42,6 @@ type code_relation =
   | CRExpr of pt_expr
   | CRApproximate of position
 
-type fcn_call =
-  { fc_pos      : code_relation;
-    fc_name     : string;
-    fc_args     : expr list;
-    fc_spawn    : bool
-  }
-
 and operation =
   { op_pos : position;
     op_op : Operator.t;
@@ -61,27 +55,31 @@ and field_id =
   | FieldName of string
 
 and expr =
-  | ExprNew of
-      position * Types.deftype
-      * (*array dimension=*)expr
-      * (position * string * position * expr) list
-  | ExprFcnCall of fcn_call
-  | ExprString of position * string
+  { expr_cr   : code_relation;
+    expr_tp   : Types.deftype;
+    expr_ast  : ast_expr
+  }
+
+and ast_expr =
+  | ExprNew of (*array dim=*)expr * Types.deftype
+               * (Parsetree.tokendata * expr) list
+  | ExprFcnCall of string * expr list * (*spawn=*)bool
+  | ExprString of string
   | ExprBinary of operation
   | ExprPreUnary of operation
   | ExprPostUnary of operation
-  | ExprVar of position * string
-  | ExprLit of position * literal
-  | ExprEnum of position * string * literal * Types.deftype
-  | ExprCast of position * Types.deftype * expr
-  | ExprIndex of position * expr * position * expr
-  | ExprSelectField of position * position * expr * field_id
-  | ExprStaticStruct of (*is_packed=*)bool * position * (position * expr) list
-  | ExprStaticArray of position * (position * expr) list
-  | ExprType of position * Types.deftype
-  | ExprTypeString of position * expr
-  | ExprNil of position
-  | ExprWildcard of position
+  | ExprVar of string
+  | ExprLit of literal
+  | ExprEnum of string * literal
+  | ExprCast of (*from=*)Types.deftype * (*to=*)Types.deftype * expr
+  | ExprIndex of (*base=*)expr * (*idx=*)expr
+  | ExprSelectField of expr * field_id
+  | ExprStaticStruct of (*is_packed=*)bool * expr list
+  | ExprStaticArray of expr list
+  | ExprType of Types.deftype
+  | ExprTypeString of expr
+  | ExprNil
+  | ExprWildcard
 
 type stmt =
   | Import of Parsetree.tokendata * Parsetree.tokendata
@@ -129,7 +127,22 @@ let faux_global =
     td_noncode = []
   }
 
+(* Basic types. *)
 let inferred_base = DefTypeUnresolved ""
+let inferred_type = maketype (Some faux_pos) inferred_base
+let void_type = maketype (Some faux_pos) DefTypeVoid
+let i1_type = maketype (Some faux_pos) (DefTypePrimitive PrimBool)
+let i8_type = maketype (Some faux_pos) (DefTypePrimitive PrimI8)
+let u8_type = maketype (Some faux_pos) (DefTypePrimitive PrimU8)
+let i16_type = maketype (Some faux_pos) (DefTypePrimitive PrimI16)
+let u16_type = maketype (Some faux_pos) (DefTypePrimitive PrimU16)
+let i32_type = maketype (Some faux_pos) (DefTypePrimitive PrimI32)
+let u32_type = maketype (Some faux_pos) (DefTypePrimitive PrimU32)
+let i64_type = maketype (Some faux_pos) (DefTypePrimitive PrimI64)
+let u64_type = maketype (Some faux_pos) (DefTypePrimitive PrimU64)
+let f32_type = maketype (Some faux_pos) (DefTypePrimitive PrimF32)
+let f64_type = maketype (Some faux_pos) (DefTypePrimitive PrimF64)
+let wildcard_type = maketype (Some faux_pos) DefTypeWildcard
 
 let literal2primitive = function
   | LitBool _ -> PrimBool
@@ -155,6 +168,18 @@ let params_of = function
   | _ ->
      Report.err_internal __FILE__ __LINE__
                          "trying to get params from non-function type."
+
+let make_expr e tp astexpr =
+  { expr_cr = CRExpr e;
+    expr_tp = tp;
+    expr_ast = astexpr
+  }
+
+let make_inserted_expr e tp astexpr =
+  { expr_cr = CRApproximate (pt_expr_pos e);
+    expr_tp = tp;
+    expr_ast = astexpr
+  }
 
 let of_parsetree =
 
@@ -219,12 +244,15 @@ let of_parsetree =
                      maketype (Some decl.td_pos) inferred_base
                    else deftype_of (Util.the tp_opt) in
        let initify id expr =
-         ExprBinary { op_pos = eq.td_pos;
-                      op_op = OperAssign;
-                      op_left = ExprVar (id.td_pos, id.td_text);
-                      op_right = Some (expr_of expr);
-                      op_atomic = false;
-                    }
+         let v = make_inserted_expr expr asttp (ExprVar id.td_text) in
+         let ast = ExprBinary { op_pos = eq.td_pos;
+                                op_op = OperAssign;
+                                op_left = v;
+                                op_right = Some (expr_of expr);
+                                op_atomic = false;
+                              }
+         in
+         make_expr expr asttp ast
        in
        VarDecl (decl, ids, List.map2 initify ids elist, asttp, VisLocal)
     | PTS_VarInlineStruct (decl, _, vlist, _, _, e, _) ->
@@ -243,21 +271,11 @@ let of_parsetree =
        in
        InlineStructVarDecl (decl, cvlist, (pt_expr_pos e, expr_of e))
     | PTS_DeleteExpr (d, e, _) ->
-       let expr = ExprFcnCall { fc_pos = CRExpr e;
-                                fc_name = "forkscan_free";
-                                fc_args = [ expr_of e ];
-                                fc_spawn = false
-                              }
-       in
-       StmtExpr (d.td_pos, expr)
+       let ast = ExprFcnCall ("forkscan_free", [ expr_of e ], false) in
+       StmtExpr (d.td_pos, make_inserted_expr e void_type ast)
     | PTS_RetireExpr (r, e, _) ->
-       let expr = ExprFcnCall { fc_pos = CRExpr e;
-                                fc_name = "forkscan_retire";
-                                fc_args = [ expr_of e ];
-                                fc_spawn = false
-                              }
-       in
-       StmtExpr (r.td_pos, expr)
+       let ast = ExprFcnCall ("forkscan_retire", [ expr_of e ], false) in
+       StmtExpr (r.td_pos, make_inserted_expr e void_type ast)
     | PTS_Transaction (atomic, xbegin, stmts, xend) ->
        TransactionBlock (atomic.td_pos, List.map stmt_of stmts, None)
     | PTS_TransactionFail (atomic, xbegin, stmts, xfail, fstmts, xend) ->
@@ -282,19 +300,21 @@ let of_parsetree =
        let init = match init_p with
          | None -> None
          | Some (PTForInit_Var (var, id, tp_opt, eq, e)) ->
-            let init =
-              ExprBinary { op_pos = eq.td_pos;
-                           op_op = OperAssign;
-                           op_left = ExprVar (id.td_pos, id.td_text);
-                           op_right = Some (expr_of e);
-                           op_atomic = false;
-                         }
-            in
             let tp = match tp_opt with
               | Some t -> deftype_of t
               | None -> maketype (Some var.td_pos) inferred_base
             in
-            Some (VarDecl (faux_var, [id], [init], tp, VisLocal))
+            let init =
+              let v = make_inserted_expr e tp (ExprVar id.td_text) in
+              ExprBinary { op_pos = eq.td_pos;
+                           op_op = OperAssign;
+                           op_left = v;
+                           op_right = Some (expr_of e);
+                           op_atomic = false;
+                         }
+            in
+            let astexpr = make_expr e tp init in
+            Some (VarDecl (faux_var, [id], [astexpr], tp, VisLocal))
          | Some (PTForInit_Expr e) ->
             Some (StmtExpr (pt_expr_pos e, expr_of e))
        in
@@ -411,87 +431,79 @@ let of_parsetree =
        let init = match init_p with
          | None -> []
          | Some (_, field_inits, _) ->
-            List.map (fun field ->
-                field.ptfi_fname.td_pos,
-                field.ptfi_fname.td_text,
-                pt_expr_pos field.ptfi_expr,
-                expr_of field.ptfi_expr
-              )
-              field_inits
+            List.map (fun field -> field.ptfi_fname,
+                                   expr_of field.ptfi_expr) field_inits
        in
        let array_pos = pt_type_pos tp in
        let array_dim = match tp with
          | PTT_Array (_, None, _, _) ->
             Report.err_cant_resolve_array_dim array_pos
          | PTT_Array (_, Some expr, _, _) -> expr_of expr
-         | _ -> ExprLit (array_pos, LitI64 1L)
+         | _ -> make_expr e i64_type (ExprLit (LitI64 1L))
        in
-       ExprNew (newtok.td_pos, deftype_of tp, array_dim, init)
-    | PTE_Nil nil -> ExprNil nil.td_pos
+       let deftp = deftype_of tp in
+       let ast = ExprNew (array_dim, deftp, init) in
+       make_expr e (makeptr deftp) ast
+    | PTE_Nil nil -> make_expr e inferred_type ExprNil
     | PTE_Type (typetok, tp) ->
-       ExprType (typetok.td_pos, deftype_of tp)
-    | PTE_I64 (tok, value) -> ExprLit (tok.td_pos, LitI64 value)
-    | PTE_U64 (tok, value) -> ExprLit (tok.td_pos, LitU64 value)
-    | PTE_I32 (tok, value) -> ExprLit (tok.td_pos, LitI32 value)
-    | PTE_U32 (tok, value) -> ExprLit (tok.td_pos, LitU32 value)
-    | PTE_I16 (tok, value) -> ExprLit (tok.td_pos, LitI16 value)
-    | PTE_U16 (tok, value) -> ExprLit (tok.td_pos, LitU16 value)
-    | PTE_I8 (tok, value) -> ExprLit (tok.td_pos, LitI8 value)
-    | PTE_U8 (tok, value) -> ExprLit (tok.td_pos, LitU8 value)
-    | PTE_Bool (tok, value) -> ExprLit (tok.td_pos, LitBool value)
-    | PTE_F64 (tok, value) -> ExprLit (tok.td_pos, LitF64 value)
-    | PTE_F32 (tok, value) -> ExprLit (tok.td_pos, LitF32 value)
-    | PTE_String (tok, value) -> ExprString (tok.td_pos, value)
-    | PTE_Wildcard tok -> ExprWildcard tok.td_pos
+       make_expr e inferred_type (ExprType (deftype_of tp))
+    | PTE_I64 (tok, value) -> make_expr e i64_type (ExprLit (LitI64 value))
+    | PTE_U64 (tok, value) -> make_expr e u64_type (ExprLit (LitU64 value))
+    | PTE_I32 (tok, value) -> make_expr e i32_type (ExprLit (LitI32 value))
+    | PTE_U32 (tok, value) -> make_expr e u32_type (ExprLit (LitU32 value))
+    | PTE_I16 (tok, value) -> make_expr e i16_type (ExprLit (LitI16 value))
+    | PTE_U16 (tok, value) -> make_expr e u16_type (ExprLit (LitU16 value))
+    | PTE_I8 (tok, value) -> make_expr e i8_type (ExprLit (LitI8 value))
+    | PTE_U8 (tok, value) -> make_expr e u8_type (ExprLit (LitU8 value))
+    | PTE_Bool (tok, value) -> make_expr e i1_type (ExprLit (LitBool value))
+    | PTE_F64 (tok, value) -> make_expr e f64_type (ExprLit (LitF64 value))
+    | PTE_F32 (tok, value) -> make_expr e f32_type (ExprLit (LitF32 value))
+    | PTE_String (tok, value) ->
+       make_expr e (makeptr i8_type) (ExprString value)
+    | PTE_Wildcard tok -> make_expr e wildcard_type ExprWildcard
     | PTE_FcnCall fcn ->
-       let fcn_call = { fc_pos = CRExpr e;
-                        fc_name = fcn.ptfc_name.td_text;
-                        fc_args = List.map expr_of fcn.ptfc_args;
-                        fc_spawn =
-                          if fcn.ptfc_spawn = None then false else true
-                      }
+       let ast = ExprFcnCall (fcn.ptfc_name.td_text,
+                              List.map expr_of fcn.ptfc_args,
+                              if fcn.ptfc_spawn = None then false else true)
        in
-       ExprFcnCall fcn_call
+       make_expr e inferred_type ast
     | PTE_Var var ->
-       ExprVar (var.td_pos, var.td_text)
+       make_expr e inferred_type (ExprVar var.td_text)
     | PTE_StaticStruct (packed_maybe, lcurly, fields, _) ->
-       let is_packed, pos = match packed_maybe with
-         | None -> false, lcurly.td_pos
-         | Some packed -> true, packed.td_pos
+       let is_packed = match packed_maybe with
+         | None -> false
+         | Some _ -> true
        in
-       ExprStaticStruct (is_packed, lcurly.td_pos,
-                         List.map (fun e -> pt_expr_pos e, expr_of e) fields)
+       let fields = List.map (fun e -> expr_of e) fields in
+       let ast = ExprStaticStruct (is_packed, fields) in
+       make_expr e inferred_type ast
     | PTE_StaticArray (lsquare, elements, _) ->
-       ExprStaticArray (lsquare.td_pos,
-                        List.map (fun e -> pt_expr_pos e, expr_of e) elements)
+       let ast = ExprStaticArray (List.map (fun e -> expr_of e) elements) in
+       make_expr e inferred_type ast
     | PTE_Index (base, _, idx, _) ->
-       ExprIndex (pt_expr_pos base,
-                  expr_of base,
-                  pt_expr_pos idx,
-                  expr_of idx)
+       let ast = ExprIndex (expr_of base, expr_of idx) in
+       make_expr e inferred_type ast
     | PTE_SelectField (obj, dot, field) ->
-       ExprSelectField (dot.td_pos,
-                        field.td_pos,
-                        expr_of obj,
-                        FieldName field.td_text)
-    | PTE_PostUni (e, (unop, op)) ->
+       let ast = ExprSelectField (expr_of obj, FieldName field.td_text) in
+       make_expr e inferred_type ast
+    | PTE_PostUni (sub, (unop, op)) ->
        let oper = { op_pos = op.td_pos;
                     op_op = unop;
-                    op_left = expr_of e;
+                    op_left = expr_of sub;
                     op_right = None;
                     op_atomic = false;
                   }
        in
-       ExprPostUnary oper
-    | PTE_PreUni ((unop, op), e) ->
+       make_expr e oper.op_left.expr_tp (ExprPostUnary oper)
+    | PTE_PreUni ((unop, op), sub) ->
        let oper = { op_pos = op.td_pos;
                     op_op = unop;
-                    op_left = expr_of e;
+                    op_left = expr_of sub;
                     op_right = None;
                     op_atomic = false;
                   }
        in
-       ExprPreUnary oper
+       make_expr e oper.op_left.expr_tp (ExprPreUnary oper)
     | PTE_Bin (left, atomic_opt, (binop, op), right) ->
        let oper = { op_pos = op.td_pos;
                     op_op = binop;
@@ -501,7 +513,7 @@ let of_parsetree =
                                 else true
                   }
        in
-       ExprBinary oper
+       make_expr e inferred_type (ExprBinary oper)
   in
   List.map stmt_of
 
@@ -754,30 +766,10 @@ let pos_of_cr = function
   | CRExpr pte -> pt_expr_pos pte
   | CRApproximate p -> p
 
-let rec pos_of_astexpr = function
-  | ExprFcnCall fc -> pos_of_cr fc.fc_pos
-  | ExprNew (pos, _, _, _)
-  | ExprString (pos, _)
-  | ExprPreUnary { op_pos = pos }
-  | ExprPostUnary { op_pos = pos }
-  | ExprVar (pos, _)
-  | ExprLit (pos, _)
-  | ExprEnum (pos, _, _, _)
-  | ExprCast (pos, _, _)
-  | ExprIndex (pos, _, _, _)
-  | ExprSelectField (pos, _, _, _)
-  | ExprStaticStruct (_, pos, _)
-  | ExprStaticArray (pos, _)
-  | ExprType (pos, _)
-  | ExprTypeString (pos, _)
-  | ExprNil pos
-  | ExprWildcard pos ->
-     pos
-  | ExprBinary { op_left = operand } ->
-     pos_of_astexpr operand
+let rec pos_of_astexpr expr = pos_of_cr expr.expr_cr
 
 (** Return true if the expression is clearly always true in all
     circumstances. *)
 let provably_always_true = function
-  | ExprLit (_, LitBool true) -> true
+  | { expr_ast = ExprLit (LitBool true) } -> true
   | _ -> false

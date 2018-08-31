@@ -60,3 +60,6 @@ val explode_string : string -> char list
 (** Combine two lists, but use the provided err function in case of failure *)
 val err_combine : (unit -> ('a * 'a) list) -> 'a list -> 'a list
                   -> ('a * 'a) list
+
+(** Apply a function to the object contained in an option variable. *)
+val option_map : ('a -> 'b) -> 'a option -> 'b option

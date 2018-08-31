@@ -17,13 +17,6 @@ type code_relation =
   | CRExpr of Parsetree.pt_expr
   | CRApproximate of position
 
-type fcn_call =
-  { fc_pos      : code_relation;
-    fc_name     : string;
-    fc_args     : expr list;
-    fc_spawn    : bool
-  }
-
 and operation =
   { op_pos : position;
     op_op : Operator.t;
@@ -37,27 +30,31 @@ and field_id =
   | FieldName of string
 
 and expr =
-  | ExprNew of
-      position * Types.deftype
-      * (*array dimension=*)expr
-      * (position * string * position * expr) list
-  | ExprFcnCall of fcn_call
-  | ExprString of position * string
+  { expr_cr   : code_relation;
+    expr_tp   : Types.deftype;
+    expr_ast  : ast_expr
+  }
+
+and ast_expr =
+  | ExprNew of (*array dim=*)expr * Types.deftype
+               * (Parsetree.tokendata * expr) list
+  | ExprFcnCall of string * expr list * (*spawn=*)bool
+  | ExprString of string
   | ExprBinary of operation
   | ExprPreUnary of operation
   | ExprPostUnary of operation
-  | ExprVar of position * string
-  | ExprLit of position * literal
-  | ExprEnum of position * string * literal * Types.deftype
-  | ExprCast of position * Types.deftype * expr
-  | ExprIndex of position * expr * position * expr
-  | ExprSelectField of position * position * expr * field_id
-  | ExprStaticStruct of (*is_packed=*)bool * position * (position * expr) list
-  | ExprStaticArray of position * (position * expr) list
-  | ExprType of position * Types.deftype
-  | ExprTypeString of position * expr
-  | ExprNil of position
-  | ExprWildcard of position
+  | ExprVar of string
+  | ExprLit of literal
+  | ExprEnum of string * literal
+  | ExprCast of (*from=*)Types.deftype * (*to=*)Types.deftype * expr
+  | ExprIndex of (*base=*)expr * (*idx=*)expr
+  | ExprSelectField of expr * field_id
+  | ExprStaticStruct of (*is_packed=*)bool * expr list
+  | ExprStaticArray of expr list
+  | ExprType of Types.deftype
+  | ExprTypeString of expr
+  | ExprNil
+  | ExprWildcard
 
 type stmt =
   | Import of Parsetree.tokendata * Parsetree.tokendata
