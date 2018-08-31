@@ -65,7 +65,6 @@ let position_of_stmt = function
   | Import (tok, _) -> tok.td_pos
 
 let resolve_types stmts =
-  let fcnmap = Hashtbl.create 128 in
   let typemap = make_symtab () in
   let enummap = make_symtab () in
   let global_varmap = make_symtab () in
@@ -81,7 +80,7 @@ let resolve_types stmts =
        add_symbol typemap nm tp
     | TypeDecl (_, nm, tp, _, _) -> add_symbol typemap nm tp
     | DeclFcn (_, _, nm, tp, _)
-    | DefFcn (_, _, _, nm, tp, _, _) -> Hashtbl.add fcnmap nm tp
+    | DefFcn (_, _, _, nm, tp, _, _) -> add_symbol global_varmap nm tp
     | _ -> ()
   in
   List.iter read_type stmts;
@@ -121,51 +120,42 @@ let resolve_types stmts =
             resolve_args (cast_arg :: accum) (arest, prest)
        in
        begin
-         try match Hashtbl.find fcnmap name with
-             | { bare = DefTypeFcn (params, rettp, _) } ->
-                let resolved_args = resolve_args [] (args, params) in
-                { expr_cr = expr.expr_cr;
-                  expr_tp = rettp;
-                  expr_ast = ExprFcnCall (name, resolved_args, is_spawn)
-                }
-             | _ -> Report.err_internal __FILE__ __LINE__ "Non-fcn function."
-         with _ ->
-               match lookup_symbol varmap name with
-               | Some ({ bare = DefTypeFcn (params, rettp, _) }) ->
-                  let resolved_args = resolve_args [] (args, params) in
-                  { expr_cr = expr.expr_cr;
-                    expr_tp = rettp;
-                    expr_ast = ExprFcnCall (name, resolved_args, is_spawn)
-                  }
-               | Some _ ->
-                  (* FIXME: Need to use err_called_non_fcn. *)
-                  Report.err_internal __FILE__ __LINE__ "non-function call"
-               | None ->
-                  (* Maybe a builtin.  FIXME: Need a more general way of
-                     handling builtin functions.  This is sloppy. *)
-                  let resolved_args = List.map (resolve varmap) args in
-                  let builtin_ret rettp =
-                    { expr_cr = expr.expr_cr;
-                      expr_tp = rettp;
-                      expr_ast = ExprFcnCall (name, resolved_args, is_spawn)
-                    }
-                  in
-                  match name with
-                  | "__builtin_cas" -> builtin_ret bool_type
-                  | "__builtin_swap" ->
-                     builtin_ret (List.nth resolved_args 1).expr_tp
-                  | "__builtin_setjmp" -> builtin_ret i32_type
-                  | "__builtin_longjmp" -> builtin_ret void_type
-                  | "typestr" -> builtin_ret string_type
-                  | "cast" ->
-                     let rettp = match resolved_args with
-                       | { expr_ast = ExprType t } :: _ -> t
-                       | _ -> Report.err_bad_args_for_builtin
-                                (pos_of_cr expr.expr_cr) "cast"
-                     in
-                     builtin_ret rettp
-                  | _ ->
-                     Report.err_unknown_fcn_call (pos_of_cr expr.expr_cr) name
+         match lookup_symbol varmap name with
+         | Some ({ bare = DefTypeFcn (params, rettp, _) }) ->
+            let resolved_args = resolve_args [] (args, params) in
+            { expr_cr = expr.expr_cr;
+              expr_tp = rettp;
+              expr_ast = ExprFcnCall (name, resolved_args, is_spawn)
+            }
+         | Some _ ->
+            (* FIXME: Need to use err_called_non_fcn. *)
+            Report.err_internal __FILE__ __LINE__ "non-function call"
+         | None ->
+            (* Maybe a builtin.  FIXME: Need a more general way of
+               handling builtin functions.  This is sloppy. *)
+            let resolved_args = List.map (resolve varmap) args in
+            let builtin_ret rettp =
+              { expr_cr = expr.expr_cr;
+                expr_tp = rettp;
+                expr_ast = ExprFcnCall (name, resolved_args, is_spawn)
+              }
+            in
+            match name with
+            | "__builtin_cas" -> builtin_ret bool_type
+            | "__builtin_swap" ->
+               builtin_ret (List.nth resolved_args 1).expr_tp
+            | "__builtin_setjmp" -> builtin_ret i32_type
+            | "__builtin_longjmp" -> builtin_ret void_type
+            | "typestr" -> builtin_ret string_type
+            | "cast" ->
+               let rettp = match resolved_args with
+                 | { expr_ast = ExprType t } :: _ -> t
+                 | _ -> Report.err_bad_args_for_builtin
+                          (pos_of_cr expr.expr_cr) "cast"
+               in
+               builtin_ret rettp
+            | _ ->
+               Report.err_unknown_fcn_call (pos_of_cr expr.expr_cr) name
        end
     | ExprString _ -> expr
     | ExprBinary op ->
@@ -234,12 +224,7 @@ let resolve_types stmts =
          | None -> (* Might be an enum. *)
             begin
               match lookup_symbol enummap name with
-              | None ->
-                 begin
-                   try Hashtbl.find fcnmap name, ExprVar name
-                   with _ ->
-                         Report.err_undefined_var (pos_of_cr expr.expr_cr) name
-                 end
+              | None -> Report.err_undefined_var (pos_of_cr expr.expr_cr) name
               | Some (i, tp) -> tp, ExprEnum (name, LitU32 (Int32.of_int i))
             end
          | Some tp -> tp, ExprVar name
