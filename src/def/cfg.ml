@@ -382,17 +382,7 @@ let resolve_type typemap typename oldtp =
   let rec v t =
     match t.bare with
     | DefTypeUnresolved name ->
-       begin match bared (lookup_symbol typemap name) with
-       | Some (DefTypeLiteralStruct _)
-       | Some (DefTypeLiteralUnion _) ->
-          maketype t.dtpos (DefTypeNamed name)
-       | Some (DefTypeUnresolved name2) when name = name2 ->
-          Report.err_internal __FILE__ __LINE__
-                              ("Recursive badness: " ^ name ^ ", " ^ name2)
-       | Some tp -> v @@ maketype t.dtpos tp
-       | None -> (* Unresolved type name. *)
-          Report.err_unknown_typename (Util.the t.dtpos) name
-       end
+       Report.err_internal __FILE__ __LINE__ "unresolved type."
     | DefTypeNamed _ -> t
     | DefTypeVoid -> t
     | DefTypeOpaque nm ->
@@ -487,26 +477,8 @@ let rec make_size_expr typemap p tp dimension_opt =
       expr_ast = e
     }
   in
-  match tp.bare with
-  | DefTypeArray (subtype, n) ->
-     let lhs =
-       if n > 0 then expr_of (ExprLit (LitI32 (Int32.of_int n)))
-       else if dimension_opt = None then
-         Report.err_cant_resolve_array_dim p
-       else Util.the dimension_opt
-     in
-     let subsize = make_size_expr typemap p subtype None in
-     let op = { op_pos = p;
-                op_op = OperMult;
-                op_left = lhs;
-                op_right = Some subsize;
-                op_atomic = false
-              }
-     in
-     expr_of (ExprBinary op)
-  | _ ->
-     let sz = size_of typemap tp in
-     expr_of (ExprLit (LitU32 (Int32.of_int sz)))
+  let sz = size_of typemap tp in
+  expr_of (ExprLit (LitU32 (Int32.of_int sz)))
 
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
