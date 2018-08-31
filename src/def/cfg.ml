@@ -471,14 +471,10 @@ let get_fcntype_profile tp =
   | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
 
 let rec make_size_expr typemap p tp dimension_opt =
-  let expr_of e =
-    { expr_cr = CRApproximate p;
-      expr_tp = tp;
-      expr_ast = e
-    }
-  in
-  let sz = size_of typemap tp in
-  expr_of (ExprLit (LitU32 (Int32.of_int sz)))
+  { expr_cr = CRApproximate p;
+    expr_tp = tp;
+    expr_ast = ExprLit (LitU32 (Int32.of_int (size_of typemap tp)))
+  }
 
 (** Return a casted version of the expression, if the original type doesn't
     match the desired type. *)
