@@ -158,3 +158,13 @@ let err_combine err l1 l2 =
 let option_map f = function
   | None -> None
   | Some v -> Some (f v)
+
+(** Combine 3 lists. *)
+let combine3 a b c =
+  let rec combine accum = function
+    | [], [], [] -> List.rev accum
+    | a1 :: arest, b1 :: brest, c1 :: crest ->
+       combine ((a1, b1, c1) :: accum) (arest, brest, crest)
+    | _ -> invalid_arg "combine3: inconsistent list lengths"
+  in
+  combine [] (a, b, c)

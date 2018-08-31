@@ -63,3 +63,6 @@ val err_combine : (unit -> ('a * 'a) list) -> 'a list -> 'a list
 
 (** Apply a function to the object contained in an option variable. *)
 val option_map : ('a -> 'b) -> 'a option -> 'b option
+
+(** Combine 3 lists. *)
+val combine3 : 'a list -> 'b list -> 'c list -> ('a * 'b * 'c) list

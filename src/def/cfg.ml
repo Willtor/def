@@ -197,16 +197,6 @@ let is_hardware_xact = function
   | XACT_HARDWARE -> true
   | _ -> false
 
-let combine3 a b c =
-  let rec combine accum = function
-    | [], [], [] -> List.rev accum
-    | a1 :: arest, b1 :: brest, c1 :: crest ->
-       combine ((a1, b1, c1) :: accum) (arest, brest, crest)
-    | _ ->
-       Report.err_internal __FILE__ __LINE__ "Inconsistent list lengths"
-  in
-  combine [] (a, b, c)
-
 let re_set =
   [ (regexp {|\\n|}, "\n");    (* newline *)
     (regexp {|\\r|}, "\r");    (* carriage return *)
@@ -315,10 +305,6 @@ let can_escape_forward labelmap stmts =
   in
   let _, result = forward [] stmts
   in result
-
-(** Get the type of an Ast.literal value. *)
-let typeof_literal lit =
-  maketype None (DefTypePrimitive (literal2primitive lit))
 
 let rec get_field_types typemap tp =
   match tp.bare with
@@ -465,11 +451,6 @@ let global_decls decltable typemap = function
   | _ -> Report.err_internal __FILE__ __LINE__
      "FIXME: Incomplete implementation of Cfg.global_decls."
 
-let get_fcntype_profile tp =
-  match tp.bare with
-  | DefTypeFcn (params, ret, variadic) -> params, ret, variadic
-  | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
-
 let rec make_size_expr typemap p tp dimension_opt =
   { expr_cr = CRApproximate p;
     expr_tp = tp;
@@ -608,7 +589,7 @@ let binary_reconcile typemap =
     | OperPlus | OperMinus | OperMult | OperDiv
     | OperLShift | OperRShift ->
        let tp = most_general_type pos typemap [ltype; rtype] in
-       tp, tp,
+       tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
     | OperRemainder ->
@@ -617,20 +598,18 @@ let binary_reconcile typemap =
            pos (string_of_type ltype) (string_of_type rtype)
        else
          let tp = most_general_type pos typemap [ltype; rtype] in
-         tp, tp,
+         tp,
          (maybe_cast typemap ltype tp lexpr),
          (maybe_cast typemap rtype tp rexpr)
     | OperLT | OperLTE
     | OperGT | OperGTE
     | OperEquals | OperNEquals ->
        let tp = most_general_type pos typemap [ltype; rtype] in
-       type_definition pos (DefTypePrimitive PrimBool),
        tp,
        (maybe_cast typemap ltype tp lexpr),
        (maybe_cast typemap rtype tp rexpr)
     | OperBitwiseAnd | OperBitwiseOr | OperBitwiseXor ->
        let tp = most_general_type pos typemap [ltype; rtype] in
-       tp,
        tp,
        maybe_cast typemap ltype tp lexpr,
        maybe_cast typemap rtype tp rexpr
@@ -639,7 +618,6 @@ let binary_reconcile typemap =
        begin
          check_castability pos typemap ltype primbool;
          check_castability pos typemap rtype primbool;
-         primbool,
          primbool,
          maybe_cast typemap ltype primbool lexpr,
          maybe_cast typemap rtype primbool rexpr
@@ -652,12 +630,12 @@ let binary_reconcile typemap =
             structs, if possible.  Otherwise, casting doesn't work.  Literal
             structs need to be the correct type at instantiation. *)
          check_castability pos typemap ltype rtype;
-         ltype, ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
+         ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
        end
     | OperBAndAssign | OperBOrAssign | OperBXorAssign ->
        begin
          check_castability pos typemap ltype rtype;
-         ltype, ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
+         ltype, lexpr, (maybe_cast typemap rtype ltype rexpr)
        end
     | _ -> Report.err_internal __FILE__ __LINE__
        ("FIXME: Incomplete implementation Cfg.reconcile (operator "
@@ -904,10 +882,11 @@ let convert_expr typemap fcnscope =
        tp, Expr_String (label_of_pos pos, raw)
     | ExprBinary op ->
        let () = Hashtbl.add scope_table (ScopeLeaf op.op_pos) lexical in
-       let rettp, tp, lhs, rhs =
+       let tp, lhs, rhs =
          binary_reconcile typemap op.op_pos op.op_op
                           (convert op.op_left) (convert (the op.op_right))
        in
+       let rettp = expr.expr_tp in
        (* FIXME: Should we make non-integers work using transactions?  We
           _could_.  Do users want that? *)
        if op.op_atomic && not ((is_integer_type tp) || (is_pointer_type tp))
@@ -934,7 +913,8 @@ let convert_expr typemap fcnscope =
           Report.err_undefined_var (pos_of_cr expr.expr_cr) name
        end
     | ExprLit literal ->
-       (typeof_literal literal), Expr_Literal literal
+       let tp = maketype None (DefTypePrimitive (literal2primitive literal)) in
+       tp, Expr_Literal literal
     | ExprEnum (name, lit) ->
        expr.expr_tp, Expr_Literal lit
     | ExprIndex (base, idx) ->
@@ -1123,7 +1103,11 @@ let make_goto_bb label =
 let rec build_bbs name decltable typemap fcn_pos body =
   let fcndecl = the (lookup_symbol decltable name) in
   fcndecl.decl_ref <- true;
-  let param_types, ret_type, _ = get_fcntype_profile fcndecl.tp in
+  let param_types, ret_type =
+    match fcndecl.tp.bare with
+    | DefTypeFcn (params, ret, (*variadic=*)_) -> params, ret
+    | _ -> Report.err_internal __FILE__ __LINE__ " Unexpected function type."
+  in
 
   (* Add the function's parameters to the scope table. *)
   let scoped_vars = push_symtab_scope decltable in
@@ -1621,7 +1605,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
                                           [pos, switch_assign] in
        let exit_bb = make_sequential_bb ("switch_exit." ^ label) [] in
        let reconcile pos l r =
-         let _, reconciled_tp, left, right =
+         let reconciled_tp, left, right =
            binary_reconcile typemap pos OperEquals l r
          in
          Expr_Binary (pos, OperEquals, false, reconciled_tp, left, right)
