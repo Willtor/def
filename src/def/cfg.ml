@@ -453,8 +453,8 @@ let global_decls decltable typemap = function
 
 let rec make_size_expr typemap p tp dimension_opt =
   { expr_cr = CRApproximate p;
-    expr_tp = tp;
-    expr_ast = ExprLit (LitU32 (Int32.of_int (size_of typemap tp)))
+    expr_tp = maketype None (DefTypePrimitive PrimU64);
+    expr_ast = ExprLit (LitU64 (Int64.of_int (size_of typemap tp)))
   }
 
 (** Return a casted version of the expression, if the original type doesn't
@@ -813,46 +813,39 @@ let convert_expr typemap fcnscope =
            re_set
        in
        let pos = pos_of_cr expr.expr_cr in
-       (* FIXME: Should be const. *)
-       let tp =
-         type_definition pos (DefTypeArray (char_type, String.length raw))
-       in
-       tp, Expr_String (label_of_pos pos, raw)
+       expr.expr_tp, Expr_String (label_of_pos pos, raw)
     | ExprBinary op ->
        let () = Hashtbl.add scope_table (ScopeLeaf op.op_pos) lexical in
-       let tp, lhs = convert op.op_left
+       let tp = op.op_left.expr_tp in
+       let _, lhs = convert op.op_left
        and _, rhs = convert (the op.op_right) in
-       let rettp = expr.expr_tp in
        (* FIXME: Should we make non-integers work using transactions?  We
           _could_.  Do users want that? *)
        if op.op_atomic && not ((is_integer_type tp) || (is_pointer_type tp))
        then Report.err_atomic_non_integer op.op_pos (string_of_type tp)
-       else rettp,
+       else expr.expr_tp,
             Expr_Binary (op.op_pos, op.op_op, op.op_atomic, tp, lhs, rhs)
     | ExprPreUnary op ->
-       let tp, subexpr = convert op.op_left in
-       let rettp = match op.op_op with
-         | OperAddrOf -> makeptr tp
-         | _ -> tp
-       in
-       rettp, Expr_Unary (op.op_op, tp, subexpr, true)
+       let tp = op.op_left.expr_tp in
+       let _, subexpr = convert op.op_left in
+       expr.expr_tp, Expr_Unary (op.op_op, tp, subexpr, true)
     | ExprPostUnary op ->
-       let tp, subexpr = convert op.op_left in
-       let rettp = tp in
-       rettp, Expr_Unary (op.op_op, tp, subexpr, false)
+       let tp = op.op_left.expr_tp in
+       let _, subexpr = convert op.op_left in
+       expr.expr_tp, Expr_Unary (op.op_op, tp, subexpr, false)
     | ExprTernaryCond _ ->
        Report.err_internal __FILE__ __LINE__ "ternary cond not implemented."
     | ExprVar name ->
        begin match lookup_symbol scope name with
        | Some var ->
           let () = var.decl_ref <- true in
-          var.tp, Expr_Variable var.mappedname (* FIXME! Wrong type. *)
+          expr.expr_tp,
+          Expr_Variable var.mappedname
        | None ->
           Report.err_undefined_var (pos_of_cr expr.expr_cr) name
        end
     | ExprLit literal ->
-       let tp = maketype None (DefTypePrimitive (literal2primitive literal)) in
-       tp, Expr_Literal literal
+       expr.expr_tp, Expr_Literal literal
     | ExprEnum (name, lit) ->
        expr.expr_tp, Expr_Literal lit
     | ExprIndex (base, idx) ->
@@ -930,7 +923,7 @@ let convert_expr typemap fcnscope =
        record_select converted_obj otype
     | ExprCast (from_tp, to_tp, e) ->
        let _, converted_expr = convert e in
-       to_tp, maybe_cast typemap from_tp to_tp converted_expr
+       expr.expr_tp, maybe_cast typemap from_tp to_tp converted_expr
     | ExprStaticStruct (is_packed, members) ->
        let cmembers = List.map convert members in
        let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
