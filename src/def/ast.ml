@@ -460,7 +460,8 @@ let of_parsetree =
     | PTE_F64 (tok, value) -> make_expr e f64_type (ExprLit (LitF64 value))
     | PTE_F32 (tok, value) -> make_expr e f32_type (ExprLit (LitF32 value))
     | PTE_String (tok, value) ->
-       make_expr e (makeptr i8_type) (ExprString value)
+       let bare_array = DefTypeArray (i8_type, String.length value) in
+       make_expr e (maketype None bare_array) (ExprString value)
     | PTE_Wildcard tok -> make_expr e wildcard_type ExprWildcard
     | PTE_FcnCall fcn ->
        let ast = ExprFcnCall (fcn.ptfc_name.td_text,
