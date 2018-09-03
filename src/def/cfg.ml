@@ -763,8 +763,7 @@ let convert_expr typemap fcnscope =
          | _ -> t
        in
        (* FIXME: Fix size for variable-sized array members. *)
-       let i32tp, i32sz = convert (make_size_expr typemap pos t (Some dim)) in
-       let i64sz = maybe_cast typemap i32tp i64_type i32sz in
+       let _, i64sz = convert (make_size_expr typemap pos t (Some dim)) in
        begin match init with
        | [] -> makeptr tp, Expr_New (tp, i64sz, [])
        | _ ->
