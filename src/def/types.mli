@@ -103,3 +103,7 @@ val dwarf_of : deftype -> (int * Llvmext.dwarf_type)
     non-named type is reached. *)
 val concrete_of : Lexing.position option -> deftype Util.symtab -> deftype
                   -> deftype
+
+(** Replace array types in function parameters with pointers.  DEF, like C,
+    treats arrays as pointers in function types. *)
+val dearray_fcn : deftype -> deftype

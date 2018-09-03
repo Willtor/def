@@ -394,7 +394,8 @@ let resolve_types stmts =
     | Block (p, slist) -> Block (p, List.map (stmt_to_stmt rettp varmap) slist)
     | DefFcn (p, exported, vis, nm, tp, params, body) ->
        let fvars = push_symtab_scope varmap in
-       let sub_rettp = match tp.bare with
+       let lowered_tp = dearray_fcn tp in
+       let sub_rettp = match lowered_tp.bare with
          | DefTypeFcn (ptypes, sub_rettp, _) ->
             let () = List.iter
                        (fun ((_, n), t) -> add_symbol fvars n t)

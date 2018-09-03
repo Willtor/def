@@ -569,3 +569,28 @@ let concrete_of maybe_pos typemap tp =
     | _ -> tp
   in
   concrete tp
+
+(** Replace array types in function parameters with pointers.  DEF, like C,
+    treats arrays as pointers in function types. *)
+let rec dearray_fcn fcn_type =
+  let replace_subtype t bare =
+    { dtpos = t.dtpos;
+      bare = bare;
+      dtvolatile = t.dtvolatile
+    }
+  in
+  match fcn_type.bare with
+  | DefTypeFcn (params, ret, is_variadic) ->
+     let rec dearray t =
+       match t.bare with
+       | DefTypeFcn _ -> dearray_fcn t
+       | DefTypePtr subt
+       | DefTypeArray (subt, _) ->
+          replace_subtype t @@ DefTypePtr (dearray subt)
+       | _ -> t
+     in
+     (* FIXME: Is it correct to dearray ret? *)
+     replace_subtype fcn_type
+     @@ DefTypeFcn (List.map dearray params, dearray ret, is_variadic)
+  | _ ->
+     Report.err_internal __FILE__ __LINE__ "Function w/ non-function type."

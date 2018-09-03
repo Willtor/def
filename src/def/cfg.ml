@@ -317,29 +317,6 @@ let rec get_field_types typemap tp =
 
 let type_definition pos = maketype (Some pos)
 
-let rec dearray_fcn fcn_type =
-  let replace_subtype t bare =
-    { dtpos = t.dtpos;
-      bare = bare;
-      dtvolatile = t.dtvolatile
-    }
-  in
-  match fcn_type.bare with
-  | DefTypeFcn (params, ret, is_variadic) ->
-     let rec dearray t =
-       match t.bare with
-       | DefTypeFcn _ -> dearray_fcn t
-       | DefTypePtr subt
-       | DefTypeArray (subt, _) ->
-          replace_subtype t @@ DefTypePtr (dearray subt)
-       | _ -> t
-     in
-     (* FIXME: Is it correct to dearray ret? *)
-     replace_subtype fcn_type
-     @@ DefTypeFcn (List.map dearray params, dearray ret, is_variadic)
-  | _ ->
-     Report.err_internal __FILE__ __LINE__ "Function w/ non-function type."
-
 let global_types typemap defined_syms = function
   | TypeDecl (pos, name, tp, _, _) ->
      let () = match tp.bare with
@@ -765,7 +742,7 @@ let convert_expr typemap fcnscope =
        (* FIXME: Fix size for variable-sized array members. *)
        let _, i64sz = convert (make_size_expr typemap pos t (Some dim)) in
        begin match init with
-       | [] -> makeptr tp, Expr_New (tp, i64sz, [])
+       | [] -> expr.expr_tp, Expr_New (tp, i64sz, [])
        | _ ->
           let mtypes, fields = match tp.bare with
             | DefTypeNamed sname ->
@@ -795,7 +772,7 @@ let convert_expr typemap fcnscope =
             n, maybe_cast typemap conv_tp mtype conv_e
           in
           let field_inits = List.map init_convert init in
-          makeptr tp, Expr_New (tp, i64sz, field_inits)
+          expr.expr_tp, Expr_New (tp, i64sz, field_inits)
        end
     | ExprFcnCall (name, args, is_spawn) ->
        let pos = pos_of_cr expr.expr_cr in
@@ -854,9 +831,11 @@ let convert_expr typemap fcnscope =
          | CRApproximate p -> p, p
          | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected non-index."
        in
-       let btype, converted_base = convert base
-       and itype, converted_idx = convert idx
-       in begin match btype.bare with
+       let btype = base.expr_tp in
+       let _, converted_base = convert base in
+       let itype = idx.expr_tp in
+       let _, converted_idx = convert idx in
+       begin match btype.bare with
        | DefTypePtr ({ bare = DefTypeVoid }) ->
           Report.err_deref_void_ptr bpos ipos
        | DefTypeArray (deref_type, _) ->
