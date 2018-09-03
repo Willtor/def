@@ -43,6 +43,7 @@ and ast_expr =
   | ExprBinary of operation
   | ExprPreUnary of operation
   | ExprPostUnary of operation
+  | ExprTernaryCond of expr * expr * expr
   | ExprVar of string
   | ExprLit of literal
   | ExprEnum of string * literal

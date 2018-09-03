@@ -49,7 +49,7 @@
 %token <Parsetree.tokendata> STAR SLASH PERCENT PLUS MINUS DBLLANGLE DBLRANGLE
 %token <Parsetree.tokendata> LEQ LANGLE GEQ RANGLE EQUALSEQUALS BANGEQUALS
 %token <Parsetree.tokendata> CARAT VBAR
-%token <Parsetree.tokendata> DBLAMPERSAND DBLVBAR (*QMARK*) COLON EQUALS COMMA
+%token <Parsetree.tokendata> DBLAMPERSAND DBLVBAR QMARK COLON EQUALS COMMA
 
 %token <Parsetree.tokendata> LPAREN RPAREN LSQUARE RSQUARE LCURLY RCURLY
 %token <Parsetree.tokendata> SEMICOLON
@@ -61,8 +61,8 @@
 (*%left COMMA*)
 %right ATOMIC
 %right EQUALS PLUSEQUALS MINUSEQUALS STAREQUALS SLASHEQUALS PERCENTEQUALS DBLLANGLEEQUALS DBLRANGLEEQUALS AMPERSANDEQUALS CARATEQUALS VBAREQUALS
-(* Ternary conditional "a ? b : c" *)
 %nonassoc ELLIPSIS
+%right QMARK (* Ternary conditional "a ? b : c" *)
 %left DBLVBAR
 %left DBLAMPERSAND
 %left VBAR
@@ -287,6 +287,8 @@ expr:
 | expr VBAR expr { PTE_Bin ($1, None, (OperBitwiseOr, $2), $3) }
 | expr DBLAMPERSAND expr { PTE_Bin ($1, None, (OperLogicalAnd, $2), $3) }
 | expr DBLVBAR expr { PTE_Bin ($1, None, (OperLogicalOr, $2), $3) }
+| expr QMARK expr COLON expr %prec QMARK
+    { PTE_TernaryCond ($1, $2, $3, $4, $5) }
 | expr ELLIPSIS expr { PTE_Bin ($1, None, (OperEllipsis, $2), $3) }
 | expr EQUALS expr { PTE_Bin ($1, None, (OperAssign, $2), $3) }
 | expr PLUSEQUALS expr { PTE_Bin ($1, None, (OperPlusAssign, $2), $3) }

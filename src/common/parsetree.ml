@@ -150,6 +150,7 @@ and pt_expr =
   | PTE_PostUni of pt_expr * (Operator.t * tokendata)
   | PTE_PreUni of (Operator.t * tokendata) * pt_expr
   | PTE_Bin of pt_expr * tokendata option * (Operator.t * tokendata) * pt_expr
+  | PTE_TernaryCond of pt_expr * tokendata * pt_expr * tokendata * pt_expr
 
 let pt_type_pos = function
   | PTT_Fcn (tok, _, _, _, _)
@@ -193,4 +194,5 @@ let rec pt_expr_pos = function
   | PTE_PostUni (e, _)
   | PTE_Bin (e, _, _, _) ->
      pt_expr_pos e
-
+  | PTE_TernaryCond (e, _, _, _, _) ->
+     pt_expr_pos e

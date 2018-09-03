@@ -198,7 +198,7 @@ rule deflex = parse
 (* A few specific integers: We do this because twos-complement means that
    there exists one more negative value than positive values.  Therefore,
    when OCaml has to parse certain specific negative numbers, the positive
-   value (without the leading minus) may not fit in the specified size,  *)
+   value (without the leading minus) may not fit in the specified size. *)
 
 | "-2147483648I32" as istr
     { LITERALI32 (get_token_data istr lexbuf,
@@ -243,7 +243,7 @@ rule deflex = parse
 | '|' as tok { VBAR (get_token_data (strify tok) lexbuf) }
 | "&&" as tok { DBLAMPERSAND (get_token_data tok lexbuf) }
 | "||" as tok { DBLVBAR (get_token_data tok lexbuf) }
-(*| '?' { QMARK }*)
+| '?' as tok { QMARK (get_token_data (strify tok) lexbuf) }
 | ':' as tok { COLON (get_token_data (strify tok) lexbuf) }
 | '=' as tok { EQUALS (get_token_data (strify tok) lexbuf) }
 | ',' as tok { COMMA (get_token_data (strify tok) lexbuf) }
@@ -255,5 +255,4 @@ rule deflex = parse
 | '}' as tok { RCURLY (get_token_data (strify tok) lexbuf) }
 | ';' as tok { SEMICOLON (get_token_data (strify tok) lexbuf) }
 | eof { EOF }
-| _
-    { err_lexing (lexeme_start_p lexbuf) (lexeme lexbuf) }
+| _ { err_lexing (lexeme_start_p lexbuf) (lexeme lexbuf) }

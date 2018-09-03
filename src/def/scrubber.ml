@@ -221,6 +221,19 @@ let resolve_types stmts =
          expr_tp = resolved_op.op_left.expr_tp;
          expr_ast = ExprPostUnary resolved_op
        }
+    | ExprTernaryCond (cond, left, right) ->
+       let rcond = implicit_cast bool_type (resolve varmap cond)
+       and rleft = resolve varmap left
+       and rright = resolve varmap right in
+       let tp = most_general_type (pos_of_cr left.expr_cr) typemap
+                  [rleft.expr_tp; rright.expr_tp]
+       in
+       let cast_left = implicit_cast tp rleft
+       and cast_right = implicit_cast tp rright in
+       { expr_cr = expr.expr_cr;
+         expr_tp = tp;
+         expr_ast = ExprTernaryCond (rcond, cast_left, cast_right)
+       }
     | ExprVar name ->
        let tp, ast = match lookup_symbol varmap name with
          | None -> (* Might be an enum. *)

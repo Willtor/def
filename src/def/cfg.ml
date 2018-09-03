@@ -840,6 +840,8 @@ let convert_expr typemap fcnscope =
        let tp, subexpr = convert op.op_left in
        let rettp = tp in
        rettp, Expr_Unary (op.op_op, tp, subexpr, false)
+    | ExprTernaryCond _ ->
+       Report.err_internal __FILE__ __LINE__ "ternary cond not implemented."
     | ExprVar name ->
        begin match lookup_symbol scope name with
        | Some var ->

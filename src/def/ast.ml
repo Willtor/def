@@ -68,6 +68,7 @@ and ast_expr =
   | ExprBinary of operation
   | ExprPreUnary of operation
   | ExprPostUnary of operation
+  | ExprTernaryCond of expr * expr * expr
   | ExprVar of string
   | ExprLit of literal
   | ExprEnum of string * literal
@@ -514,6 +515,11 @@ let of_parsetree =
                   }
        in
        make_expr e inferred_type (ExprBinary oper)
+    | PTE_TernaryCond (pt_cond, _, pt_left, _, pt_right) ->
+       let cond = expr_of pt_cond
+       and left = expr_of pt_left
+       and right = expr_of pt_right in
+       make_expr e inferred_type (ExprTernaryCond (cond, left, right))
   in
   List.map stmt_of
 
