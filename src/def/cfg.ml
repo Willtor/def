@@ -840,14 +840,14 @@ let convert_expr typemap fcnscope =
           Report.err_deref_void_ptr bpos ipos
        | DefTypeArray (deref_type, _) ->
           if is_integer_type itype then
-            deref_type,
+            expr.expr_tp,
             Expr_Index (converted_base, converted_idx, deref_type,
                         false, true, (*FIXME: volatile?*)false)
           else
             Report.err_non_integer_index ipos
        | DefTypePtr deref_type ->
           if is_integer_type itype then
-            volatility btype.dtvolatile deref_type,
+            expr.expr_tp,
             Expr_Index (converted_base, converted_idx, deref_type,
                         true, false, btype.dtvolatile)
           else
@@ -861,7 +861,8 @@ let convert_expr typemap fcnscope =
          | CRApproximate pos -> pos, pos
          | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected non-field."
        in
-       let otype, converted_obj = convert obj in
+       let otype = obj.expr_tp in
+       let _, converted_obj = convert obj in
        let rec record_select obj tp =
          match tp.bare with
          | DefTypeLiteralStruct (_, mtypes, fields) ->
@@ -880,11 +881,11 @@ let convert_expr typemap fcnscope =
             in
             let tp = List.nth mtypes id in
             let fselect = Expr_SelectField(obj, id, tp.dtvolatile) in
-            let expr = if is_array_type tp then
+            let fexpr = if is_array_type tp then
                          Expr_Unary (OperAddrOf, tp, fselect, true)
                        else fselect
             in
-            volatility tp.dtvolatile tp, expr
+            expr.expr_tp, fexpr
          | DefTypeLiteralUnion _ ->
             Report.err_internal __FILE__ __LINE__
                                 "Unions not supported at this time."
@@ -904,28 +905,20 @@ let convert_expr typemap fcnscope =
        expr.expr_tp, maybe_cast typemap from_tp to_tp converted_expr
     | ExprStaticStruct (is_packed, members) ->
        let cmembers = List.map convert members in
-       let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
-                                 (t :: taccum)) [] cmembers) in
-       maketype None (DefTypeStaticStruct (is_packed, tlist)),
+       expr.expr_tp,
        Expr_StaticStruct (is_packed, None, cmembers)
     | ExprStaticArray elements ->
-       let pos = pos_of_cr expr.expr_cr in
-       let ce = List.map convert elements in
-       let tlist = List.rev (List.fold_left (fun taccum (t, _) ->
-                                 (t :: taccum)) [] ce) in
-       let tp = most_general_type pos typemap tlist in
-       let cast_ce = List.map (fun (t, e) -> maybe_cast typemap t tp e) ce in
-       type_definition pos (DefTypeArray (tp, List.length tlist)),
-       Expr_StaticArray cast_ce
+       let ce = List.map (fun e -> let _, ret = convert e in ret) elements in
+       expr.expr_tp, Expr_StaticArray ce
     | ExprType _ -> Report.err_unexpected_type_expr (pos_of_cr expr.expr_cr)
     | ExprTypeString subexpr ->
        let pos = pos_of_cr expr.expr_cr in
        let nm = (label_of_pos pos) ^ ".type_str" in
-       let expr_tp = subexpr.expr_tp in
-       makeptr char_type,
-       Expr_String (nm, string_of_type expr_tp)
-    | ExprNil -> nil_type, Expr_Nil
-    | ExprWildcard -> wildcard_type, Expr_Wildcard
+       let str = string_of_type subexpr.expr_tp in
+       expr.expr_tp,
+       Expr_String (nm, str)
+    | ExprNil -> expr.expr_tp, Expr_Nil
+    | ExprWildcard -> expr.expr_tp, Expr_Wildcard
   in convert
 
 let nonconflicting_name pos scope name =
