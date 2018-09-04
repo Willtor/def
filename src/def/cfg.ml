@@ -840,7 +840,7 @@ let convert_expr typemap fcnscope =
        | DefTypeArray (deref_type, _) ->
           if is_integer_type itype then
             Expr_Index (converted_base, converted_idx, deref_type,
-                        false, true, (*FIXME: volatile?*)false)
+                        false, true, btype.dtvolatile)
           else
             Report.err_non_integer_index ipos
        | DefTypePtr deref_type ->
