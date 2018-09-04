@@ -577,7 +577,7 @@ let build_fcn_call scope typemap pos name args =
                           (castptrs, maybe_cast typemap t2 castptrs vexpr) ]
           in
           let fcn = Expr_Atomic (op, revised) in
-          t1, maybe_cast typemap castptrs t1 fcn
+          maybe_cast typemap castptrs t1 fcn
        | [_; _] ->
           Report.err_atomic_dest_not_ptr pos name
        | _ ->
@@ -594,7 +594,7 @@ let build_fcn_call scope typemap pos name args =
                           (castptrs, maybe_cast typemap t2 castptrs cmpexpr);
                           (castptrs, maybe_cast typemap t3 castptrs valexpr) ]
           in
-          bool_type, Expr_Atomic (AtomicCAS, revised)
+          Expr_Atomic (AtomicCAS, revised)
        | _ ->
           Report.err_internal __FILE__ __LINE__ "Need an error message for CAS"
      in
@@ -646,12 +646,10 @@ let build_fcn_call scope typemap pos name args =
         and () = set_ref_bit scope "llvm.eh.sjlj.setjmp"
         in
         let verified_args = verify_setjmp () in
-        maketype None (DefTypePrimitive PrimI32),
         Expr_FcnCall (name, verified_args)
      | "__builtin_longjmp" ->
         let () = set_ref_bit scope "llvm.eh.sjlj.longjmp" in
         let verified_args = verify_longjmp () in
-        maketype None DefTypeVoid,
         Expr_FcnCall (name, verified_args)
      | _ -> Report.err_unknown_fcn_call pos name
      end
@@ -689,7 +687,7 @@ let build_fcn_call scope typemap pos name args =
           real_decl.decl_ref <- true;
           try
             let cast_args = match_params_with_args [] (params, args) in
-            rettp, Expr_FcnCall (fname, cast_args)
+            Expr_FcnCall (fname, cast_args)
           with _ ->
             Report.err_wrong_number_of_args pos decl.decl_pos name
                                             (List.length params)
@@ -766,7 +764,8 @@ let convert_expr typemap fcnscope =
           in
           let init_convert (ftok, e) =
             let mtype, n = lookup_field ftok.td_pos ftok.td_text in
-            let conv_tp, conv_e = convert e in
+            let conv_tp = e.expr_tp in
+            let _, conv_e = convert e in
             let epos = pos_of_cr e.expr_cr in
             let () = check_castability epos typemap conv_tp mtype in
             n, maybe_cast typemap conv_tp mtype conv_e
@@ -780,6 +779,7 @@ let convert_expr typemap fcnscope =
          Report.err_bad_spawn_loc pos
        else
          let converted_args = List.map convert args in
+         expr.expr_tp,
          build_fcn_call scope typemap pos name converted_args
     | ExprString str ->
        let raw =
@@ -1121,7 +1121,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
     let label = label_of_pos pos in
     match !xact_kind with
     | XACT_HARDWARE ->
-       let _, f = build_fcn_call scope.fs_vars typemap pos hwtm_begin [] in
+       let f = build_fcn_call scope.fs_vars typemap pos hwtm_begin [] in
        let e = Expr_Binary (pos, OperEquals, false,
                             volatile_of i32_type,
                             Expr_Literal (LitI32 (Int32.of_int (-1))), f)
@@ -1136,7 +1136,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
          xact_bb
        end
     | XACT_HYBRID ->
-       let _, f = build_fcn_call scope.fs_vars typemap pos hytm_begin [] in
+       let f = build_fcn_call scope.fs_vars typemap pos hytm_begin [] in
        let xact_bb = make_sequential_bb ("hyxact." ^ label) [(pos, f)] in
        begin
          add_next prev_bb xact_bb;
@@ -1154,7 +1154,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
       | XACT_SOFTWARE ->
          Report.err_internal __FILE__ __LINE__ "STM not yet supported."
     in
-    let _, f = build_fcn_call scope.fs_vars typemap pos fname [] in
+    let f = build_fcn_call scope.fs_vars typemap pos fname [] in
     let xend_bb = make_sequential_bb ("xend." ^ label) [(pos, f)] in
     add_next prev_bb xend_bb;
     xend_bb
