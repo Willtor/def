@@ -738,9 +738,9 @@ let convert_expr typemap fcnscope =
          | _ -> t
        in
        (* FIXME: Fix size for variable-sized array members. *)
-       let _, i64sz = convert (make_size_expr typemap pos t (Some dim)) in
+       let i64sz = convert (make_size_expr typemap pos t (Some dim)) in
        begin match init with
-       | [] -> expr.expr_tp, Expr_New (tp, i64sz, [])
+       | [] -> Expr_New (tp, i64sz, [])
        | _ ->
           let mtypes, fields = match tp.bare with
             | DefTypeNamed sname ->
@@ -765,22 +765,23 @@ let convert_expr typemap fcnscope =
           let init_convert (ftok, e) =
             let mtype, n = lookup_field ftok.td_pos ftok.td_text in
             let conv_tp = e.expr_tp in
-            let _, conv_e = convert e in
+            let conv_e = convert e in
             let epos = pos_of_cr e.expr_cr in
             let () = check_castability epos typemap conv_tp mtype in
             n, maybe_cast typemap conv_tp mtype conv_e
           in
           let field_inits = List.map init_convert init in
-          expr.expr_tp, Expr_New (tp, i64sz, field_inits)
+          Expr_New (tp, i64sz, field_inits)
        end
     | ExprFcnCall (name, args, is_spawn) ->
        let pos = pos_of_cr expr.expr_cr in
        if is_spawn then
          Report.err_bad_spawn_loc pos
        else
+         let converted_tps = List.map (fun a -> a.expr_tp) args in
          let converted_args = List.map convert args in
-         expr.expr_tp,
-         build_fcn_call scope typemap pos name converted_args
+         let args = List.combine converted_tps converted_args in
+         build_fcn_call scope typemap pos name args
     | ExprString str ->
        let raw =
          List.fold_left
@@ -789,41 +790,39 @@ let convert_expr typemap fcnscope =
            re_set
        in
        let pos = pos_of_cr expr.expr_cr in
-       expr.expr_tp, Expr_String (label_of_pos pos, raw)
+       Expr_String (label_of_pos pos, raw)
     | ExprBinary op ->
        let () = Hashtbl.add scope_table (ScopeLeaf op.op_pos) lexical in
        let tp = op.op_left.expr_tp in
-       let _, lhs = convert op.op_left
-       and _, rhs = convert (the op.op_right) in
+       let lhs = convert op.op_left
+       and rhs = convert (the op.op_right) in
        (* FIXME: Should we make non-integers work using transactions?  We
           _could_.  Do users want that? *)
        if op.op_atomic && not ((is_integer_type tp) || (is_pointer_type tp))
        then Report.err_atomic_non_integer op.op_pos (string_of_type tp)
-       else expr.expr_tp,
-            Expr_Binary (op.op_pos, op.op_op, op.op_atomic, tp, lhs, rhs)
+       else Expr_Binary (op.op_pos, op.op_op, op.op_atomic, tp, lhs, rhs)
     | ExprPreUnary op ->
        let tp = op.op_left.expr_tp in
-       let _, subexpr = convert op.op_left in
-       expr.expr_tp, Expr_Unary (op.op_op, tp, subexpr, true)
+       let subexpr = convert op.op_left in
+       Expr_Unary (op.op_op, tp, subexpr, true)
     | ExprPostUnary op ->
        let tp = op.op_left.expr_tp in
-       let _, subexpr = convert op.op_left in
-       expr.expr_tp, Expr_Unary (op.op_op, tp, subexpr, false)
+       let subexpr = convert op.op_left in
+       Expr_Unary (op.op_op, tp, subexpr, false)
     | ExprTernaryCond _ ->
        Report.err_internal __FILE__ __LINE__ "ternary cond not implemented."
     | ExprVar name ->
        begin match lookup_symbol scope name with
        | Some var ->
           let () = var.decl_ref <- true in
-          expr.expr_tp,
           Expr_Variable var.mappedname
        | None ->
           Report.err_undefined_var (pos_of_cr expr.expr_cr) name
        end
     | ExprLit literal ->
-       expr.expr_tp, Expr_Literal literal
+       Expr_Literal literal
     | ExprEnum (name, lit) ->
-       expr.expr_tp, Expr_Literal lit
+       Expr_Literal lit
     | ExprIndex (base, idx) ->
        let bpos, ipos = match expr.expr_cr with
          | CRExpr (PTE_Index (b, _, i, _)) ->
@@ -832,22 +831,20 @@ let convert_expr typemap fcnscope =
          | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected non-index."
        in
        let btype = base.expr_tp in
-       let _, converted_base = convert base in
+       let converted_base = convert base in
        let itype = idx.expr_tp in
-       let _, converted_idx = convert idx in
+       let converted_idx = convert idx in
        begin match btype.bare with
        | DefTypePtr ({ bare = DefTypeVoid }) ->
           Report.err_deref_void_ptr bpos ipos
        | DefTypeArray (deref_type, _) ->
           if is_integer_type itype then
-            expr.expr_tp,
             Expr_Index (converted_base, converted_idx, deref_type,
                         false, true, (*FIXME: volatile?*)false)
           else
             Report.err_non_integer_index ipos
        | DefTypePtr deref_type ->
           if is_integer_type itype then
-            expr.expr_tp,
             Expr_Index (converted_base, converted_idx, deref_type,
                         true, false, btype.dtvolatile)
           else
@@ -862,7 +859,7 @@ let convert_expr typemap fcnscope =
          | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected non-field."
        in
        let otype = obj.expr_tp in
-       let _, converted_obj = convert obj in
+       let converted_obj = convert obj in
        let rec record_select obj tp =
          match tp.bare with
          | DefTypeLiteralStruct (_, mtypes, fields) ->
@@ -881,11 +878,9 @@ let convert_expr typemap fcnscope =
             in
             let tp = List.nth mtypes id in
             let fselect = Expr_SelectField(obj, id, tp.dtvolatile) in
-            let fexpr = if is_array_type tp then
-                         Expr_Unary (OperAddrOf, tp, fselect, true)
-                       else fselect
-            in
-            expr.expr_tp, fexpr
+            if is_array_type tp then
+              Expr_Unary (OperAddrOf, tp, fselect, true)
+            else fselect
          | DefTypeLiteralUnion _ ->
             Report.err_internal __FILE__ __LINE__
                                 "Unions not supported at this time."
@@ -901,24 +896,24 @@ let convert_expr typemap fcnscope =
        in
        record_select converted_obj otype
     | ExprCast (from_tp, to_tp, e) ->
-       let _, converted_expr = convert e in
-       expr.expr_tp, maybe_cast typemap from_tp to_tp converted_expr
+       let converted_expr = convert e in
+       maybe_cast typemap from_tp to_tp converted_expr
     | ExprStaticStruct (is_packed, members) ->
-       let cmembers = List.map convert members in
-       expr.expr_tp,
+       let cmtps = List.map (fun m -> m.expr_tp) members in
+       let cmexprs = List.map convert members in
+       let cmembers = List.combine cmtps cmexprs in
        Expr_StaticStruct (is_packed, None, cmembers)
     | ExprStaticArray elements ->
-       let ce = List.map (fun e -> let _, ret = convert e in ret) elements in
-       expr.expr_tp, Expr_StaticArray ce
+       let ce = List.map convert elements in
+       Expr_StaticArray ce
     | ExprType _ -> Report.err_unexpected_type_expr (pos_of_cr expr.expr_cr)
     | ExprTypeString subexpr ->
        let pos = pos_of_cr expr.expr_cr in
        let nm = (label_of_pos pos) ^ ".type_str" in
        let str = string_of_type subexpr.expr_tp in
-       expr.expr_tp,
        Expr_String (nm, str)
-    | ExprNil -> expr.expr_tp, Expr_Nil
-    | ExprWildcard -> expr.expr_tp, Expr_Wildcard
+    | ExprNil -> Expr_Nil
+    | ExprWildcard -> Expr_Wildcard
   in convert
 
 let nonconflicting_name pos scope name =
@@ -1180,9 +1175,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
             Do 1 and 2 want to be swapped?
           *)
          let arg_types = List.map (fun arg -> arg.expr_tp) args in
-         let arg_exprs =
-           List.map (fun arg -> let _, e = convert_expr typemap scope arg in e) args
-         in
+         let arg_exprs = List.map (convert_expr typemap scope) args in
          let args = List.combine arg_types arg_exprs in
          let ret = match lhs with
            | None -> None
@@ -1200,7 +1193,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
                           }
               in
               let rtp = lexpr.expr_tp in
-              let _, rexpr = convert_expr typemap scope lexpr in
+              let rexpr = convert_expr typemap scope lexpr in
               Some (rtp, rexpr)
          in
          let detach = make_detach_bb ("detach." ^ label) sync_label args ret in
@@ -1255,7 +1248,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
             let () = add_next detach end_bb in
             detach, end_bb
          | _ ->
-            let _, expr = convert_expr typemap scope expr in
+            let expr = convert_expr typemap scope expr in
             let bb = make_sequential_bb ("expr_" ^ label) [(pos, expr)] in
             bb, bb
        in
@@ -1315,7 +1308,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
                                               op_left = var;
                                               op_right = Some expr;
                                               op_atomic = false } } in
-       let _, cexpr = convert_expr typemap scope assign in
+       let cexpr = convert_expr typemap scope assign in
        let field_types = get_field_types typemap target_tp in
        let var_init n (pos, nm, tp) =
          let field_type = List.nth field_types n in
@@ -1339,7 +1332,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
                                                 op_left = lhs;
                                                 op_right = Some rhs;
                                                 op_atomic = false } } in
-         let _, cexpr = convert_expr typemap scope assign in
+         let cexpr = convert_expr typemap scope assign in
          pos, cexpr
        in
        let inits = List.mapi var_init vars in
@@ -1371,7 +1364,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let leave_bb = end_xact body_end_bb pos scope in
        process_bb scope leave_bb rest
     | IfStmt (pos, cond, then_block, else_block_maybe) :: rest ->
-       let _, cexpr = convert_expr typemap scope cond in
+       let cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
        let fail_bb = make_sequential_bb ("fail_" ^ (label_of_pos pos)) [] in
        let cond_bb = generate_conditional ("cond_" ^ (label_of_pos pos))
@@ -1398,13 +1391,13 @@ let rec build_bbs name decltable typemap fcn_pos body =
        in
        let succ_bb = make_sequential_bb ("fsucc." ^ (label_of_pos pos)) [] in
        let fail_bb = make_sequential_bb ("ffail." ^ (label_of_pos pos)) [] in
-       let _, cexpr = convert_expr typemap init_scope cond in
+       let cexpr = convert_expr typemap init_scope cond in
        let cond_bb = generate_conditional ("for_" ^ (label_of_pos pos))
                                           pos cexpr succ_bb fail_bb in
        let iter_bb = match iter with
          | None -> cond_bb
          | Some (pos, e) ->
-            let _, iexpr = convert_expr typemap init_scope e in
+            let iexpr = convert_expr typemap init_scope e in
             let bb =
               make_sequential_bb ("fiter_" ^ (label_of_pos pos)) [(pos, iexpr)]
             in
@@ -1430,14 +1423,14 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let succ_bb = make_detach_bb ("pfdetach." ^ (label_of_pos pos))
                                     for_region [] None in
        let fail_bb = make_sequential_bb ("pffail." ^ (label_of_pos pos)) [] in
-       let _, cexpr = convert_expr typemap init_scope cond in
+       let cexpr = convert_expr typemap init_scope cond in
        let cond_bb = generate_conditional ("parfor." ^ (label_of_pos pos))
                                           pos cexpr succ_bb fail_bb in
        let () = set_cond_parallel cond_bb in
        let iter_bb = match iter with
          | None -> Report.err_parfor_needs_iter pos
          | Some (pos, e) ->
-            let _, iexpr = convert_expr typemap init_scope e in
+            let iexpr = convert_expr typemap init_scope e in
             let bb =
               make_sequential_bb ("pfiter." ^ (label_of_pos pos))
                                  [(pos, iexpr)]
@@ -1463,7 +1456,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let () = add_next fail_bb sync_block in
        process_bb scope sync_block rest
     | WhileLoop (pos, precheck, cond, body) :: rest ->
-       let _, cexpr = convert_expr typemap scope cond in
+       let cexpr = convert_expr typemap scope cond in
        let succ_bb = make_sequential_bb ("succ_" ^ (label_of_pos pos)) [] in
        let cond_bb, fail_bb =
          match (not (provably_always_true cond))
@@ -1502,7 +1495,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
           cased for traditional, C-like switch statements. *)
        let label = label_of_pos pos in
        let switch_tp = expr.expr_tp in
-       let _, switch_expr = convert_expr typemap scope expr in
+       let switch_expr = convert_expr typemap scope expr in
        let switch_decl = make_decl pos scope "switch_var" switch_tp in
        let switch_var_nm = switch_decl.mappedname in
        let () = add_decl switch_decl in
@@ -1590,7 +1583,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
                      (case_pos, fall, case_expr, stmts) =
          let case_label = "case." ^ (label_of_pos case_pos) in
          let case_tp = case_expr.expr_tp in
-         let _, case_conv = convert_expr typemap scope case_expr in
+         let case_conv = convert_expr typemap scope case_expr in
          let case_cmp = wildcard_match case_pos
                                        (switch_tp, switch_var)
                                        (case_tp, case_conv)
@@ -1621,7 +1614,7 @@ let rec build_bbs name decltable typemap fcn_pos body =
        end
     | Return (pos, expr) :: rest ->
        let tp = expr.expr_tp in
-       let _, expr = convert_expr typemap scope expr in
+       let expr = convert_expr typemap scope expr in
        begin
          check_castability pos typemap tp ret_type;
          match tp.bare, expr with
@@ -1761,7 +1754,7 @@ let build_global_vars decltable typemap globals = function
          let decl_scope = ScopeGlobal decl.decl_pos in
          let scope = make_fcn_scope decl_scope decltable in
          let etp = (Util.the init).expr_tp in
-         let _, expr = convert_expr typemap scope (Util.the init) in
+         let expr = convert_expr typemap scope (Util.the init) in
          (decl.mappedname, maybe_cast typemap etp decl.tp expr) :: accum
      in
      let varset = if inits = [] then List.map (fun v -> v, None) vars
