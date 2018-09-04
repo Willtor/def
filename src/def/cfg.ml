@@ -1179,7 +1179,11 @@ let rec build_bbs name decltable typemap fcn_pos body =
             5. Continuation.
             Do 1 and 2 want to be swapped?
           *)
-         let args = List.map (convert_expr typemap scope) args in
+         let arg_types = List.map (fun arg -> arg.expr_tp) args in
+         let arg_exprs =
+           List.map (fun arg -> let _, e = convert_expr typemap scope arg in e) args
+         in
+         let args = List.combine arg_types arg_exprs in
          let ret = match lhs with
            | None -> None
            | Some lhs ->
@@ -1195,7 +1199,9 @@ let rec build_bbs name decltable typemap fcn_pos body =
                             expr_ast = lvalue
                           }
               in
-              Some (convert_expr typemap scope lexpr)
+              let rtp = lexpr.expr_tp in
+              let _, rexpr = convert_expr typemap scope lexpr in
+              Some (rtp, rexpr)
          in
          let detach = make_detach_bb ("detach." ^ label) sync_label args ret in
          let block = match detach with
@@ -1495,7 +1501,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
        (* FIXME: Treating this as an if-statement, but it should be special-
           cased for traditional, C-like switch statements. *)
        let label = label_of_pos pos in
-       let switch_tp, switch_expr = convert_expr typemap scope expr in
+       let switch_tp = expr.expr_tp in
+       let _, switch_expr = convert_expr typemap scope expr in
        let switch_decl = make_decl pos scope "switch_var" switch_tp in
        let switch_var_nm = switch_decl.mappedname in
        let () = add_decl switch_decl in
@@ -1582,7 +1589,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
        let make_case (last_bb, fallthrough_bb)
                      (case_pos, fall, case_expr, stmts) =
          let case_label = "case." ^ (label_of_pos case_pos) in
-         let case_tp, case_conv = convert_expr typemap scope case_expr in
+         let case_tp = case_expr.expr_tp in
+         let _, case_conv = convert_expr typemap scope case_expr in
          let case_cmp = wildcard_match case_pos
                                        (switch_tp, switch_var)
                                        (case_tp, case_conv)
@@ -1612,7 +1620,8 @@ let rec build_bbs name decltable typemap fcn_pos body =
          process_bb scope exit_bb rest
        end
     | Return (pos, expr) :: rest ->
-       let tp, expr = convert_expr typemap scope expr in
+       let tp = expr.expr_tp in
+       let _, expr = convert_expr typemap scope expr in
        begin
          check_castability pos typemap tp ret_type;
          match tp.bare, expr with
@@ -1751,7 +1760,8 @@ let build_global_vars decltable typemap globals = function
          let decl = Util.the (lookup_symbol decltable var.td_text) in
          let decl_scope = ScopeGlobal decl.decl_pos in
          let scope = make_fcn_scope decl_scope decltable in
-         let etp, expr = convert_expr typemap scope (Util.the init) in
+         let etp = (Util.the init).expr_tp in
+         let _, expr = convert_expr typemap scope (Util.the init) in
          (decl.mappedname, maybe_cast typemap etp decl.tp expr) :: accum
      in
      let varset = if inits = [] then List.map (fun v -> v, None) vars
