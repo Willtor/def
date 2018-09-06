@@ -1,0 +1,6 @@
+// Test that undefined functions produce an error.
+
+def foo () -> void
+begin
+    bar();
+end

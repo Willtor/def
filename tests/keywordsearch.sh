@@ -17,7 +17,6 @@ keyfile=$basename.keywords
 echo
 echo "### Keyword Test: $1 ###"
 
-sleep 0.1
 while IFS='' read -r line || [[ -n "$line" ]]; do
     keyword=`echo $line | cut -d ' ' -f 1`
     expected=`echo $line | cut -d ' ' -f 2`

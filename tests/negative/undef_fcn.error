@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt undef_fcn.def (line 5 column 4):
+  Unknown function "bar".
+[33m    bar();
+    ^[0m

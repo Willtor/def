@@ -1,5 +1,5 @@
 
-DIRECTORIES = ops stmts codegen cilk cimport
+DIRECTORIES = ops stmts codegen cilk cimport negative
 
 .PHONY: all unit smoke clean
 
