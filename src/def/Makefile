@@ -23,12 +23,20 @@ APPENDLINK = -cclib -lLLVMTransformUtils $(addprefix -cclib ,$(CIMPORT_LIBS))
 CLANGPP = clang++-$(LLVM_VER)
 CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRC) -I$(TAPIRCPP)
 
-SRC = llvmext.ml config.ml util.ml report.ml osspecific.ml link.ml types.ml ast.ml cfg.ml lower.ml scrubber.ml iropt.ml irfactory.ml build.ml main.ml
+SRC = config.ml util.ml report.ml osspecific.ml link.ml types.ml ast.ml cfg.ml lower.ml scrubber.ml iropt.ml irfactory.ml build.ml main.ml
 
 COMMONDIR = ../common
 COMMONOBJ = version.cmx operator.cmx error.cmx parsetree.cmx deflex.cmx defparse.cmx
-OBJ = cmpxchg.o cilky.o metadata.o $(addprefix $(CIMPORT_PATH)/,$(CIMPORT_OBJ)) $(COMMONOBJ) $(SRC:.ml=.cmx)
-INTERFACE_OBJ = $(COMMONOBJ:.cmx=.cmi) $(SRC:.ml=.cmi)
+
+LLVMEXTDIR = ../llvmext
+LLVMEXTOBJ = cilky.o cmpxchg.o metadata.o llvmext.cmx
+
+OBJ = 	$(addprefix $(CIMPORT_PATH)/,$(CIMPORT_OBJ))	\
+	$(COMMONOBJ)					\
+	$(addprefix $(LLVMEXTDIR)/,$(LLVMEXTOBJ))	\
+	$(SRC:.ml=.cmx)
+
+INTERFACE_OBJ = $(COMMONOBJ:.cmx=.cmi) llvmext.cmi $(SRC:.ml=.cmi)
 
 $(TARGET): $(INTERFACE_OBJ) $(OBJ)
 	$(OCAMLC) -o $@ $(LINKPKG) $(OBJ) $(APPENDLINK)
@@ -49,11 +57,15 @@ $(TARGET): $(INTERFACE_OBJ) $(OBJ)
 	cp $< $@
 	cp $(<:.cmx=.o) $(@:.cmx=.o)
 
+%.cmi: $(LLVMEXTDIR)/%.cmi
+	cp $< $@
+
+%.cmx: $(LLVMEXTDIR)/%.cmx
+	cp $< $@
+	cp $(<:.cmx=.o) $(@:.cmx=.o)
+
 report.mli: report.ml
 	$(OCAMLC) -i $< > $@
 
 config.mli: config.ml
 	$(OCAMLC) -i $< > $@
-
-llvmext.mli: llvmext.ml
-	$(OCAMLC) $(PACKAGE) -i $< > $@

@@ -2,6 +2,7 @@ INSTALL_DIR = /usr/local
 BUILDDIR = build
 COMMON_BUILD_DIR = $(BUILDDIR)/common
 CIMPORT_BUILD_DIR = $(BUILDDIR)/cimport
+LLVMEXT_BUILD_DIR = $(BUILDDIR)/llvmext
 DEF_BUILD_DIR = $(BUILDDIR)/def
 DEFGHI_BUILD_DIR = $(BUILDDIR)/defghi
 LIBHYTM_BUILD_DIR = $(BUILDDIR)/libhytm
@@ -33,14 +34,20 @@ CIMPORTFILES =		\
 	cimport.mk	\
 	Makefile
 
+LLVMEXT_SRC_DIR = src/llvmext
+LLVMEXTFILES =		\
+	cilky.cpp	\
+	cmpxchg.cpp	\
+	llvmext.ml	\
+	Makefile	\
+	metadata.cpp
+
 DEF_SRC_DIR = src/def
 DEFFILES = 		\
 	ast.ml		\
 	ast.mli		\
 	build.ml	\
 	build.mli	\
-	cilky.cpp	\
-	cmpxchg.cpp	\
 	cfg.ml		\
 	cfg.mli		\
 	config.ml	\
@@ -48,7 +55,6 @@ DEFFILES = 		\
 	irfactory.mli	\
 	iropt.ml	\
 	iropt.mli	\
-	llvmext.ml	\
 	link.ml		\
 	link.mli	\
 	lower.ml	\
@@ -56,7 +62,6 @@ DEFFILES = 		\
 	main.ml		\
 	main.mli	\
 	Makefile	\
-	metadata.cpp	\
 	osspecific.ml	\
 	osspecific.mli	\
 	report.ml	\
@@ -86,6 +91,7 @@ LIBHYTMFILES =		\
 
 COMMON_SRC = $(addprefix $(COMMON_BUILD_DIR)/,$(COMMONFILES))
 CIMPORT_SRC = $(addprefix $(CIMPORT_BUILD_DIR)/,$(CIMPORTFILES))
+LLVMEXT_SRC = $(addprefix $(LLVMEXT_BUILD_DIR)/,$(LLVMEXTFILES))
 DEF_SRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
 DEFGHI_SRC = $(addprefix $(DEFGHI_BUILD_DIR)/,$(DEFGHIFILES))
 LIBHYTM_SRC = $(addprefix $(LIBHYTM_BUILD_DIR)/,$(LIBHYTMFILES))
@@ -128,6 +134,9 @@ $(LIBDIR):
 $(COMMON_BUILD_DIR):
 	mkdir -p $@
 
+$(LLVMEXT_BUILD_DIR):
+	mkdir -p $@
+
 $(CIMPORT_BUILD_DIR):
 	mkdir -p $@
 
@@ -149,9 +158,10 @@ $(BINDIR)/$(DEFGHI): $(DEFGHI_BUILD_DIR)/$(DEFGHI) $(BINDIR)
 $(LIBDIR)/$(LIBHYTM): $(LIBHYTM_BUILD_DIR)/$(LIBHYTM) $(LIBDIR)
 	cp $< $@
 
-$(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(CIMPORT_BUILD_DIR) $(DEF_BUILD_DIR) $(COMMON_SRC) $(CIMPORT_SRC) $(DEF_SRC)
+$(DEF_BUILD_DIR)/$(DEF): $(COMMON_BUILD_DIR) $(CIMPORT_BUILD_DIR) $(LLVMEXT_BUILD_DIR) $(DEF_BUILD_DIR) $(COMMON_SRC) $(CIMPORT_SRC) $(LLVMEXT_SRC) $(DEF_SRC)
 	make -C $(COMMON_BUILD_DIR)
 	make -C $(CIMPORT_BUILD_DIR)
+	make -C $(LLVMEXT_BUILD_DIR)
 	make -C $(DEF_BUILD_DIR)
 
 $(DEFGHI_BUILD_DIR)/$(DEFGHI): $(COMMON_BUILD_DIR) $(DEFGHI_BUILD_DIR) $(COMMON_SRC) $(DEFGHI_SRC)
@@ -175,6 +185,9 @@ $(COMMON_BUILD_DIR)/%: $(COMMON_SRC_DIR)/%
 	cp $< $@
 
 $(CIMPORT_BUILD_DIR)/%: $(CIMPORT_SRC_DIR)/%
+	cp $< $@
+
+$(LLVMEXT_BUILD_DIR)/%:	$(LLVMEXT_SRC_DIR)/%
 	cp $< $@
 
 $(DEF_BUILD_DIR)/%: $(DEF_SRC_DIR)/%
