@@ -7,7 +7,7 @@ OCAMLSRC = cimportext.ml
 CSRC = cimport.cpp
 OBJ = $(CSRC:.cpp=.o) $(OCAMLSRC:.ml=.cmi) $(OCAMLSRC:.ml=.cmx)
 
-OCAMLC = OCAMLPATH=$(TAPIROCAML) ocamlfind ocamlopt -g
+OCAMLC = OCAMLPATH=$(TAPIROCAML) ocamlfind ocamlopt -g -opaque
 CXX = clang++
 CPPFLAGS = -fPIC -std=c++11 -fno-rtti -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRCPP) -I$(TAPIRBUILDCPP) -I$(TAPIRCLANG) -I$(TAPIRBUILDCLANG)
 
