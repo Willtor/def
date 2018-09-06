@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt undef_var.def (line 7 column 8):
+  Variable baz is undefined.
+[33m    foo(baz);
+        ^[0m

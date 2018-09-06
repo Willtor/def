@@ -1,0 +1,8 @@
+// Unit test for reporting an error of an undefined variable.
+
+decl foo (i32) -> void;
+
+def bar () -> void
+begin
+    foo(baz);
+end
