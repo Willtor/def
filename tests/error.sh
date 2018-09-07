@@ -9,6 +9,9 @@ green_color='\033[1;32m'
 errout=$1.error
 actual=$1.actual
 
+echo ''
+echo "### Error Message Test: $1 ###"
+
 diff=`diff $errout $actual`
 
 if [ "$diff" != "" ]; then
