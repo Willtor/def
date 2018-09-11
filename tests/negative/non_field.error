@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt non_field.def (line 7 column 11):
+  Struct has no such member: quux.
+[33m    return f.quux;
+           ^[0m

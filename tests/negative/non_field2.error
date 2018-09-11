@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt non_field2.def (line 5 column 11):
+  Object is not a struct and has no members to access.
+[33m    return f.quux;
+           ^[0m

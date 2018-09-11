@@ -1,0 +1,6 @@
+// Negative unit test trying to access a non-field from a struct.
+
+def baz (f i32) -> i32
+begin
+    return f.quux;
+end

@@ -488,7 +488,6 @@ let resolve_types stmts =
          | DefTypeLiteralStruct (_, ftypes, fnames)
          | DefTypeLiteralUnion (ftypes, fnames) -> ftypes, fnames
          | _ ->
-            let () = prerr_endline (string_of_type underlying_tp) in
             Report.err_non_struct_member_access (pos_of_cr expr.expr_cr)
        in
        let tp = match field with
