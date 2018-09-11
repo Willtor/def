@@ -1,0 +1,6 @@
+// Negative test trying to return a value from a void function.
+
+def foo () -> void
+begin
+    return 3;
+end

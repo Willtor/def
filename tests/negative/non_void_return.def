@@ -1,0 +1,6 @@
+// Negative test trying to return void from a non-void function.
+
+def foo () -> i32
+begin
+    return;
+end

@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt non_void_return.def (line 5 column 4):
+  Function foo should not return void.
+[33m    return;
+    ^[0m

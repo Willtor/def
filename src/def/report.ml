@@ -111,6 +111,14 @@ let err_multiple_volatile_keywords pos =
 let err_no_return pos fcn =
   err_pos ("Function " ^ fcn ^ " needs a return statement.") pos
 
+(** A return value was specified for a void function. *)
+let err_return_non_void_from_void_fcn pos fcn =
+  err_pos ("Function " ^ fcn ^ " should not return a value.") pos
+
+(** No return value was specified for a non-void function. *)
+let err_return_void_from_non_void_fcn pos fcn =
+  err_pos ("Function " ^ fcn ^ " should not return void.") pos
+
 (** Local function was declared "export" which is not allowed. *)
 let err_local_fcn_with_nonlocal_vis pos fcn =
   err_pos ("Function " ^ fcn ^ " has non-global scope, and must have local "

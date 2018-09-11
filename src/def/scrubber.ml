@@ -766,11 +766,16 @@ let kill_dead_code =
   in List.map toplevel
 
 let return_all_paths =
-  let process can_return_void body =
+  let process fcn rettp body =
     let rec contains_return = function
       | [] -> false
-      | Return _ :: _
-      | ReturnVoid _ :: _ -> true
+      | Return (p, e) :: _ ->
+         if rettp.bare = DefTypeVoid then
+           Report.err_return_non_void_from_void_fcn p fcn
+         else true
+      | ReturnVoid p :: _ ->
+         if rettp.bare = DefTypeVoid then true
+         else Report.err_return_void_from_non_void_fcn p fcn
       | Block (_, body) :: rest ->
          if contains_return body then true
          else contains_return rest
@@ -797,8 +802,13 @@ let return_all_paths =
     in
     let rec returns_p = function
       | [] -> false
-      | Return _ :: _
-      | ReturnVoid _ :: _ -> true
+      | Return (p, _) :: _ ->
+         if rettp.bare = DefTypeVoid then
+           Report.err_return_non_void_from_void_fcn p fcn
+         else true
+      | ReturnVoid p :: _ ->
+         if rettp.bare = DefTypeVoid then true
+         else Report.err_return_void_from_non_void_fcn p fcn
       | Block (_, block) :: rest ->
          if returns_p block then true
          else returns_p rest
@@ -830,7 +840,7 @@ let return_all_paths =
          Report.err_internal __FILE__ __LINE__ "import in function."
     in
     if returns_p body then body
-    else if can_return_void then
+    else if rettp.bare = DefTypeVoid then
       (* Implicit return statement.  This is only allowed when the return
          type is void. *)
       List.append body [ ReturnVoid faux_pos ]
@@ -838,13 +848,14 @@ let return_all_paths =
   in
   let toplevel = function
     | DefFcn (pos, doc, vis, name, tp, params, body) ->
-       let can_return_void = match tp.bare with
-         | DefTypeFcn (_, { bare = DefTypeVoid }, _) -> true
-         | _ -> false
+       let rettp =
+         match tp.bare with
+         | DefTypeFcn (_, rettp, _) -> rettp
+         | _ -> Report.err_internal __FILE__ __LINE__ "non fcn function."
        in
        begin
          try DefFcn (pos, doc, vis, name, tp, params,
-                     process can_return_void body)
+                     process name rettp body)
          with _ -> (* Fixme: Need the end of function position. *)
            Report.err_no_return pos name
        end
