@@ -459,6 +459,11 @@ let resolve_types stmts =
     | ExprIndex (base, idx) ->
        let resolved_base = resolve varmap base
        and resolved_idx = resolve varmap idx in
+       let concrete_idx_tp = concrete_of None typemap resolved_idx.expr_tp in
+       let () = if not (is_integer_type concrete_idx_tp) then
+                  Report.err_non_integer_index
+                    (pos_of_cr resolved_idx.expr_cr)
+       in
        let tp = match resolved_base.expr_tp.bare with
          | DefTypePtr subtype -> subtype
          | DefTypeArray (subtype, _) -> subtype
