@@ -1,0 +1,6 @@
+// Negative unit test for a non-integer index into an array.
+
+def foo (bar *i32) -> i32
+begin
+    return bar[6.7];
+end

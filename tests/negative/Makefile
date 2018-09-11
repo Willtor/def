@@ -1,6 +1,6 @@
 include ../common.mk
 
-UNIT = undef_fcn undef_var
+UNIT = undef_fcn undef_var non_int_index
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 

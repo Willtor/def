@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt non_int_index.def (line 5 column 15):
+  The index is not an integer.
+[33m    return bar[6.7];
+               ^[0m
