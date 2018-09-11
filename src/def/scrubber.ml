@@ -65,10 +65,11 @@ let position_of_stmt = function
   | Import (tok, _) -> tok.td_pos
 
 let resolve_types stmts =
+  let pre_typemap = make_symtab () in
   let typemap = make_symtab () in
   let enummap = make_symtab () in
   let global_varmap = make_symtab () in
-  List.iter (fun (nm, tp, _, _, _, _) -> add_symbol typemap nm tp)
+  List.iter (fun (nm, tp, _, _, _, _) -> add_symbol pre_typemap nm tp)
     Types.map_builtin_types;
   let read_type = function
     | TypeDecl (p, nm, ({ bare = DefTypeEnum enums } as tp), _, _) ->
@@ -77,21 +78,213 @@ let resolve_types stmts =
            (fun i str -> add_symbol enummap str (i, tp))
            enums
        in
-       add_symbol typemap nm tp
-    | TypeDecl (_, nm, tp, _, _) -> add_symbol typemap nm tp
+       add_symbol pre_typemap nm tp
+    | TypeDecl (_, nm, tp, _, _) ->
+       add_symbol pre_typemap nm tp
     | DeclFcn (_, _, nm, tp, _)
     | DefFcn (_, _, _, nm, tp, _, _) -> add_symbol global_varmap nm tp
     | _ -> ()
   in
   List.iter read_type stmts;
 
-  let implicit_cast to_tp expr =
+  let disambiguate_type typename oldtp =
+    let bared = function
+      | Some t -> Some t.bare
+      | None -> None
+    in
+    let rec v t =
+      match t.bare with
+      | DefTypeUnresolved name ->
+         Report.err_internal __FILE__ __LINE__ "unresolved type."
+      | DefTypeOpaque nm ->
+         (* Sometimes we think a type is opaque if the parent type was resolved
+            before the child. *)
+         begin match bared (lookup_symbol pre_typemap nm) with
+         | Some (DefTypeLiteralStruct _)
+         | Some (DefTypeLiteralUnion _) ->
+            maketype t.dtpos (DefTypeNamed nm)
+         | Some tp -> maketype t.dtpos tp
+         | None -> maketype t.dtpos (DefTypeOpaque nm)
+         end
+      | DefTypeFcn (params, ret, variadic) ->
+         let params = List.map v params
+         and ret = v ret
+         in maketype None (DefTypeFcn (params, ret, variadic))
+      | DefTypePtr tp -> maketype None (DefTypePtr (v tp))
+      | DefTypeArray (tp, n) -> maketype None (DefTypeArray (v tp, n))
+      | DefTypeLiteralStruct (is_packed, fields, names) ->
+         maketype t.dtpos
+           (DefTypeLiteralStruct (is_packed, List.map v fields, names))
+      | DefTypeStaticStruct (is_packed, members) ->
+         maketype t.dtpos
+           (DefTypeStaticStruct (is_packed, List.map v members))
+      | DefTypeLiteralUnion (fields, names) ->
+         maketype t.dtpos (DefTypeLiteralUnion (List.map v fields, names))
+      | _ -> t
+    in
+    add_symbol typemap typename (v oldtp)
+  in
+  symtab_iter disambiguate_type pre_typemap;
+
+  let rec implicit_cast to_tp expr =
     if equivalent_types to_tp expr.expr_tp then expr
     else if expr.expr_tp.bare = DefTypeWildcard then expr
-    else { expr_cr = expr.expr_cr;
+    else
+      match to_tp.bare, expr.expr_ast with
+      | DefTypeLiteralStruct (_, mtypes, _), ExprStaticStruct (p, mexprs) ->
+         (* Special case: need to cast members. *)
+         let cast_members = List.map2 implicit_cast mtypes mexprs in
+         let pos = Some (pos_of_cr expr.expr_cr) in
+         let revised_tp = maketype pos (DefTypeStaticStruct (p, mtypes)) in
+         let subexpr =
+           { expr_cr = expr.expr_cr;
+             expr_tp = revised_tp;
+             expr_ast = ExprStaticStruct (p, cast_members)
+           }
+         in
+         { expr_cr = expr.expr_cr;
+           expr_tp = to_tp;
+           expr_ast = ExprCast (revised_tp, to_tp, subexpr)
+         }
+      | _ ->
+         { expr_cr = expr.expr_cr;
            expr_tp = to_tp;
            expr_ast = ExprCast (expr.expr_tp, to_tp, expr)
          }
+  in
+
+  (* Verify an expression can be cast.  If the types are incompatible, or if
+     it's implicit and needs to be explicit, this function will report the
+     appropriate error and won't return.  Also, it will generate warnings if
+     necessary. *)
+  let check_castability is_implicit cast_to subexpr =
+    let pos = pos_of_cr subexpr.expr_cr in
+    let err () = Report.err_type_mismatch pos
+                   (string_of_type subexpr.expr_tp)
+                   (string_of_type cast_to)
+    in
+    let cant_cast () =
+      Report.err_cant_cast
+        pos
+        (string_of_type subexpr.expr_tp)
+        (string_of_type cast_to)
+    in
+    let need_explicit () =
+      Report.err_need_explicit_cast
+        pos
+        (string_of_type subexpr.expr_tp)
+        (string_of_type cast_to)
+    in
+    let rec check_concrete can_lose_volatile from_tp to_tp =
+      if is_implicit
+         && (not can_lose_volatile)
+         && from_tp.dtvolatile
+         && (not to_tp.dtvolatile) then
+        Report.warn_implicit_loss_of_volatility pos;
+
+      (* equivalent_types will catch most cases.  The remaining cases have to
+         be matched specially.  The matching code may seem over-broad in
+         identifying things as non-castable, but it's only because we have
+         already checked whether the types are equivalent. *)
+      if equivalent_types from_tp to_tp then ()
+      else
+        match from_tp.bare, to_tp.bare with
+        | DefTypePrimitive _, DefTypePrimitive _ -> ()
+        | DefTypePrimitive _, DefTypeEnum _
+        | DefTypeEnum _, DefTypePrimitive _ ->
+           if is_implicit then need_explicit ()
+           else ()
+        | DefTypeFcn (p1, r1, v1), DefTypeFcn (p2, r2, v2) ->
+           if is_implicit then
+             let left = maketype None
+                          (DefTypeFcn (List.map (concrete_of None typemap) p1,
+                                       concrete_of None typemap r1,
+                                       v1))
+             and right = maketype None
+                           (DefTypeFcn (List.map (concrete_of None typemap) p2,
+                                        concrete_of None typemap r2,
+                                        v2))
+             in
+             if equivalent_types left right then ()
+             else
+               (* If it's implicit, technically the user can cast it, but this
+                  is so uncommon that it's probably an error.  Just report it
+                  as an error.  If the user explicitly cast it, then have at
+                  it. *)
+               err ()
+           else ()
+        | DefTypeNullPtr, DefTypePtr _ -> ()
+        | DefTypePtr _, DefTypePtr { bare = DefTypeVoid } -> ()
+        | DefTypePtr { bare = DefTypeVoid }, DefTypePtr _ -> ()
+        | DefTypePtr l, DefTypePtr r -> check false l r
+        | DefTypePtr _, DefTypeFcn _ | DefTypeFcn _, DefTypePtr _ ->
+           if is_implicit then need_explicit ()
+           else ()
+        | DefTypePtr _, DefTypePrimitive PrimU64
+        | DefTypePrimitive PrimU64, DefTypePtr _ ->
+           (* FIXME: This is 64-bit specific code.  I should really know
+              better than to code like this. *)
+           if is_implicit then need_explicit ()
+           else ()
+        | DefTypeArray (s1, _), DefTypePtr s2
+        | DefTypePtr s1, DefTypeArray (s2, _) ->
+           (* FIXME: Is this what C/C++ do? *)
+           if equivalent_types s1 s2 then ()
+           else need_explicit ()
+        | DefTypeStaticStruct (p1, s1), DefTypeLiteralStruct (p2, s2, _) ->
+           let mcheck a b = check false a b in
+           if p1 <> p2 then err ()
+           else List.iter2 mcheck s1 s2
+        | DefTypeLiteralStruct (p1, s1, _), DefTypeStaticStruct (p2, s2) ->
+           let mcheck a b =
+             if equivalent_types a b then ()
+             else err ()
+           in
+           if p1 <> p2 then err ()
+           else List.iter2 mcheck s1 s2
+        | DefTypeWildcard, _ | _, DefTypeWildcard -> ()
+        | _, DefTypeOpaque nm ->
+           let () = prerr_endline ((string_of_type from_tp) ^ " -> "
+                                   ^ (string_of_type to_tp))
+           in
+           let () = match lookup_symbol typemap nm with
+             | None -> prerr_endline "  It was unknown."
+             | Some t -> prerr_endline ("  known to be: " ^ (string_of_type t))
+           in
+           Report.err_internal __FILE__ __LINE__ ("Found opaque type: " ^ nm)
+        | _ ->
+           if is_implicit then err ()
+           else cant_cast ()
+    and check can_lose_volatile from_tp to_tp =
+      match from_tp.bare, to_tp.bare with
+      | DefTypeUnresolved _, _ | _, DefTypeUnresolved _ ->
+         Report.err_internal __FILE__ __LINE__ "unresolved type"
+      | DefTypeNamed n, DefTypeNamed m when n = m ->
+         let () = if is_implicit
+                     && (not can_lose_volatile)
+                     && from_tp.dtvolatile
+                     && (not to_tp.dtvolatile) then
+                    Report.warn_implicit_loss_of_volatility pos
+         in
+         ()
+      | DefTypeNamed nm, _ ->
+         let act_from = Util.the (lookup_symbol typemap nm) in
+         (* Preserve volatility. *)
+         let vol_from = if from_tp.dtvolatile then volatile_of act_from
+                        else act_from
+         in
+         check can_lose_volatile vol_from to_tp
+      | _, DefTypeNamed nm ->
+         let act_to = Util.the (lookup_symbol typemap nm) in
+         (* Preserve volatility. *)
+         let vol_to = if to_tp.dtvolatile then volatile_of act_to
+                      else act_to
+         in
+         check can_lose_volatile from_tp vol_to
+      | _ ->
+         check_concrete can_lose_volatile from_tp to_tp
+    in
+    check true subexpr.expr_tp cast_to
   in
 
   (* Resolve types of expressions and all subexpressions. *)
@@ -102,7 +295,7 @@ let resolve_types stmts =
          List.map (fun (p, e) -> p, resolve varmap e) inits
        in
        { expr_cr = expr.expr_cr;
-         expr_tp = makeptr tp;
+         expr_tp = expr.expr_tp;
          expr_ast = ExprNew (resolve varmap dim, tp, resolved_inits)
        }
     | ExprFcnCall (name, args, is_spawn) ->
@@ -116,6 +309,7 @@ let resolve_types stmts =
             resolve_args (resolved_arg :: accum) (arest, [])
          | arg :: arest, param :: prest ->
             let resolved_arg = resolve varmap arg in
+            let () = check_castability true param resolved_arg in
             let cast_arg = implicit_cast param resolved_arg in
             resolve_args (cast_arg :: accum) (arest, prest)
        in
@@ -171,10 +365,13 @@ let resolve_types stmts =
             let t = mgt () in
             bool_type, implicit_cast t left, implicit_cast t right
          | OperLogicalAnd | OperLogicalOr ->
+            let () = check_castability true bool_type left
+            and () = check_castability true bool_type right in
             bool_type,
             implicit_cast bool_type left,
             implicit_cast bool_type right
          | OperAssign ->
+            let () = check_castability true left.expr_tp right in
             left.expr_tp, left, implicit_cast left.expr_tp right
          | _ ->
             let t = mgt () in
@@ -222,7 +419,9 @@ let resolve_types stmts =
          expr_ast = ExprPostUnary resolved_op
        }
     | ExprTernaryCond (cond, left, right) ->
-       let rcond = implicit_cast bool_type (resolve varmap cond)
+       let resolved_cond = resolve varmap cond in
+       let () = check_castability true bool_type resolved_cond in
+       let rcond = implicit_cast bool_type resolved_cond
        and rleft = resolve varmap left
        and rright = resolve varmap right in
        let tp = most_general_type (pos_of_cr left.expr_cr) typemap
@@ -341,7 +540,7 @@ let resolve_types stmts =
          | _ -> Report.err_internal __FILE__ __LINE__ "Non-assign initializer"
        in
        let rhs_inits = List.map get_rhs inits in
-       let resolved_tp =
+       let user_specified_tp, resolved_tp =
          match tp.bare, rhs_inits with
          | DefTypeUnresolved _, [] ->
             Report.err_no_init_on_inferred_type decl.td_pos
@@ -351,17 +550,20 @@ let resolve_types stmts =
             begin
               match general with
               | { bare = DefTypeStaticStruct (is_packed, members) } ->
+                 false,
                  { dtpos = general.dtpos;
                    bare = DefTypeLiteralStruct (is_packed, members, []);
                    dtvolatile = general.dtvolatile
                  }
-              | _ -> general
+              | _ -> false, general
             end
-         | _, _ -> tp
+         | _, _ -> true, tp
        in
        let resolved_inits =
          List.map
            (fun (orig, old_op, rhs) ->
+             if user_specified_tp then
+               check_castability true resolved_tp rhs;
              let op = { op_pos = old_op.op_pos;
                         op_op = old_op.op_op;
                         op_left =
@@ -443,6 +645,9 @@ let resolve_types stmts =
        let resolved_body = List.map (stmt_to_stmt rettp bodyvars) body in
        TransactionBlock (p, resolved_body, resolved_fail)
     | IfStmt (p, cond, ifbody, elsebody_maybe) ->
+       let rcond = resolve varmap cond in
+       let () = check_castability true bool_type rcond in
+       let resolved_cond = implicit_cast bool_type rcond in
        let resolved_else =
          option_map (fun (p, slist) ->
              let evars = push_symtab_scope varmap in
@@ -451,19 +656,22 @@ let resolve_types stmts =
        in
        let ifvars = push_symtab_scope varmap in
        let resolved_if = List.map (stmt_to_stmt rettp ifvars) ifbody in
-       IfStmt (p, implicit_cast bool_type (resolve varmap cond), resolved_if,
-               resolved_else)
+       IfStmt (p, resolved_cond, resolved_if, resolved_else)
     | ForLoop (p, is_par, init, (cp, cond), iter, p2, body) ->
        let loopvars = push_symtab_scope varmap in
        let resolved_init = option_map (stmt_to_stmt rettp loopvars) init in
-       let resolved_cond = implicit_cast bool_type (resolve loopvars cond) in
+       let rcond = resolve loopvars cond in
+       let () = check_castability true bool_type rcond in
+       let resolved_cond = implicit_cast bool_type rcond in
        let resolved_iter =
          option_map (fun (p, e) -> p, resolve loopvars e) iter in
        let resolved_body = List.map (stmt_to_stmt rettp loopvars) body in
        ForLoop (p, is_par, resolved_init, (cp, resolved_cond), resolved_iter,
                 p2, resolved_body)
     | WhileLoop (p, pre, cond, body) ->
-       let resolved_cond = implicit_cast bool_type (resolve varmap cond) in
+       let rcond = resolve varmap cond in
+       let () = check_castability true bool_type rcond in
+       let resolved_cond = implicit_cast bool_type rcond in
        let bodyvars = push_symtab_scope varmap in
        let resolved_body = List.map (stmt_to_stmt rettp bodyvars) body in
        WhileLoop (p, pre, resolved_cond, resolved_body)
@@ -474,9 +682,12 @@ let resolve_types stmts =
          let resolved_body = List.map (stmt_to_stmt rettp varmap) body in
          p, fall, resolved_case, resolved_body
        in
+       (* FIXME: Special case type-checking for cases. *)
        SwitchStmt (p, resolved_e, List.map resolve_case cases)
     | Return (p, e) ->
-       Return (p, implicit_cast rettp (resolve varmap e))
+       let rret = resolve varmap e in
+       let () = check_castability true rettp rret in
+       Return (p, implicit_cast rettp rret)
     | _ -> stmt
   in
   List.map (stmt_to_stmt nil_type global_varmap)

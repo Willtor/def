@@ -144,6 +144,7 @@ let u64_type = maketype (Some faux_pos) (DefTypePrimitive PrimU64)
 let f32_type = maketype (Some faux_pos) (DefTypePrimitive PrimF32)
 let f64_type = maketype (Some faux_pos) (DefTypePrimitive PrimF64)
 let wildcard_type = maketype (Some faux_pos) DefTypeWildcard
+let nil_type = maketype (Some faux_pos) DefTypeNullPtr
 
 let literal2primitive = function
   | LitBool _ -> PrimBool
@@ -436,16 +437,21 @@ let of_parsetree =
                                    expr_of field.ptfi_expr) field_inits
        in
        let array_pos = pt_type_pos tp in
-       let array_dim = match tp with
+       let rettp, deftp, array_dim = match tp with
          | PTT_Array (_, None, _, _) ->
             Report.err_cant_resolve_array_dim array_pos
-         | PTT_Array (_, Some expr, _, _) -> expr_of expr
-         | _ -> make_expr e i64_type (ExprLit (LitI64 1L))
+         | PTT_Array (_, Some expr, _, subtype) ->
+            let deftp = deftype_of subtype in
+            makeptr deftp, deftp, expr_of expr
+         | _ ->
+            let deftp = deftype_of tp in
+            makeptr deftp,
+            deftp,
+            make_expr e i64_type (ExprLit (LitI64 1L))
        in
-       let deftp = deftype_of tp in
        let ast = ExprNew (array_dim, deftp, init) in
-       make_expr e (makeptr deftp) ast
-    | PTE_Nil nil -> make_expr e inferred_type ExprNil
+       make_expr e rettp ast
+    | PTE_Nil nil -> make_expr e nil_type ExprNil
     | PTE_Type (typetok, tp) ->
        make_expr e inferred_type (ExprType (deftype_of tp))
     | PTE_I64 (tok, value) -> make_expr e i64_type (ExprLit (LitI64 value))

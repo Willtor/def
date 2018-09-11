@@ -207,7 +207,8 @@ let map_builtin_types =
      ["long long"; "signed long long"; "long"; "signed long"],
      64, DW_ATE_SIGNED);
     ("u64", makebare (DefTypePrimitive PrimU64), i64_type,
-     ["unsigned long long"; "unsigned long"], 64, DW_ATE_UNSIGNED);
+     ["unsigned long long"; "unsigned long"],
+     64, DW_ATE_UNSIGNED);
     ("f32", makebare (DefTypePrimitive PrimF32), float_type,
      ["float"], 64, DW_ATE_FLOAT);
     ("f64", makebare (DefTypePrimitive PrimF64), double_type,

@@ -259,8 +259,10 @@ let err_non_struct_member_access pos =
 
 (** Expression's type doesn't match the expected type.
     FIXME: Should identify the two types. *)
-let err_type_mismatch pos =
-  err_pos "Type mismatch." pos
+let err_type_mismatch pos has expected =
+  err_pos
+    ("Type mismatch:\n    Found: " ^ has ^ "\n    Expected: " ^ expected)
+    pos
 
 (** Type expression in unexpected (disallowed) location. *)
 let err_unexpected_type_expr pos =
@@ -293,6 +295,10 @@ let err_generalizing_types pos t1 t2 =
 let err_cant_cast pos t1 t2 =
   err_pos ("Can't cast " ^ t1 ^ " to " ^ t2 ^ ".") pos
 
+(** Implicit cast fail. *)
+let err_need_explicit_cast pos t1 t2 =
+  err_pos ("Need an explicit cast from " ^ t1 ^ " to " ^ t2 ^ ".") pos
+
 (** Tried to "break;" out of... nothing. *)
 let err_no_break_scope pos =
   err_pos "There is no construct that can be broken out of." pos
@@ -300,3 +306,7 @@ let err_no_break_scope pos =
 (** Warn there is a loss of precision in an implicit conversion. *)
 let warn_loss_of_precision pos conv_str =
   warn_pos ("Loss of precision: " ^ conv_str) pos
+
+(** Volatility on the source type, but not on the target type. *)
+let warn_implicit_loss_of_volatility pos =
+  warn_pos "Implicit cast loses volatility." pos

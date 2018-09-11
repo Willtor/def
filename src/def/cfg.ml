@@ -429,9 +429,34 @@ let global_decls decltable typemap = function
      "FIXME: Incomplete implementation of Cfg.global_decls."
 
 let rec make_size_expr typemap p tp dimension_opt =
+  let u64_type = maketype None (DefTypePrimitive PrimU64) in
+  let cr = CRApproximate p in
+  let tpsize = ExprLit (LitU64 (Int64.of_int (size_of typemap tp))) in
+  let total_size =
+    match dimension_opt with
+    | None -> tpsize
+    | Some dim ->
+       let castdim =
+         { expr_cr = cr;
+           expr_tp = u64_type;
+           expr_ast = ExprCast (dim.expr_tp, u64_type, dim)
+         }
+       in
+       ExprBinary
+         { op_pos = (pos_of_cr dim.expr_cr);
+           op_op = OperMult;
+           op_left = castdim;
+           op_right = Some
+                        { expr_cr = cr;
+                          expr_tp = u64_type;
+                          expr_ast = tpsize
+                        };
+           op_atomic = false
+         }
+  in
   { expr_cr = CRApproximate p;
-    expr_tp = maketype None (DefTypePrimitive PrimU64);
-    expr_ast = ExprLit (LitU64 (Int64.of_int (size_of typemap tp)))
+    expr_tp = u64_type;
+    expr_ast = total_size
   }
 
 (** Return a casted version of the expression, if the original type doesn't
@@ -494,6 +519,7 @@ let check_castability pos typemap ltype rtype =
          List.iter identical (Util.err_combine err plist1 plist2);
          identical (ret1, ret2);
          if v1 != v2 then Report.err_type_mismatch pos
+                            (string_of_type l) (string_of_type r)
        end
     | DefTypePtr ({ bare = DefTypeVoid }), DefTypePtr _
       | DefTypePtr _, DefTypePtr ({ bare = DefTypeVoid }) ->
@@ -549,11 +575,8 @@ let check_castability pos typemap ltype rtype =
             if p1 <> p2 then err ()
             else List.iter similar (Util.err_combine err lmembers rmembers)
          | _ ->
-            begin
-              prerr_endline (string_of_type ltype);
-              prerr_endline (string_of_type rtype);
-              Report.err_type_mismatch pos
-            end
+            Report.err_type_mismatch pos
+              (string_of_type ltype) (string_of_type rtype)
   in
   similar (ltype, rtype)
 
