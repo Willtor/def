@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt non_field3.def (line 7 column 14):
+  Field number 3 is too high.  Note: Field numbers are zero-indexed.
+[33m    return f.{3};
+              ^[0m

@@ -6,7 +6,8 @@ UNIT =	undef_fcn	\
 	void_return	\
 	non_void_return	\
 	non_field	\
-	non_field2
+	non_field2	\
+	non_field3
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 

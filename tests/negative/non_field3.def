@@ -1,0 +1,8 @@
+// Negative unit test trying to access a non-field from a struct.
+
+typedef foo = { bar i32 };
+
+def baz (f foo) -> i32
+begin
+    return f.{3};
+end
