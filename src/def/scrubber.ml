@@ -81,8 +81,8 @@ let resolve_types stmts =
        add_symbol pre_typemap nm tp
     | TypeDecl (_, nm, tp, _, _) ->
        add_symbol pre_typemap nm tp
-    | DeclFcn (_, _, nm, tp, _)
-    | DefFcn (_, _, _, nm, tp, _, _) -> add_symbol global_varmap nm tp
+    | DeclFcn (p, _, nm, tp, _)
+    | DefFcn (p, _, _, nm, tp, _, _) -> add_symbol global_varmap nm (p, tp)
     | _ -> ()
   in
   List.iter read_type stmts;
@@ -315,7 +315,7 @@ let resolve_types stmts =
        in
        begin
          match lookup_symbol varmap name with
-         | Some ({ bare = DefTypeFcn (params, rettp, _) }) ->
+         | Some (_, { bare = DefTypeFcn (params, rettp, _) }) ->
             let resolved_args = resolve_args [] (args, params) in
             { expr_cr = expr.expr_cr;
               expr_tp = rettp;
@@ -441,7 +441,7 @@ let resolve_types stmts =
               | None -> Report.err_undefined_var (pos_of_cr expr.expr_cr) name
               | Some (i, tp) -> tp, ExprEnum (name, LitU32 (Int32.of_int i))
             end
-         | Some tp -> tp, ExprVar name
+         | Some (_, tp) -> tp, ExprVar name
        in
        { expr_cr = expr.expr_cr;
          expr_tp = tp;
@@ -546,6 +546,16 @@ let resolve_types stmts =
   (* Declare a variable (including doing type inference, if necessary). *)
   let declare_var varmap = function
     | VarDecl (decl, vartoks, inits, tp, vis) ->
+       (* Verify no variables are being redefined. *)
+       let () =
+         List.iter
+           (fun vtok ->
+             match lookup_symbol_local varmap vtok.td_text with
+             | None -> ()
+             | Some (p, _) ->
+                Report.err_redefined_var vtok.td_pos p vtok.td_text)
+           vartoks
+       in
        let get_rhs expr =
          match expr.expr_ast with
          | ExprBinary op when op.op_op = OperAssign ->
@@ -596,7 +606,7 @@ let resolve_types stmts =
        in
        let () =
          List.iter
-           (fun t -> add_symbol varmap t.td_text resolved_tp)
+           (fun t -> add_symbol varmap t.td_text (t.td_pos, resolved_tp))
            vartoks
        in
        VarDecl (decl, vartoks, resolved_inits, resolved_tp, vis)
@@ -614,7 +624,7 @@ let resolve_types stmts =
        let sub_rettp = match lowered_tp.bare with
          | DefTypeFcn (ptypes, sub_rettp, _) ->
             let () = List.iter
-                       (fun ((_, n), t) -> add_symbol fvars n t)
+                       (fun ((pp, n), t) -> add_symbol fvars n (pp, t))
                        (List.combine params ptypes)
             in
             sub_rettp
@@ -629,10 +639,10 @@ let resolve_types stmts =
        let resolve_field (p, nm, tp) init_tp =
          match tp.bare with
          | DefTypeUnresolved _ ->
-            let () = add_symbol varmap nm init_tp in
+            let () = add_symbol varmap nm (p, init_tp) in
             p, nm, init_tp
          | _ ->
-            let () = add_symbol varmap nm tp in
+            let () = add_symbol varmap nm (p, tp) in
             p, nm, tp
        in
        let resolved_tp, resolved_fields =
