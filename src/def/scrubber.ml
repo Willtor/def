@@ -603,10 +603,11 @@ let resolve_types stmts =
     | stmt -> stmt
   in
 
-  let rec stmt_to_stmt rettp varmap stmt =
+  let rec stmt_to_stmt fcn rettp varmap stmt =
     match stmt with
     | StmtExpr (p, e) -> StmtExpr (p, resolve varmap e)
-    | Block (p, slist) -> Block (p, List.map (stmt_to_stmt rettp varmap) slist)
+    | Block (p, slist) ->
+       Block (p, List.map (stmt_to_stmt fcn rettp varmap) slist)
     | DefFcn (p, exported, vis, nm, tp, params, body) ->
        let fvars = push_symtab_scope varmap in
        let lowered_tp = dearray_fcn tp in
@@ -621,7 +622,7 @@ let resolve_types stmts =
             Report.err_internal __FILE__ __LINE__ "non-function-type function."
        in
        DefFcn (p, exported, vis, nm, tp, params,
-               List.map (stmt_to_stmt sub_rettp fvars) body)
+               List.map (stmt_to_stmt nm sub_rettp fvars) body)
     | VarDecl _ -> declare_var varmap stmt
     | InlineStructVarDecl (td, fields, (p, rhs)) ->
        let resolved_rhs = resolve varmap rhs in
@@ -651,11 +652,11 @@ let resolve_types stmts =
        let resolved_fail =
          option_map (fun (p, fstmts) ->
              let failvars = push_symtab_scope varmap in
-             p, List.map (stmt_to_stmt rettp failvars) fstmts)
+             p, List.map (stmt_to_stmt fcn rettp failvars) fstmts)
            maybe_fail
        in
        let bodyvars = push_symtab_scope varmap in
-       let resolved_body = List.map (stmt_to_stmt rettp bodyvars) body in
+       let resolved_body = List.map (stmt_to_stmt fcn rettp bodyvars) body in
        TransactionBlock (p, resolved_body, resolved_fail)
     | IfStmt (p, cond, ifbody, elsebody_maybe) ->
        let rcond = resolve varmap cond in
@@ -664,21 +665,21 @@ let resolve_types stmts =
        let resolved_else =
          option_map (fun (p, slist) ->
              let evars = push_symtab_scope varmap in
-             p, List.map (stmt_to_stmt rettp evars) slist)
+             p, List.map (stmt_to_stmt fcn rettp evars) slist)
          elsebody_maybe
        in
        let ifvars = push_symtab_scope varmap in
-       let resolved_if = List.map (stmt_to_stmt rettp ifvars) ifbody in
+       let resolved_if = List.map (stmt_to_stmt fcn rettp ifvars) ifbody in
        IfStmt (p, resolved_cond, resolved_if, resolved_else)
     | ForLoop (p, is_par, init, (cp, cond), iter, p2, body) ->
        let loopvars = push_symtab_scope varmap in
-       let resolved_init = option_map (stmt_to_stmt rettp loopvars) init in
+       let resolved_init = option_map (stmt_to_stmt fcn rettp loopvars) init in
        let rcond = resolve loopvars cond in
        let () = check_castability true bool_type rcond in
        let resolved_cond = implicit_cast bool_type rcond in
        let resolved_iter =
          option_map (fun (p, e) -> p, resolve loopvars e) iter in
-       let resolved_body = List.map (stmt_to_stmt rettp loopvars) body in
+       let resolved_body = List.map (stmt_to_stmt fcn rettp loopvars) body in
        ForLoop (p, is_par, resolved_init, (cp, resolved_cond), resolved_iter,
                 p2, resolved_body)
     | WhileLoop (p, pre, cond, body) ->
@@ -686,24 +687,27 @@ let resolve_types stmts =
        let () = check_castability true bool_type rcond in
        let resolved_cond = implicit_cast bool_type rcond in
        let bodyvars = push_symtab_scope varmap in
-       let resolved_body = List.map (stmt_to_stmt rettp bodyvars) body in
+       let resolved_body = List.map (stmt_to_stmt fcn rettp bodyvars) body in
        WhileLoop (p, pre, resolved_cond, resolved_body)
     | SwitchStmt (p, e, cases) ->
        let resolved_e = resolve varmap e in
        let resolve_case (p, fall, case, body) =
          let resolved_case = resolve varmap case in
-         let resolved_body = List.map (stmt_to_stmt rettp varmap) body in
+         let resolved_body = List.map (stmt_to_stmt fcn rettp varmap) body in
          p, fall, resolved_case, resolved_body
        in
        (* FIXME: Special case type-checking for cases. *)
        SwitchStmt (p, resolved_e, List.map resolve_case cases)
     | Return (p, e) ->
+       let () = if rettp.bare = DefTypeVoid then
+                  Report.err_return_non_void_from_void_fcn p fcn
+       in
        let rret = resolve varmap e in
        let () = check_castability true rettp rret in
        Return (p, implicit_cast rettp rret)
     | _ -> stmt
   in
-  List.map (stmt_to_stmt nil_type global_varmap)
+  List.map (stmt_to_stmt "" nil_type global_varmap)
   @@ List.map (declare_var global_varmap) stmts
 
 let kill_dead_code =

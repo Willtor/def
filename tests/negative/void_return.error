@@ -1,7 +1,5 @@
 [31;1mError:
 [0mAt void_return.def (line 5 column 11):
-  Type mismatch:
-    Found: i32
-    Expected: void
+  Function foo should not return a value.
 [33m    return 3;
            ^[0m
