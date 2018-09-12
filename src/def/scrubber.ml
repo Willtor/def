@@ -495,7 +495,16 @@ let resolve_types stmts =
             begin
               try List.nth ftypes n
               with _ ->
-                Report.err_struct_not_enough_fields (pos_of_cr expr.expr_cr) n
+                    let pos =
+                      match expr.expr_cr with
+                      | CRExpr (PTE_SelectField
+                                  (_, _, PT_FieldInt (_, ftok, _, _))) ->
+                         ftok.td_pos
+                      | CRApproximate p -> p
+                      | _ -> Report.err_internal __FILE__ __LINE__
+                               "unexpected code relation for FieldNumber."
+                    in
+                    Report.err_struct_not_enough_fields pos n
             end
          | FieldName nm ->
             let t, _ = try List.find (fun (t, cmp) -> cmp = nm)

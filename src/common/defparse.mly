@@ -259,7 +259,10 @@ expr:
 | PACKED LCURLY exprlist RCURLY { PTE_StaticStruct (Some $1, $2, $3, $4) }
 | LSQUARE exprlist RSQUARE { PTE_StaticArray ($1, $2, $3) }
 | expr LSQUARE expr RSQUARE { PTE_Index ($1, $2, $3, $4) }
-| expr DOT IDENT { PTE_SelectField ($1, $2, $3) }
+| expr DOT IDENT { PTE_SelectField ($1, $2, PT_FieldString $3) }
+| expr DOT LCURLY LITERALI32 RCURLY
+    { let tok, n = $4 in
+      PTE_SelectField ($1, $2, PT_FieldInt ($3, tok, n, $5)) }
 | expr INCREMENT { PTE_PostUni ($1, (OperIncr, $2)) }
 | expr DECREMENT { PTE_PostUni ($1, (OperDecr, $2)) }
 | INCREMENT expr %prec PREINCR { PTE_PreUni ((OperIncr, $1), $2) }

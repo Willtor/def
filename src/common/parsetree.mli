@@ -8,6 +8,10 @@ type tokendata =
                                   was read. *)
   }
 
+type pt_field =
+  | PT_FieldString of tokendata
+  | PT_FieldInt of tokendata * tokendata * int32 * tokendata
+
 type pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
@@ -129,7 +133,7 @@ and pt_expr =
   | PTE_StaticStruct of tokendata option * tokendata * pt_expr list * tokendata
   | PTE_StaticArray of tokendata * pt_expr list * tokendata
   | PTE_Index of pt_expr * tokendata * pt_expr * tokendata
-  | PTE_SelectField of pt_expr * tokendata * tokendata
+  | PTE_SelectField of pt_expr * tokendata * pt_field
   | PTE_PostUni of pt_expr * (Operator.t * tokendata)
   | PTE_PreUni of (Operator.t * tokendata) * pt_expr
   | PTE_Bin of pt_expr * tokendata option * (Operator.t * tokendata) * pt_expr

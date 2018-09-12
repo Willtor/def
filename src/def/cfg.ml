@@ -876,7 +876,9 @@ let convert_expr typemap fcnscope =
        end
     | ExprSelectField (obj, field) ->
        let dpos, fpos = match expr.expr_cr with
-         | CRExpr (PTE_SelectField (_, dtok, ftok)) ->
+         | CRExpr (PTE_SelectField (_, dtok, PT_FieldString ftok)) ->
+            dtok.td_pos, ftok.td_pos
+         | CRExpr (PTE_SelectField (_, dtok, PT_FieldInt (_, ftok, _, _))) ->
             dtok.td_pos, ftok.td_pos
          | CRApproximate pos -> pos, pos
          | _ -> Report.err_internal __FILE__ __LINE__ "Unexpected non-field."

@@ -491,8 +491,13 @@ let of_parsetree =
     | PTE_Index (base, _, idx, _) ->
        let ast = ExprIndex (expr_of base, expr_of idx) in
        make_expr e inferred_type ast
-    | PTE_SelectField (obj, dot, field) ->
+    | PTE_SelectField (obj, dot, PT_FieldString field) ->
        let ast = ExprSelectField (expr_of obj, FieldName field.td_text) in
+       make_expr e inferred_type ast
+    | PTE_SelectField (obj, dot, PT_FieldInt (_, _, field_n, _)) ->
+       let ast = ExprSelectField (expr_of obj,
+                                  FieldNumber (Int32.to_int field_n))
+       in
        make_expr e inferred_type ast
     | PTE_PostUni (sub, (unop, op)) ->
        let oper = { op_pos = op.td_pos;
