@@ -1,8 +1,8 @@
 [31;1mError:
 [0mAt redefined_var.def (line 6 column 8):
-  Redeclared variable "bar".
+  Variable bar was redefined.
 [33m    var bar i32;
         ^[0m
-  Originally declared at redefined_var.def (line 5 column 8)
+  Original definition at redefined_var.def (line 5 column 8):
 [33m    var bar i32;
         ^[0m

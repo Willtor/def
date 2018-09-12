@@ -633,7 +633,9 @@ let resolve_types stmts =
        in
        DefFcn (p, exported, vis, nm, tp, params,
                List.map (stmt_to_stmt nm sub_rettp fvars) body)
-    | VarDecl _ -> declare_var varmap stmt
+    | VarDecl _ ->
+       if fcn <> "" then declare_var varmap stmt
+       else stmt
     | InlineStructVarDecl (td, fields, (p, rhs)) ->
        let resolved_rhs = resolve varmap rhs in
        let resolve_field (p, nm, tp) init_tp =
