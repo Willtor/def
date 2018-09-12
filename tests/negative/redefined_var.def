@@ -1,0 +1,7 @@
+// Negative test for redefining a variable.
+
+def foo () -> void
+begin
+    var bar i32;
+    var bar i32;
+end
