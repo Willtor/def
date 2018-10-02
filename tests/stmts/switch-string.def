@@ -20,7 +20,6 @@ begin
     xcase _:
         return OPT_UNKNOWN;
     esac
-    return OPT_UNKNOWN; // FIXME: Need to detect unreachable after switch.
 end
 
 export

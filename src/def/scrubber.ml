@@ -24,8 +24,10 @@ open Parsetree
 open Types
 open Util
 
-(* FIXME: This analysis should be done on the CFG instead of the AST.
-   Replace this module. *)
+type program =
+  { prog_typemap : Types.deftype Util.symtab;
+    prog_ast     : Ast.stmt list
+  }
 
 exception NoReturn
 
@@ -145,6 +147,19 @@ let resolve_types stmts =
          { expr_cr = expr.expr_cr;
            expr_tp = to_tp;
            expr_ast = ExprCast (revised_tp, to_tp, subexpr)
+         }
+      | DefTypeNamed name, ExprStaticStruct (p, mexprs) ->
+         let revised_ast =
+           match concrete_of None typemap to_tp with
+           | { bare = DefTypeLiteralStruct (_, mtypes, _) } ->
+              let cast_members = List.map2 implicit_cast mtypes mexprs in
+              ExprStaticStruct (p, cast_members)
+           | _ -> Report.err_internal __FILE__ __LINE__
+                    ("unexpected named type: " ^ name)
+         in
+         { expr_cr = expr.expr_cr;
+           expr_tp = to_tp;
+           expr_ast = revised_ast
          }
       | _ ->
          { expr_cr = expr.expr_cr;
@@ -292,7 +307,18 @@ let resolve_types stmts =
     match expr.expr_ast with
     | ExprNew (dim, tp, inits) ->
        let resolved_inits =
-         List.map (fun (p, e) -> p, resolve varmap e) inits
+         match (concrete_of None typemap tp).bare with
+         | DefTypeLiteralStruct (_, mtypes, mnames) ->
+            let init_resolve (fname, e) =
+              let resolved = resolve varmap e in
+              let n = whereis mnames fname.td_text in
+              let cast_to = List.nth mtypes n in
+              let () = check_castability true cast_to resolved in
+              fname, implicit_cast cast_to resolved
+            in
+            List.map init_resolve inits
+         | _ ->
+            List.map (fun (p, e) -> p, resolve varmap e) inits
        in
        { expr_cr = expr.expr_cr;
          expr_tp = expr.expr_tp;
@@ -331,26 +357,37 @@ let resolve_types stmts =
             let builtin_ret rettp =
               { expr_cr = expr.expr_cr;
                 expr_tp = rettp;
-                expr_ast = ExprFcnCall (name, resolved_args, is_spawn)
+                expr_ast = ExprBuiltinCall (name, resolved_args)
               }
             in
-            match name with
-            | "__builtin_cas" -> builtin_ret bool_type
-            | "__builtin_swap" ->
-               builtin_ret (List.nth resolved_args 1).expr_tp
-            | "__builtin_setjmp" -> builtin_ret i32_type
-            | "__builtin_longjmp" -> builtin_ret void_type
-            | "typestr" -> builtin_ret string_type
-            | "cast" ->
-               let rettp = match resolved_args with
-                 | { expr_ast = ExprType t } :: _ -> t
-                 | _ -> Report.err_bad_args_for_builtin
-                          (pos_of_cr expr.expr_cr) "cast"
-               in
-               builtin_ret rettp
-            | _ ->
-               Report.err_unknown_fcn_call (pos_of_cr expr.expr_cr) name
+            let ret =
+              match name with
+              | "__builtin_cas" -> builtin_ret bool_type
+              | "__builtin_swap" ->
+                 builtin_ret (List.nth resolved_args 1).expr_tp
+              | "__builtin_setjmp" -> builtin_ret i32_type
+              | "__builtin_longjmp" -> builtin_ret void_type
+              | "typestr" -> builtin_ret string_type
+              | "cast" ->
+                 let rettp, e = match resolved_args with
+                   | [{ expr_ast = ExprType t }; e] -> t, e
+                   | _ -> Report.err_bad_args_for_builtin
+                            (pos_of_cr expr.expr_cr) "cast"
+                 in
+                 { expr_cr = expr.expr_cr;
+                   expr_tp = rettp;
+                   expr_ast = ExprCast (e.expr_tp, rettp, e)
+                 }
+              | _ ->
+                 Report.err_unknown_fcn_call (pos_of_cr expr.expr_cr) name
+            in
+            if is_spawn then
+              Report.err_cant_spawn_builtin (pos_of_cr expr.expr_cr) name
+            else
+              ret
        end
+    | ExprBuiltinCall _ ->
+       Report.err_internal __FILE__ __LINE__ "Wasn't expecting a builtin."
     | ExprString _ -> expr
     | ExprBinary op ->
        let left = resolve varmap op.op_left in
@@ -360,6 +397,17 @@ let resolve_types stmts =
        in
        let resolved_tp, cast_left, cast_right =
          match op.op_op with
+         | OperRemainder
+         | OperLShift | OperRShift
+         | OperBitwiseAnd | OperBitwiseXor | OperBitwiseOr ->
+            let t = mgt () in
+            if not (is_integer_type t) then
+              Report.err_oper_on_non_integer op.op_pos
+                (string_of_operator op.op_op)
+                (string_of_type left.expr_tp)
+                (string_of_type right.expr_tp)
+            else
+              t, implicit_cast t left, implicit_cast t right
          | OperLT | OperGT | OperLTE | OperGTE
          | OperEquals | OperNEquals ->
             let t = mgt () in
@@ -648,8 +696,13 @@ let resolve_types stmts =
             p, nm, tp
        in
        let resolved_tp, resolved_fields =
-         match resolved_rhs.expr_tp.bare with
-         | DefTypeLiteralStruct (is_packed, tp_list, _)
+         match (concrete_of None typemap resolved_rhs.expr_tp).bare with
+         | DefTypeLiteralStruct (is_packed, tp_list, _) ->
+            { dtpos = resolved_rhs.expr_tp.dtpos;
+              bare = resolved_rhs.expr_tp.bare;
+              dtvolatile = false
+            },
+            List.map2 resolve_field fields tp_list
          | DefTypeStaticStruct (is_packed, tp_list) ->
             { dtpos = resolved_rhs.expr_tp.dtpos;
               bare = DefTypeLiteralStruct (is_packed, tp_list, []);
@@ -719,15 +772,20 @@ let resolve_types stmts =
        Return (p, implicit_cast rettp rret)
     | _ -> stmt
   in
-  List.map (stmt_to_stmt "" nil_type global_varmap)
-  @@ List.map (declare_var global_varmap) stmts
+  let resolved_stmts = List.map (stmt_to_stmt "" nil_type global_varmap)
+                       @@ List.map (declare_var global_varmap) stmts
+  in
+  { prog_typemap = typemap;
+    prog_ast = resolved_stmts
+  }
 
-let kill_dead_code =
+let kill_dead_code prog =
   let report_dead_code fcn pos =
     let warn = "Dead code in function \"" ^ fcn ^ "\": "
       ^ (format_position pos) ^ "\n" ^ (show_source pos)
     in warning warn
   in
+
   let rec process name =
     let rec proc accum = function
       | [] -> List.rev accum
@@ -786,95 +844,120 @@ let kill_dead_code =
          in List.rev (stmt :: accum)
       | Import _ :: _ ->
          Report.err_internal __FILE__ __LINE__ "import in function."
-    in proc []
+    in
+    proc []
   in
+
   let toplevel = function
     | DefFcn (pos, doc, vis, name, tp, params, body) ->
        DefFcn (pos, doc, vis, name, tp, params, process name body)
     | stmt -> stmt
-  in List.map toplevel
-
-let return_all_paths =
-  let process fcn rettp body =
-    let rec contains_return = function
-      | [] -> false
-      | Return (p, e) :: _ ->
-         if rettp.bare = DefTypeVoid then
-           Report.err_return_non_void_from_void_fcn p fcn
-         else true
-      | ReturnVoid p :: _ ->
-         if rettp.bare = DefTypeVoid then true
-         else Report.err_return_void_from_non_void_fcn p fcn
-      | Block (_, body) :: rest ->
-         if contains_return body then true
-         else contains_return rest
-      | IfStmt (_, _, tstmts, None) :: rest ->
-         if contains_return tstmts then true
-         else contains_return rest
-      | IfStmt (_, _, tstmts, Some (_, estmts)) :: rest ->
-         if contains_return tstmts then true
-         else if contains_return estmts then true
-         else contains_return rest
-      | ForLoop (_, _, _, _, _, _, body) :: rest
-      | WhileLoop (_, _, _, body) :: rest ->
-         if contains_return body then true
-         else contains_return rest
-      | SwitchStmt (_, _, cases) :: rest ->
-         let do_case res (_, _, _, stmts) =
-           if true = res then true
-           else contains_return stmts
-         in
-         if List.fold_left do_case false cases then true
-         else contains_return rest
-      | DefFcn _ :: rest (* Returns from nested functions don't count. *)
-      | _ :: rest -> contains_return rest
-    in
-    let rec returns_p = function
-      | [] -> false
-      | Return (p, _) :: _ ->
-         if rettp.bare = DefTypeVoid then
-           Report.err_return_non_void_from_void_fcn p fcn
-         else true
-      | ReturnVoid p :: _ ->
-         if rettp.bare = DefTypeVoid then true
-         else Report.err_return_void_from_non_void_fcn p fcn
-      | Block (_, block) :: rest ->
-         if returns_p block then true
-         else returns_p rest
-      | StmtExpr _ :: rest
-      | DeclFcn _ :: rest
-      | DefFcn _ :: rest
-      | VarDecl _ :: rest
-      | InlineStructVarDecl _ :: rest
-      | TransactionBlock _ :: rest
-      | IfStmt (_, _, _, None) :: rest
-      | TypeDecl _ :: rest
-      | Label _ :: rest
-      | Goto _ :: rest (* FIXME: Think about Goto case some more... *)
-      | Break _ :: rest (* FIXME: Also the break case. *)
-      | Continue _ :: rest (* FIXME: Also, the Continue case. *)
-      | Sync _ :: rest
-        -> returns_p rest
-      | IfStmt (_, _, then_branch, Some (_, else_branch)) :: rest ->
-         if (returns_p then_branch) && (returns_p else_branch) then true
-         else returns_p rest
-      | ForLoop _ :: rest ->
-         returns_p rest
-      | WhileLoop (_, _, cond, body) :: rest ->
-         if provably_always_true cond then contains_return body
-         else returns_p rest
-      | SwitchStmt _ :: rest ->
-         returns_p rest
-      | Import _ :: _ ->
-         Report.err_internal __FILE__ __LINE__ "import in function."
-    in
-    if returns_p body then body
-    else if rettp.bare = DefTypeVoid then
-      (* Implicit return statement.  This is only allowed when the return
-         type is void. *)
-      List.append body [ ReturnVoid faux_pos ]
-    else raise NoReturn
   in
+  { prog_typemap = prog.prog_typemap;
+    prog_ast = List.map toplevel prog.prog_ast
+  }
+
+let return_all_paths prog =
+  let rec contains_break_p = function
+    | [] -> false
+    | Import _ :: rest -> contains_break_p rest
+    | StmtExpr _ :: rest -> contains_break_p rest
+    | Block (_, body) :: rest ->
+       contains_break_p body || contains_break_p rest
+    | DeclFcn _ :: rest -> contains_break_p rest
+    | DefFcn _ :: rest -> contains_break_p rest
+    | VarDecl _ :: rest -> contains_break_p rest
+    | InlineStructVarDecl _ :: rest -> contains_break_p rest
+    | TransactionBlock (_, body, None) :: rest ->
+       contains_break_p body || contains_break_p rest
+    | TransactionBlock (_, body, Some (_, txfail)) :: rest ->
+       contains_break_p body
+       || contains_break_p txfail
+       || contains_break_p rest
+    | IfStmt (_, _, then_block, None) :: rest ->
+       contains_break_p then_block || contains_break_p rest
+    | IfStmt (_, _, then_block, Some (_, else_block)) :: rest ->
+       contains_break_p then_block
+       || contains_break_p else_block
+       || contains_break_p rest
+    | ForLoop _ :: rest -> contains_break_p rest
+    | WhileLoop _ :: rest -> contains_break_p rest
+    | SwitchStmt (_, _, cases) :: rest ->
+       let check_case has_break (_, _, _, stmts) =
+         has_break || contains_break_p stmts
+       in
+       List.fold_left check_case false cases || contains_break_p rest
+    | Return _ :: rest
+    | ReturnVoid _ :: rest
+    | TypeDecl _ :: rest
+    | Label _ :: rest
+    | Goto _ :: rest -> contains_break_p rest
+    | Break _ :: _ -> true
+    | Continue _ :: rest
+    | Sync _ :: rest -> contains_break_p rest
+  in
+
+  let process pos name rettp stmts =
+    let rec returns_p stmts =
+      if stmts = [] then false
+      else
+        match List.hd (List.rev stmts) with
+        | Import _ -> false
+        | StmtExpr _ -> false
+        | Block (_, body) -> returns_p body
+        | DeclFcn _ -> false
+        | DefFcn _ -> false
+        | VarDecl _ -> false
+        | InlineStructVarDecl _ -> false
+        | TransactionBlock (_, body, None) -> returns_p body
+        | TransactionBlock (_, body, Some (_, txfail)) ->
+           returns_p body && returns_p txfail
+        | IfStmt (_, _, _, None) -> false
+        | IfStmt (_, _, then_stmts, Some (_, else_stmts)) ->
+           returns_p then_stmts && returns_p else_stmts
+        | ForLoop (_, _, _, (_, cond), _, _, body)
+        | WhileLoop (_, _, cond, body) ->
+           if not (provably_always_true cond) then false
+           else if contains_break_p body then false
+           else true
+        | SwitchStmt (_, _, cases) ->
+           let returns_all (so_far, last) (_, ft, _, stmts) =
+             if not so_far then so_far, last
+             else if not last && not ft then false, false
+             else so_far, returns_p stmts
+           in
+           let so_far, last =
+             List.fold_left returns_all (true, true) cases
+           in
+           so_far && last
+        | Return _ -> true
+        | ReturnVoid _ -> true
+        | TypeDecl _ -> false
+        | Label _ -> false
+        | Goto _ ->
+           (* Okay, not really.  We'll say true, here, since what we really
+              care about in returns_p is whether the code can't run off the
+              end, and not whether it _actually_ returns. *)
+           true
+        | Break _ | Continue _ ->
+           (* These are technically errors, but we'll catch them elsewhere. *)
+           true
+        | Sync _ -> false
+    in
+
+    if returns_p stmts then
+      (* User was good and kind and provided a return statement. *)
+      stmts
+    else if rettp.bare = DefTypeVoid then
+      (* User didn't provide a return statement, but the return type is void
+         so that's okay. *)
+      stmts @ [ ReturnVoid faux_pos ]
+    else
+      (* The user was naughty and didn't provide a return from this non-void
+         function. *)
+      Report.err_no_return pos name
+  in
+
   let toplevel = function
     | DefFcn (pos, doc, vis, name, tp, params, body) ->
        let rettp =
@@ -882,14 +965,13 @@ let return_all_paths =
          | DefTypeFcn (_, rettp, _) -> rettp
          | _ -> Report.err_internal __FILE__ __LINE__ "non fcn function."
        in
-       begin
-         try DefFcn (pos, doc, vis, name, tp, params,
-                     process name rettp body)
-         with _ -> (* Fixme: Need the end of function position. *)
-           Report.err_no_return pos name
-       end
+       DefFcn (pos, doc, vis, name, tp, params,
+               process pos name rettp body)
     | stmt -> stmt
-  in List.map toplevel
+  in
+  { prog_typemap = prog.prog_typemap;
+    prog_ast = List.map toplevel prog.prog_ast
+  }
 
 let scrub stmts =
   let (<<=) x f = f x in

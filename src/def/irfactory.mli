@@ -1,1 +1,1 @@
-val process_cfg : string -> Cfg.program -> Llvm.llmodule
+val ir_of_ast : string -> Scrubber.program -> Llvm.llmodule

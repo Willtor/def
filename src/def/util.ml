@@ -168,3 +168,18 @@ let combine3 a b c =
     | _ -> invalid_arg "combine3: inconsistent list lengths"
   in
   combine [] (a, b, c)
+
+(** Find the position of an element in a list. *)
+let whereis l a =
+  let rec where n = function
+    | [] -> failwith "whereis failure."
+    | el :: rest ->
+       if el = a then n
+       else where (n + 1) rest
+  in
+  where 0 l
+
+(** Generate a label string from a position. *)
+let label_of_pos pos =
+  pos.pos_fname ^ "." ^ (string_of_int pos.pos_lnum)
+  ^ "." ^ (string_of_int (pos.pos_cnum - pos.pos_bol))

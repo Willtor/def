@@ -66,3 +66,9 @@ val option_map : ('a -> 'b) -> 'a option -> 'b option
 
 (** Combine 3 lists. *)
 val combine3 : 'a list -> 'b list -> 'c list -> ('a * 'b * 'c) list
+
+(** Find the position of an element in a list. *)
+val whereis : 'a list -> 'a -> int
+
+(** Generate a label string from a position. *)
+val label_of_pos : Lexing.position -> string

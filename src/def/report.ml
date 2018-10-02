@@ -142,6 +142,10 @@ let err_redefined_var pos orig_pos name =
 let err_unknown_fcn_call pos name =
   err_pos ("Unknown function \"" ^ name ^ "\".") pos
 
+(** Tried to spawn, e.g., __builtin_cas() or cast(). *)
+let err_cant_spawn_builtin pos name =
+  err_pos ("Can't spawn builtin function \"" ^ name ^ "\".") pos
+
 (** Tried to call a function with the wrong number of arguments. *)
 let err_wrong_number_of_args use_pos decl_pos name n_params n_args =
   let err = "At " ^ (format_position use_pos) ^ ":\n"
@@ -231,10 +235,11 @@ let err_deref_void_ptr bpos ipos =
     ^ (show_source ipos)
   in fatal_error err
 
-(** Tried to perform a modulo (%) on a non-integer type. *)
-let err_modulo_on_non_integer pos ltype rtype =
-  err_pos ("Modulo operator (%) can only be performed on integer types,"
-           ^ " but the type here is " ^ ltype ^ " % " ^ rtype ^ ".")
+(** Tried to perform an operation on a non-integer type that required
+    integer operands. *)
+let err_oper_on_non_integer pos opname ltype rtype =
+  err_pos ("Operator ("^ opname ^ ") can only be performed on integer types,"
+           ^ " but the types here are " ^ ltype ^ " % " ^ rtype ^ ".")
           pos
 
 (** Tried to index a pointer with a non-integer index.
@@ -318,3 +323,7 @@ let warn_loss_of_precision pos conv_str =
 (** Volatility on the source type, but not on the target type. *)
 let warn_implicit_loss_of_volatility pos =
   warn_pos "Implicit cast loses volatility." pos
+
+(** Switch statement where some possibilities escape all cases. *)
+let warn_incomplete_switch pos =
+  warn_pos "The switch statement doesn't catch all possibilties." pos

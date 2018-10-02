@@ -187,8 +187,7 @@ let map_builtin_types =
     ("bool", makebare (DefTypePrimitive PrimBool), i1_type,
      ["char"], 1, DW_ATE_BOOLEAN);
     ("char", makebare (DefTypePrimitive PrimI8), i8_type,
-     ["char"],
-     8, DW_ATE_SIGNED_CHAR);
+     ["char"], 8, DW_ATE_SIGNED_CHAR);
     ("uchar", makebare (DefTypePrimitive PrimU8), i8_type,
      ["unsigned char"], 8, DW_ATE_UNSIGNED_CHAR);
     ("i8", makebare (DefTypePrimitive PrimI8),  i8_type,

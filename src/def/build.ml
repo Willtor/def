@@ -17,7 +17,6 @@
  *)
 
 open Ast
-open Cfg
 open Cimportext
 open Config
 open Defparse
@@ -31,7 +30,6 @@ open Llvm_bitreader
 open Llvm_bitwriter
 open Llvm_irreader
 open Llvm_target
-open Lower
 open Parsetree
 open Scrubber
 open Types
@@ -253,8 +251,7 @@ let recursive_parse_def_file file =
 
 let llmodule_of_ast infile ast =
   let stmts = scrub (add_builtin_fcns ast) in
-  let prog = lower_cfg (Cfg.of_ast stmts) in
-  let mdl = process_cfg infile prog in
+  let mdl = ir_of_ast infile stmts in
   let () = Iropt.optimize mdl in
   mdl
 
