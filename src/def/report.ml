@@ -213,11 +213,6 @@ let err_redeclared_variable pos orig_pos var =
 let err_unknown_typename pos name =
   err_pos ("Unknown type name: " ^ name ^ ".") pos
 
-(** Returned void in a non-void function.
-    FIXME: This msg could be better. *)
-let err_returned_void pos =
-  err_pos "Returned void in a non-void function." pos
-
 (** Arrays can only have dimensions expressed in integers. *)
 let err_float_array_dim pos =
   err_pos "Array has dimension of type float." pos

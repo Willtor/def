@@ -770,6 +770,11 @@ let resolve_types stmts =
        let rret = resolve varmap e in
        let () = check_castability true rettp rret in
        Return (p, implicit_cast rettp rret)
+    | ReturnVoid pos ->
+       let () = if rettp.bare <> DefTypeVoid then
+                  Report.err_return_void_from_non_void_fcn pos fcn
+       in
+       ReturnVoid pos
     | _ -> stmt
   in
   let resolved_stmts = List.map (stmt_to_stmt "" nil_type global_varmap)
