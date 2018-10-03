@@ -408,16 +408,12 @@ let get_or_make_val data scope name =
                  names
                  inits
              else if vis <> Types.VisExternal then
-               let init_val =
-                 match deftype.bare with
-                 | DefTypePrimitive _ ->
-                    const_null (get_or_make_type data deftype)
-                 | _ ->
-                    Report.err_internal __FILE__ __LINE__
-                      ("no default initializer for "
-                       ^ (string_of_type deftype))
-               in
-               set_initializer init_val v
+               match deftype.bare with
+               | DefTypePrimitive _ ->
+                  let init = const_null (get_or_make_type data deftype) in
+                  set_initializer init v
+               | _ ->
+                  set_externally_initialized false v
            in
            v
         | DeclFcn (_, vis, _, deftype, _)
