@@ -48,6 +48,7 @@ let frameaddress = "llvm.frameaddress"
 let stacksave = "llvm.stacksave"
 let setjmp = "llvm.eh.sjlj.setjmp"
 let longjmp = "llvm.eh.sjlj.longjmp"
+let syncregion_start = "llvm.syncregion.start"
 
 let maybe_apply f = function
   | None -> ()
@@ -304,7 +305,8 @@ let build_cast data raw_from raw_to e =
 
   match from_tp.bare, to_tp.bare with
   | DefTypePrimitive prim1, DefTypePrimitive prim2 ->
-     build_primitive_cast prim1 prim2
+     if prim1 = prim2 then e
+     else build_primitive_cast prim1 prim2
   | DefTypePtr _, DefTypePtr _ ->
      let lltype = get_or_make_type data to_tp in
      build_bitcast e lltype "cast" data.bldr
@@ -405,7 +407,7 @@ let get_or_make_val data scope name =
                           "unexpected global initializer")
                  names
                  inits
-             else
+             else if vis <> Types.VisExternal then
                let init_val =
                  match deftype.bare with
                  | DefTypePrimitive _ ->
@@ -483,6 +485,24 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        | ValueKind.Instruction Opcode.Br
        | ValueKind.Instruction Opcode.IndirectBr -> false
        | _ -> true
+  in
+
+  let curr_sync_region = ref None in
+
+  let get_or_make_sync_region scope =
+    match !curr_sync_region with
+    | Some region -> region
+    | None ->
+       begin
+         let restore_bb = Util.the data.curr_bb in
+         set_curr_bb entry;
+         let label = "sync_region." ^ (Util.unique_id ()) in
+         let sr_start = get_or_make_val data scope syncregion_start in
+         let sr = build_call sr_start [| |] label data.bldr in
+         curr_sync_region := Some sr;
+         set_curr_bb restore_bb;
+         sr
+       end
   in
 
   let select_for_type sfcn ufcn ffcn tp =
@@ -707,8 +727,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
             let () = List.iteri assign exprs in
             build_load base "" data.bldr
          | _ ->
-            let llval = expr_gen scope true rhs in
             let lladdr = expr_gen scope false lhs in
+            let llval = expr_gen scope true rhs in
             build_store llval lladdr data.bldr
        end
     | OperPlusAssign ->
@@ -852,8 +872,6 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
 
        cast_val
     | ExprFcnCall (name, args, is_spawn) ->
-       (* FIXME: Need to implement spawn. *)
-
        let llfcn = get_or_make_val data scope name in
        let arg_vals = List.map (expr_gen scope true) args in
        let llcallee =
@@ -960,9 +978,57 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        Report.err_internal __FILE__ __LINE__ "expr_gen wildcard."
   in
 
+  let spawn_gen scope expr =
+    let spawn ret_maybe name args =
+      let label = label_of_pos (pos_of_cr expr.expr_cr) in
+      let sync_region = get_or_make_sync_region scope in
+
+      let lladdr =
+        match ret_maybe with
+        | None -> None
+        | Some ret -> Some (expr_gen scope false ret)
+      in
+
+      let llargs = List.map (expr_gen scope true) args in
+      let detach_bb = append_block data.ctx (label ^ ".detach") llfcn in
+      let cont_bb = append_block data.ctx (label ^ ".cont") llfcn in
+      ignore(build_detach detach_bb cont_bb sync_region data.bldr);
+
+      set_curr_bb detach_bb;
+
+      let fcn = get_or_make_val data scope name in
+      let llcallee =
+        match classify_value fcn with
+        | ValueKind.Function -> fcn
+        | _ -> build_load fcn "" data.bldr
+      in
+      let llv = build_call llcallee (Array.of_list llargs) "" data.bldr in
+      if lladdr <> None then
+        ignore(build_store llv (Util.the lladdr) data.bldr);
+      ignore(build_reattach cont_bb sync_region data.bldr);
+
+      set_curr_bb cont_bb
+    in
+    match expr with
+    | { expr_ast = ExprFcnCall (name, args, true) } ->
+       spawn None name args
+    | { expr_ast = ExprBinary ({
+                         op_left = ret;
+                         op_right =
+                           Some { expr_ast =
+                                    ExprFcnCall (name, args, true) }}) } ->
+       spawn (Some ret) name args
+    | _ ->
+       Report.err_internal __FILE__ __LINE__ "unknown spawn format."
+  in
+
   let rec stmt_gen scope = function
     | Import _ -> ()
-    | StmtExpr (_, expr) -> ignore(expr_gen scope true expr)
+    | StmtExpr (_, expr) ->
+       if is_spawn_expr expr then
+         spawn_gen scope expr
+       else
+         ignore(expr_gen scope true expr)
     | Block (_, body) ->
        let subscope = push_symtab_scope scope in
        List.iter (stmt_gen subscope) body
@@ -977,9 +1043,14 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
          vtoks
     | VarDecl (_, vtoks, inits, deftype, _) ->
        let lltype = get_or_make_type data deftype in
-       List.iter2
-         (fun v i -> ignore(declare_var scope lltype (Some i) v.td_text))
-         vtoks inits
+       if is_spawn_expr (List.hd inits) then
+         let var = (List.hd vtoks).td_text in
+         let () = ignore(declare_var scope lltype None var) in
+         spawn_gen scope (List.hd inits)
+       else
+         List.iter2
+           (fun v i -> ignore(declare_var scope lltype (Some i) v.td_text))
+           vtoks inits
     | InlineStructVarDecl (_, fields, (_, rhs)) ->
        (* FIXME: This structure should allow recursive unpacking.  E.g.,
           var { foo, { bar, baz } } = quux();
@@ -1164,8 +1235,12 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        ignore(build_br (Util.the !break_bb) data.bldr)
     | Continue _ ->
        ignore(build_br (List.hd !continue_bb) data.bldr)
-    | Sync _ ->
-       Report.err_internal __FILE__ __LINE__ "not implemented"
+    | Sync pos ->
+       let label = (label_of_pos pos) ^ ".postsync" in
+       let ps_bb = append_block data.ctx label llfcn in
+       let sr = get_or_make_sync_region scope in
+       let () = ignore(build_sync ps_bb sr data.bldr) in
+       set_curr_bb ps_bb
 
   and build_general_switch scope pos expr cases =
     let llexpr = expr_gen scope true expr in

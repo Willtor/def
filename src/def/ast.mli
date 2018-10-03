@@ -102,4 +102,10 @@ val pos_of_cr : code_relation -> position
 
 val pos_of_astexpr : expr -> position
 
+(** Return true if the expression is clearly always true in all
+    circumstances. *)
 val provably_always_true : expr -> bool
+
+(** Return true iff the expression is a spawn.  This can either be a simple
+    function call, or a function call with a returned value. *)
+val is_spawn_expr : expr -> bool

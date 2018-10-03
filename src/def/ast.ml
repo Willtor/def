@@ -792,3 +792,13 @@ let rec pos_of_astexpr expr = pos_of_cr expr.expr_cr
 let provably_always_true = function
   | { expr_ast = ExprLit (LitBool true) } -> true
   | _ -> false
+
+(** Return true iff the expression is a spawn.  This can either be a simple
+    function call, or a function call with a returned value. *)
+let is_spawn_expr = function
+  | { expr_ast = ExprFcnCall (_, _, true) }
+  | { expr_ast =
+        ExprBinary { op_right =
+                       Some ({ expr_ast = ExprFcnCall (_, _, true) }) } } ->
+     true
+  | _ -> false
