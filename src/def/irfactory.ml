@@ -517,6 +517,21 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        end
   in
 
+  let in_transaction_block = ref false in
+
+  let end_transaction scope =
+    let fname =
+      match !xact_kind with
+      | XACT_HARDWARE -> hwtm_end
+      | XACT_HYBRID -> hytm_end
+      | XACT_SOFTWARE ->
+         Report.err_internal __FILE__ __LINE__
+           "software transactions not implemented"
+    in
+    let f = get_or_make_val data scope fname in
+    ignore(build_call f [| |] "" data.bldr)
+  in
+
   let select_for_type sfcn ufcn ffcn tp =
     if is_integer_type tp then
       if signed_p tp then sfcn
@@ -1244,8 +1259,14 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        build_general_switch scope pos expr cases
     | Return (_, expr) ->
        let llexpr = expr_gen scope true expr in
+       let () = if !in_transaction_block then
+                  end_transaction scope
+       in
        ignore(build_ret llexpr data.bldr)
     | ReturnVoid _ ->
+       let () = if !in_transaction_block then
+                  end_transaction scope
+       in
        ignore(build_ret_void data.bldr)
     | TypeDecl _ ->
        Report.err_internal __FILE__ __LINE__ "local typedecls not implemented"
@@ -1419,7 +1440,9 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     let body_bb = append_block data.ctx (label ^ ".xact_body") llfcn in
     set_curr_bb body_bb;
     let body_scope = push_symtab_scope scope in
+    in_transaction_block := true;
     List.iter (stmt_gen body_scope) body;
+    in_transaction_block := false;
     let body_end_bb = Util.the data.curr_bb in
 
     let fail_bb =
@@ -1455,9 +1478,13 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     let begin_f = get_or_make_val data scope hytm_begin in
     ignore(build_call begin_f [| |] "" data.bldr);
     let body_scope = push_symtab_scope scope in
+    in_transaction_block := true;
     List.iter (stmt_gen body_scope) body;
-    let end_f = get_or_make_val data scope hytm_end in
-    ignore(build_call end_f [| |] "" data.bldr)
+    in_transaction_block := false;
+
+    if bb_needs_exit (Util.the data.curr_bb) then
+      let end_f = get_or_make_val data scope hytm_end in
+      ignore(build_call end_f [| |] "" data.bldr)
 
   and make_block label scope stmts =
     let begin_bb = append_block data.ctx label llfcn in
