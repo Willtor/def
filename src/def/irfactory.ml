@@ -712,14 +712,15 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
          let lllhs = expr_gen scope true lhs in
          let notlllhs = build_not lllhs "" data.bldr in
          let lbb = Util.the data.curr_bb in
-         let rbb = append_block data.ctx (label ^ ".rhs") llfcn in
-         data.curr_bb <- Some rbb;
-         position_at_end rbb data.bldr;
+         let rbb_start = append_block data.ctx (label ^ ".rhs") llfcn in
+         data.curr_bb <- Some rbb_start;
+         position_at_end rbb_start data.bldr;
          let llrhs = expr_gen scope true rhs in
+         let rbb = Util.the data.curr_bb in
          let phibb = append_block data.ctx (label ^ ".phi") llfcn in
          ignore(build_br phibb data.bldr);
          position_at_end lbb data.bldr;
-         ignore(build_cond_br lllhs rbb phibb data.bldr);
+         ignore(build_cond_br lllhs rbb_start phibb data.bldr);
          data.curr_bb <- Some phibb;
          position_at_end phibb data.bldr;
          build_phi [(notlllhs, lbb); (llrhs, rbb)] "" data.bldr
@@ -729,14 +730,15 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
          let label = label_of_pos op.op_pos in
          let lllhs = expr_gen scope true lhs in
          let lbb = Util.the data.curr_bb in
-         let rbb = append_block data.ctx (label ^ ".rhs") llfcn in
-         data.curr_bb <- Some rbb;
-         position_at_end rbb data.bldr;
+         let rbb_start = append_block data.ctx (label ^ ".rhs") llfcn in
+         data.curr_bb <- Some rbb_start;
+         position_at_end rbb_start data.bldr;
          let llrhs = expr_gen scope true rhs in
+         let rbb = Util.the data.curr_bb in
          let phibb = append_block data.ctx (label ^ ".phi") llfcn in
          ignore(build_br phibb data.bldr);
          position_at_end lbb data.bldr;
-         ignore(build_cond_br lllhs phibb rbb data.bldr);
+         ignore(build_cond_br lllhs phibb rbb_start data.bldr);
          data.curr_bb <- Some phibb;
          position_at_end phibb data.bldr;
          build_phi [(lllhs, lbb); (llrhs, rbb)] "" data.bldr
