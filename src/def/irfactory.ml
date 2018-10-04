@@ -168,20 +168,14 @@ let get_or_make_type data =
        Report.err_internal __FILE__ __LINE__ ("opaque type " ^ nm)
     | DefTypePrimitive prim ->
        native (primitive2string prim)
-    | DefTypeFcn _ ->
-       begin
-         match (dearray_fcn deftype).bare with
-         | DefTypeFcn (params, ret, is_vararg) ->
-            let llvmparams = List.map get_or_make params in
-            let llvmret = get_or_make ret in
-            let f = if is_vararg then var_arg_function_type
-                    else function_type
-            in
-            let llfcntype = f llvmret (Array.of_list llvmparams) in
-            pointer_type llfcntype
-         | _ ->
-            Report.err_internal __FILE__ __LINE__ "wut up."
-       end
+    | DefTypeFcn (params, ret, is_vararg) ->
+       let llvmparams = List.map get_or_make params in
+       let llvmret = get_or_make ret in
+       let f = if is_vararg then var_arg_function_type
+               else function_type
+       in
+       let llfcntype = f llvmret (Array.of_list llvmparams) in
+       pointer_type llfcntype
     | DefTypePtr ({ bare = DefTypeVoid })
     | DefTypePtr ({ bare = DefTypeOpaque _ }) ->
        pointer_type (native "i8")
@@ -750,8 +744,22 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     | OperAssign ->
        begin
          match lhs.expr_ast, rhs.expr_ast with
-         | ExprStaticStruct _, _ ->
-            Report.err_internal __FILE__ __LINE__ "assign of static struct"
+         | ExprStaticStruct (_, fields), _ ->
+            let gen_left expr =
+              match expr.expr_ast with
+              | ExprWildcard -> None
+              | _ -> Some (expr_gen scope false expr)
+            in
+            let lefties = List.map gen_left fields in
+            let rhs = expr_gen scope true rhs in
+            let assign_left i = function
+              | None -> ()
+              | Some lladdr ->
+                 let llval = build_extractvalue rhs i "" data.bldr in
+                 ignore(build_store llval lladdr data.bldr)
+            in
+            let () = List.iteri assign_left lefties in
+            rhs
          | _, ExprCast (_, _, { expr_ast = ExprStaticStruct (_, members) }) ->
             let base = expr_gen scope false op.op_left in
             let assign n expr =

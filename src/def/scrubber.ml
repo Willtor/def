@@ -691,7 +691,7 @@ let resolve_types stmts =
          | _ ->
             Report.err_internal __FILE__ __LINE__ "non-function-type function."
        in
-       DefFcn (p, exported, vis, nm, tp, params,
+       DefFcn (p, exported, vis, nm, lowered_tp, params,
                List.map (stmt_to_stmt nm sub_rettp fvars) body)
     | VarDecl _ ->
        if fcn <> "" then declare_var varmap stmt
