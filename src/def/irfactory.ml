@@ -62,6 +62,9 @@ let syncregion_start = "llvm.syncregion.start"
 
 let hwtm_begin = "llvm.x86.xbegin"
 let hwtm_end = "llvm.x86.xend"
+let hwtm_abort = "llvm.x86.xabort"
+let hytm_begin = "__defrts_hybrid_xbegin"
+let hytm_end = "__defrts_hybrid_xend"
 
 let maybe_apply f = function
   | None -> ()
@@ -602,6 +605,19 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        let str = const_stringz data.ctx argstr in
        let label = label_of_pos (pos_of_cr (List.hd args).expr_cr) in
        define_global ("typestr." ^ label) str data.mdl
+
+    | "__builtin_xbegin" ->
+       let llfcn = get_or_make_val data scope hwtm_begin in
+       build_call llfcn [| |] "" data.bldr
+
+    | "__builtin_xend" ->
+       let llfcn = get_or_make_val data scope hwtm_end in
+       build_call llfcn [| |] "" data.bldr
+
+    | "__builtin_xabort" ->
+       let llfcn = get_or_make_val data scope hwtm_abort in
+       let llarg = expr_gen scope true (List.hd args) in
+       build_call llfcn [| llarg |] "" data.bldr
 
     | _ ->
        Report.err_internal __FILE__ __LINE__
@@ -1435,7 +1451,13 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     if fail <> None then
       Report.err_internal __FILE__ __LINE__
         "fail transaction blocks in hybrid transactions not yet implemented.";
-    Report.err_internal __FILE__ __LINE__ "hybrid transaction."
+
+    let begin_f = get_or_make_val data scope hytm_begin in
+    ignore(build_call begin_f [| |] "" data.bldr);
+    let body_scope = push_symtab_scope scope in
+    List.iter (stmt_gen body_scope) body;
+    let end_f = get_or_make_val data scope hytm_end in
+    ignore(build_call end_f [| |] "" data.bldr)
 
   and make_block label scope stmts =
     let begin_bb = append_block data.ctx label llfcn in

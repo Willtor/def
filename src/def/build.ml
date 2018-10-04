@@ -97,22 +97,7 @@ let add_builtin_fcns stmts =
   let token_type = typify @@ DefTypeLLVMToken in
 
   let builtins =
-    [ DeclFcn (pos, Types.VisExternal, "__builtin_xbegin",
-               typify
-               @@ DefTypeFcn ([], volatile_of i32_type, false),
-               []);
-
-      DeclFcn (pos, Types.VisExternal, "__builtin_xend",
-               typify
-               @@ DefTypeFcn ([], void_type, false),
-               []);
-
-      DeclFcn (pos, Types.VisExternal, "__builtin_xabort",
-               typify
-               @@ DefTypeFcn ([i8_type], void_type, false),
-               []);
-
-      DeclFcn (pos, Types.VisExternal, "forkscan_malloc",
+    [ DeclFcn (pos, Types.VisExternal, "forkscan_malloc",
                typify
                @@ DefTypeFcn ([u64_type], makeptr void_type, false),
                [pos, "size"]);

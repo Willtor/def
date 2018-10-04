@@ -378,6 +378,16 @@ let resolve_types stmts =
                    expr_tp = rettp;
                    expr_ast = ExprCast (e.expr_tp, rettp, e)
                  }
+              | "__builtin_xbegin" -> builtin_ret i32_type
+              | "__builtin_xend" -> builtin_ret void_type
+              | "__builtin_xabort" ->
+                 let arg = List.hd resolved_args in
+                 let () = check_castability true char_type arg in
+                 let cast_arg = implicit_cast char_type arg in
+                 { expr_cr = expr.expr_cr;
+                   expr_tp = void_type;
+                   expr_ast = ExprBuiltinCall (name, [cast_arg])
+                 }
               | _ ->
                  Report.err_unknown_fcn_call (pos_of_cr expr.expr_cr) name
             in
