@@ -168,12 +168,20 @@ let get_or_make_type data =
        Report.err_internal __FILE__ __LINE__ ("opaque type " ^ nm)
     | DefTypePrimitive prim ->
        native (primitive2string prim)
-    | DefTypeFcn (params, ret, is_vararg) ->
-       let llvmparams = List.map get_or_make params in
-       let llvmret = get_or_make ret in
-       let f = if is_vararg then var_arg_function_type else function_type in
-       let llfcntype = f llvmret (Array.of_list llvmparams) in
-       pointer_type llfcntype
+    | DefTypeFcn _ ->
+       begin
+         match (dearray_fcn deftype).bare with
+         | DefTypeFcn (params, ret, is_vararg) ->
+            let llvmparams = List.map get_or_make params in
+            let llvmret = get_or_make ret in
+            let f = if is_vararg then var_arg_function_type
+                    else function_type
+            in
+            let llfcntype = f llvmret (Array.of_list llvmparams) in
+            pointer_type llfcntype
+         | _ ->
+            Report.err_internal __FILE__ __LINE__ "wut up."
+       end
     | DefTypePtr ({ bare = DefTypeVoid })
     | DefTypePtr ({ bare = DefTypeOpaque _ }) ->
        pointer_type (native "i8")

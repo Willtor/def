@@ -84,7 +84,9 @@ let resolve_types stmts =
     | TypeDecl (_, nm, tp, _, _) ->
        add_symbol pre_typemap nm tp
     | DeclFcn (p, _, nm, tp, _)
-    | DefFcn (p, _, _, nm, tp, _, _) -> add_symbol global_varmap nm (p, tp)
+    | DefFcn (p, _, _, nm, tp, _, _) ->
+       let lowered_type = dearray_fcn tp in
+       add_symbol global_varmap nm (p, lowered_type)
     | _ -> ()
   in
   List.iter read_type stmts;
