@@ -919,7 +919,18 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
          | ValueKind.Function -> llfcn
          | _ -> build_load llfcn "" data.bldr
        in
-       build_call llcallee (Array.of_list arg_vals) "" data.bldr
+       let ret = build_call llcallee (Array.of_list arg_vals) "" data.bldr in
+       if rval then ret
+       else
+         (* There is no _real_ l-value from a function call.  If somebody is
+            asking for an l-value, here, it's because there's a field access
+            or something.  Create a temporary variable to store the returned
+            value and give that value back. *)
+         let varname = "tmp." ^ Util.unique_id () in
+         let vartype = get_or_make_type data expr.expr_tp in
+         let tmp_var = declare_var scope vartype None varname in
+         let () = ignore(build_store ret tmp_var data.bldr) in
+         tmp_var
     | ExprBuiltinCall (name, args) ->
        builtin_gen scope name args
     | ExprString str ->
