@@ -37,6 +37,7 @@ let bool_type = maketype None @@ DefTypePrimitive PrimBool
 let char_type = maketype None @@ DefTypePrimitive PrimI8
 let i32_type = maketype None @@ DefTypePrimitive PrimI32
 let i64_type = maketype None @@ DefTypePrimitive PrimI64
+let u64_type = maketype None @@ DefTypePrimitive PrimU64
 let string_type =
   makeptr @@ maketype None (DefTypePrimitive PrimI8)
 let nil_type = maketype None @@ DefTypeNullPtr
@@ -422,7 +423,17 @@ let resolve_types stmts =
               t, implicit_cast t left, implicit_cast t right
          | OperLT | OperGT | OperLTE | OperGTE
          | OperEquals | OperNEquals ->
-            let t = mgt () in
+            let t =
+              match mgt () with
+              | { bare = DefTypePtr _ } -> u64_type
+              | { bare = DefTypeNamed name } as t ->
+                 begin
+                   match concrete_of None typemap t with
+                   | { bare = DefTypePtr _ } -> u64_type
+                   | _ -> t
+                 end
+              | t -> t
+            in
             bool_type, implicit_cast t left, implicit_cast t right
          | OperLogicalAnd | OperLogicalOr ->
             let () = check_castability true bool_type left
