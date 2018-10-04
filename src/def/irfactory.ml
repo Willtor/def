@@ -17,6 +17,7 @@
  *)
 
 open Ast
+open Config
 open Llvm
 open Llvmext (* build_cmpxchg, token_type *)
 open Llvm_target
@@ -32,6 +33,7 @@ type data =
     mdl         : llmodule;
     bldr        : llbuilder;
     prog        : program;
+    fattrs      : llattribute list;
 
     mutable difile  : llvalue option;
     mutable dib     : lldibuilder option;
@@ -43,12 +45,23 @@ type data =
     mutable curr_bb : llbasicblock option;
   }
 
+let fcn_attrs =
+  [("target-features", "+fxsr,+mmx,+rtm,+sse,+sse2,+x87");
+   ("target-cpu", "x86-64")
+  ]
+
 let va_list_tag = "struct.__va_list_tag"
+
 let frameaddress = "llvm.frameaddress"
 let stacksave = "llvm.stacksave"
+
 let setjmp = "llvm.eh.sjlj.setjmp"
 let longjmp = "llvm.eh.sjlj.longjmp"
+
 let syncregion_start = "llvm.syncregion.start"
+
+let hwtm_begin = "llvm.x86.xbegin"
+let hwtm_end = "llvm.x86.xend"
 
 let maybe_apply f = function
   | None -> ()
@@ -1062,8 +1075,15 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
            let v = build_load_wrapper deftype lladdr "" in
            ignore(build_store v llvar data.bldr))
          fields
-    | TransactionBlock _ ->
-       Report.err_internal __FILE__ __LINE__ "not implemented"
+    | TransactionBlock (p, body, fail) ->
+       begin
+         match !xact_kind with
+         | XACT_HARDWARE -> hardware_transaction scope p body fail
+         | XACT_HYBRID -> hybrid_transaction scope p body fail
+         | XACT_SOFTWARE ->
+            Report.err_internal __FILE__ __LINE__
+              "software transactions not implemented"
+       end
     | IfStmt (pos, cond, then_br, else_br_maybe) ->
        let llcond = expr_gen scope true cond in
        let cond_bb = Util.the data.curr_bb in
@@ -1375,6 +1395,48 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     if !follow <> None then
       set_curr_bb (Util.the !follow)
 
+  and hardware_transaction scope p body fail =
+    let label = label_of_pos p in
+    let begin_bb = append_block data.ctx (label ^ ".xact_begin") llfcn in
+    ignore(build_br begin_bb data.bldr);
+
+    let body_bb = append_block data.ctx (label ^ ".xact_body") llfcn in
+    set_curr_bb body_bb;
+    let body_scope = push_symtab_scope scope in
+    List.iter (stmt_gen body_scope) body;
+    let body_end_bb = Util.the data.curr_bb in
+
+    let fail_bb =
+      match fail with
+      | None -> begin_bb
+      | Some (p, failblock) ->
+         let fail_begin = append_block data.ctx (label ^ ".xact_fail") llfcn in
+         let fail_scope = push_symtab_scope scope in
+         let () = List.iter (stmt_gen fail_scope) failblock in
+         if bb_needs_exit (Util.the data.curr_bb) then
+           ignore(build_br begin_bb data.bldr);
+         fail_begin
+    in
+    set_curr_bb begin_bb;
+    let begin_f = get_or_make_val data scope hwtm_begin in
+    let ret = build_call begin_f [| |] "" data.bldr in
+    let neg_one = const_int (i32_type data.ctx) (-1) in
+    let cond = build_icmp Icmp.Eq ret neg_one "" data.bldr in
+    ignore(build_cond_br cond body_bb fail_bb data.bldr);
+
+    set_curr_bb body_end_bb;
+    if bb_needs_exit body_end_bb then
+      begin
+        let end_f = get_or_make_val data scope hwtm_end in
+        ignore(build_call end_f [| |] "" data.bldr)
+      end
+
+  and hybrid_transaction scope p body fail =
+    if fail <> None then
+      Report.err_internal __FILE__ __LINE__
+        "fail transaction blocks in hybrid transactions not yet implemented.";
+    Report.err_internal __FILE__ __LINE__ "hybrid transaction."
+
   and make_block label scope stmts =
     let begin_bb = append_block data.ctx label llfcn in
     set_curr_bb begin_bb;
@@ -1415,6 +1477,13 @@ let build_function data = function
        (* Hook up the entry to the init block. *)
        position_at_end entry data.bldr;
        ignore(build_br init_bb data.bldr);
+
+       (* Set function attributes. *)
+       List.iter
+         (fun attr -> add_function_attr llfcn attr AttrIndex.Function)
+         data.fattrs;
+
+       (* Verify the function code. *)
        if not !Config.codegen_debug then
          Llvm_analysis.assert_valid_function llfcn
      end
@@ -1430,10 +1499,13 @@ let ir_of_ast module_name prog =
   let lltypesyms = basic_lltypes ctx in
 
   let data =
-    { ctx  = ctx;
-      mdl  = mdl;
-      bldr = bldr;
-      prog = prog;
+    { ctx    = ctx;
+      mdl    = mdl;
+      bldr   = bldr;
+      prog   = prog;
+      fattrs = List.map
+                 (fun (key, value) -> create_string_attr ctx key value)
+                 fcn_attrs;
 
       difile = None;
       dib  = None;
