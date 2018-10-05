@@ -208,7 +208,7 @@ let get_or_make_type data =
   in
   get_or_make
 
-let build_cast data raw_from raw_to e =
+let build_cast data raw_from raw_to e name =
   let from_tp = concrete_of None data.prog.prog_typemap raw_from
   and to_tp = concrete_of None data.prog.prog_typemap raw_to
   in
@@ -318,7 +318,7 @@ let build_cast data raw_from raw_to e =
                ("Cast from " ^ (primitive2string t1) ^ " to "
                 ^ (primitive2string t2))
     in
-    f e llvm_to_tp "cast" data.bldr
+    f e llvm_to_tp name data.bldr
   in
 
   match from_tp.bare, to_tp.bare with
@@ -327,17 +327,17 @@ let build_cast data raw_from raw_to e =
      else build_primitive_cast prim1 prim2
   | DefTypePtr _, DefTypePtr _ ->
      let lltype = get_or_make_type data to_tp in
-     build_bitcast e lltype "cast" data.bldr
+     build_bitcast e lltype name data.bldr
   | DefTypePtr _, DefTypePrimitive _ ->
      if is_integer_type to_tp then
        let lltype = get_or_make_type data to_tp in
-       build_pointercast e lltype "cast" data.bldr
+       build_pointercast e lltype name data.bldr
      else Report.err_internal __FILE__ __LINE__
             "What's the deal with casting pointers to floats?"
   | DefTypePrimitive _, DefTypePtr _ ->
      if is_integer_type from_tp then
        let lltype = get_or_make_type data to_tp in
-       build_inttoptr e lltype "cast" data.bldr
+       build_inttoptr e lltype name data.bldr
      else Report.err_internal __FILE__ __LINE__
             "What's the deal with casting floats to ptrs?"
   | DefTypeStaticStruct _, DefTypeNamed _
@@ -345,7 +345,7 @@ let build_cast data raw_from raw_to e =
      (* FIXME: This can never happen, right? *)
      let () = prerr_endline "unexpected case in casting." in
      let lltype = get_or_make_type data to_tp in
-     build_bitcast e lltype "scast" data.bldr
+     build_bitcast e lltype name data.bldr
   | DefTypeStaticStruct _, _
   | DefTypeLiteralStruct _, _ ->
      (* FIXME: I think this might be correct, actually, but need to think
@@ -353,10 +353,10 @@ let build_cast data raw_from raw_to e =
      e
   | DefTypeArray (tp, n), DefTypePtr _ ->
      let zero = const_null (i32_type data.ctx) in
-     build_in_bounds_gep e [| zero; zero |] "ptr_cast" data.bldr
+     build_in_bounds_gep e [| zero; zero |] name data.bldr
   | DefTypeFcn _, DefTypeFcn _ ->
      let lltype = get_or_make_type data (makeptr to_tp) in
-     build_pointercast e lltype "fcast" data.bldr
+     build_pointercast e lltype name data.bldr
   | DefTypeEnum _, DefTypeEnum _ ->
      e
   | _ ->
@@ -787,7 +787,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
          | _ ->
             let lladdr = expr_gen scope false lhs in
             let llval = expr_gen scope true rhs in
-            build_store llval lladdr data.bldr
+            let () = ignore(build_store llval lladdr data.bldr) in
+            llval
        end
     | OperPlusAssign ->
        if op.op_atomic then
@@ -978,7 +979,7 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        build_inttoptr zero lltype "" data.bldr
     | ExprCast (fromtp, totp, expr) ->
        let e = expr_gen scope true expr in
-       build_cast data fromtp totp e
+       build_cast data fromtp totp e "cast"
     | ExprIndex (base, idx) ->
        let llidx = expr_gen scope true idx in
        let llgep =
