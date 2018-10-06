@@ -48,8 +48,6 @@ DEFFILES = 		\
 	ast.mli		\
 	build.ml	\
 	build.mli	\
-	cfg.ml		\
-	cfg.mli		\
 	config.ml	\
 	irfactory.ml	\
 	irfactory.mli	\
@@ -57,8 +55,6 @@ DEFFILES = 		\
 	iropt.mli	\
 	link.ml		\
 	link.mli	\
-	lower.ml	\
-	lower.mli	\
 	main.ml		\
 	main.mli	\
 	Makefile	\
