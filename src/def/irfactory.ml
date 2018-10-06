@@ -139,11 +139,14 @@ let debug_sym_preamble data module_name =
     must be retrieved. *)
 let get_or_make_type data =
   let native str = Util.the (lookup_symbol data.lltypesyms str) in
-  let rec get_or_make deftype =
+  let rec get_or_make pointer_of deftype =
     match deftype.bare with
     | DefTypeUnresolved name ->
        Report.err_internal __FILE__ __LINE__ ("unresolved " ^ name)
-    | DefTypeVoid -> native "void"
+    | DefTypeVoid ->
+       (* Pointer-to-void is *i8 instead of *void, where LLVM is concerned. *)
+       if pointer_of then native "i8"
+       else native "void"
     | DefTypeNamed name ->
        begin
          match lookup_symbol data.lltypesyms name with
@@ -154,35 +157,42 @@ let get_or_make_type data =
               | { bare = DefTypeLiteralStruct (is_packed, mtypes, _) } ->
                  let structtype = named_struct_type data.ctx name in
                  let () = add_symbol data.lltypesyms name structtype in
-                 let members = List.map get_or_make mtypes in
+                 let members = List.map (get_or_make false) mtypes in
                  let () = struct_set_body structtype
                             (Array.of_list members) is_packed in
                  structtype
+              | { bare = DefTypeOpaque oname } ->
+                 (* We don't store opaque types.  It'll keep going through
+                    this lookup routine every time it gets searched for.
+                    If the user is getting a pointer to an opaque type, cool.
+                    If not, error. *)
+                 if pointer_of then native "i8"
+                 else Report.err_internal __FILE__ __LINE__
+                        ("opaque type " ^ oname)
               | subtype ->
-                 let lltype = get_or_make subtype in
+                 let lltype = get_or_make pointer_of subtype in
                  let () = add_symbol data.lltypesyms name lltype in
                  lltype
             end
        end
     | DefTypeOpaque nm ->
+       let bt = Printexc.get_callstack 10 in
+       let () = Printexc.print_raw_backtrace stderr bt in
        Report.err_internal __FILE__ __LINE__ ("opaque type " ^ nm)
     | DefTypePrimitive prim ->
        native (primitive2string prim)
     | DefTypeFcn (params, ret, is_vararg) ->
-       let llvmparams = List.map get_or_make params in
-       let llvmret = get_or_make ret in
+       let llvmparams = List.map (get_or_make false) params in
+       let llvmret = get_or_make false ret in
        let f = if is_vararg then var_arg_function_type
                else function_type
        in
        let llfcntype = f llvmret (Array.of_list llvmparams) in
        pointer_type llfcntype
-    | DefTypePtr ({ bare = DefTypeVoid })
-    | DefTypePtr ({ bare = DefTypeOpaque _ }) ->
-       pointer_type (native "i8")
     | DefTypePtr subtype ->
-       pointer_type (get_or_make subtype)
+       pointer_type (get_or_make true subtype)
     | DefTypeArray (subtype, dim) ->
-       array_type (get_or_make subtype) dim
+       array_type (get_or_make false subtype) dim
     | DefTypeNullPtr ->
        Report.err_internal __FILE__ __LINE__ "null pointer type"
     | DefTypeEnum _ ->
@@ -190,7 +200,7 @@ let get_or_make_type data =
        integer_type data.ctx (sz * 8)
     | DefTypeLiteralStruct (is_packed, mtypes, _)
     | DefTypeStaticStruct (is_packed, mtypes) ->
-       let members = List.map get_or_make mtypes in
+       let members = List.map (get_or_make false) mtypes in
        let f = if is_packed then packed_struct_type else struct_type in
        f data.ctx (Array.of_list members)
     | DefTypeLiteralUnion _ ->
@@ -206,7 +216,7 @@ let get_or_make_type data =
     | DefTypeLLVMToken ->
        token_type data.ctx
   in
-  get_or_make
+  get_or_make false
 
 let build_cast data raw_from raw_to e name =
   let from_tp = concrete_of None data.prog.prog_typemap raw_from
@@ -355,7 +365,7 @@ let build_cast data raw_from raw_to e name =
      let zero = const_null (i32_type data.ctx) in
      build_in_bounds_gep e [| zero; zero |] name data.bldr
   | DefTypeFcn _, DefTypeFcn _ ->
-     let lltype = get_or_make_type data (makeptr to_tp) in
+     let lltype = get_or_make_type data to_tp in
      build_pointercast e lltype name data.bldr
   | DefTypeEnum _, DefTypeEnum _ ->
      e
@@ -904,7 +914,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
   and expr_gen scope rval expr =
     match expr.expr_ast with
     | ExprNew (dim, tp, inits) ->
-       let lldim = expr_gen scope true dim in
+       let lli32dim = expr_gen scope true dim in
+       let lldim = build_zext lli32dim (i64_type data.ctx) "" data.bldr in
        let lltype = get_or_make_type data tp in
        let lltypesize = Llvm.size_of lltype in
        let llsz = build_mul lldim lltypesize "" data.bldr in
