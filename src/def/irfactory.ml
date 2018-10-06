@@ -965,7 +965,11 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        builtin_gen scope name args
     | ExprString str ->
        let llstr = const_stringz_wrap data.ctx str in
-       define_global ("cstr." ^ (Util.unique_id ())) llstr data.mdl
+       let llg =
+         define_global ("cstr." ^ (Util.unique_id ())) llstr data.mdl
+       in
+       let () = set_linkage Linkage.Internal llg in
+       llg
     | ExprBinary op -> llvm_binop scope op
     | ExprPreUnary op -> llvm_unop true scope op
     | ExprPostUnary op -> llvm_unop false scope op
