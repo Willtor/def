@@ -852,6 +852,44 @@ let legit_gotos prog =
   List.iter toplevel prog.prog_ast;
   prog
 
+(** Verify the legitimacy of breaks and continues in functions. *)
+let legit_breaks prog =
+  let verify name body =
+    let rec traverse can_break = function
+      | Block (_, stmts) -> List.iter (traverse can_break) stmts
+      | TransactionBlock (_, body, None) -> List.iter (traverse can_break) body
+      | TransactionBlock (_, body, Some (_, fail_body)) ->
+         let () = List.iter (traverse can_break) body in
+         List.iter (traverse can_break) fail_body
+      | IfStmt (_, _, body, None) -> List.iter (traverse can_break) body
+      | IfStmt (_, _, body, Some (_, ebody)) ->
+         let () = List.iter (traverse can_break) body in
+         List.iter (traverse can_break) ebody
+      | ForLoop (_, _, _, _, _, _, body) ->
+         List.iter (traverse true) body
+      | WhileLoop (_, _, _, body) ->
+         List.iter (traverse true) body
+      | SwitchStmt (_, _, cases) ->
+         List.iter
+           (fun (_, _, _, body) -> List.iter (traverse can_break) body)
+           cases
+      | Break pos ->
+         if not can_break then
+           Report.err_bad_break pos name
+      | Continue pos ->
+         if not can_break then
+           Report.err_bad_continue pos name
+      | _ -> ()
+    in
+    List.iter (traverse false) body
+  in
+  let toplevel = function
+    | DefFcn (_, _, _, name, _, _, body) -> verify name body
+    | _ -> ()
+  in
+  List.iter toplevel prog.prog_ast;
+  prog
+
 (** Remove unused chunks of code and warn the programmer. *)
 let kill_dead_code prog =
   let report_dead_code fcn pos =
@@ -1051,5 +1089,6 @@ let scrub stmts =
   let (<<=) x f = f x in
   resolve_types stmts
   <<= legit_gotos
+  <<= legit_breaks
   <<= kill_dead_code
   <<= return_all_paths

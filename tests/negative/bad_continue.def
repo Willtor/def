@@ -1,0 +1,7 @@
+// Unit test for a bad continue -- continue specified outside of any
+// relevant scope.
+
+def foo () -> void
+begin
+    continue;
+end

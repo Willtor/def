@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt bad_break.def (line 5 column 4):
+  In function, foo, nothing to break out of.
+[33m    break;
+    ^[0m

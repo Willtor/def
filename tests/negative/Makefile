@@ -9,7 +9,10 @@ UNIT =	undef_fcn	\
 	non_field2	\
 	non_field3	\
 	redefined_var	\
-	bad_goto
+	bad_goto	\
+	bad_break	\
+	bad_continue
+
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 

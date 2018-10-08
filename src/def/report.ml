@@ -113,6 +113,18 @@ let err_goto_no_dest pos fcn label =
     ("In function " ^ fcn ^ " there is no label " ^ label ^ ".")
     pos
 
+(** A break was provided outside of any relevant scope. *)
+let err_bad_break pos fcn =
+  err_pos
+    ("In function, " ^ fcn ^ ", nothing to break out of.")
+    pos
+
+(** A continue was provided outside of any relevant scope. *)
+let err_bad_continue pos fcn =
+  err_pos
+    ("In function, " ^ fcn ^ ", nothing to continue.")
+    pos
+
 (** Function has no return statement. *)
 let err_no_return pos fcn =
   err_pos ("Function " ^ fcn ^ " needs a return statement.") pos

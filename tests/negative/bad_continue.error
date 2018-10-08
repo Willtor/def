@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt bad_continue.def (line 6 column 4):
+  In function, foo, nothing to continue.
+[33m    continue;
+    ^[0m

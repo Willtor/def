@@ -1,3 +1,5 @@
+// Unit test for bad goto -- a goto without a defined label.
+
 def foo () -> void
 begin
     goto bar;

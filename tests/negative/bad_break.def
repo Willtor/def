@@ -1,0 +1,6 @@
+// Unit test for a bad break -- a break outside of a relevant scope.
+
+def foo () -> void
+begin
+    break;
+end
