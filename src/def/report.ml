@@ -107,6 +107,12 @@ let err_multiple_volatile_keywords pos =
            ^ "This is probably a typo.")
           pos
 
+(** There is a goto targeting a label that doesn't exist in this function. *)
+let err_goto_no_dest pos fcn label =
+  err_pos
+    ("In function " ^ fcn ^ " there is no label " ^ label ^ ".")
+    pos
+
 (** Function has no return statement. *)
 let err_no_return pos fcn =
   err_pos ("Function " ^ fcn ^ " needs a return statement.") pos
@@ -322,3 +328,9 @@ let warn_implicit_loss_of_volatility pos =
 (** Switch statement where some possibilities escape all cases. *)
 let warn_incomplete_switch pos =
   warn_pos "The switch statement doesn't catch all possibilties." pos
+
+(** Programmer specified a label that's never targeted by a goto. *)
+let warn_unreferenced_label pos fcn label =
+  warn_pos ("In function " ^ fcn ^ " the label, " ^ label
+            ^ ", is never referenced.")
+    pos

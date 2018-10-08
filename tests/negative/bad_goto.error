@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt bad_goto.def (line 3 column 4):
+  In function foo there is no label bar.
+[33m    goto bar;
+    ^[0m

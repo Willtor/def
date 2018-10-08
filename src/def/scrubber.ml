@@ -807,6 +807,52 @@ let resolve_types stmts =
     prog_ast = resolved_stmts
   }
 
+(** Verify that all goto's actually go somewhere.  Along the way, warn the
+    programmer if there are any unreferenced labels. *)
+let legit_gotos prog =
+  let verify name stmts =
+    let labels = make_symtab () in
+    let gotos = make_symtab () in
+    let rec find_labels_n_gotos = function
+      | Block (_, stmts) -> List.iter find_labels_n_gotos stmts
+      | TransactionBlock (_, body, None) -> List.iter find_labels_n_gotos body
+      | TransactionBlock (_, body, Some (_, fail_body)) ->
+         let () = List.iter find_labels_n_gotos body in
+         List.iter find_labels_n_gotos fail_body
+      | IfStmt (_, _, body, None) -> List.iter find_labels_n_gotos body
+      | IfStmt (_, _, body, Some (_, ebody)) ->
+         let () = List.iter find_labels_n_gotos body in
+         List.iter find_labels_n_gotos ebody
+      | ForLoop (_, _, _, _, _, _, body) -> List.iter find_labels_n_gotos body
+      | WhileLoop (_, _, _, body) -> List.iter find_labels_n_gotos body
+      | SwitchStmt (_, _, cases) ->
+         List.iter
+           (fun (_, _, _, body) -> List.iter find_labels_n_gotos body)
+           cases
+      | Label (pos, label) -> add_symbol labels label pos
+      | Goto (pos, label) -> add_symbol gotos label pos
+      | _ -> ()
+    in
+    List.iter find_labels_n_gotos stmts;
+    symtab_iter
+      (fun label pos ->
+        if None = lookup_symbol labels label then
+          Report.err_goto_no_dest pos name label)
+      gotos;
+    symtab_iter
+      (fun label pos ->
+        if None = lookup_symbol gotos label then
+          Report.warn_unreferenced_label pos name label)
+      labels
+  in
+  let toplevel = function
+    | DefFcn (_, _, _, name, _, _, body) -> verify name body
+    | _ -> ()
+  in
+  List.iter toplevel prog.prog_ast;
+  prog
+
+(** Remove unused chunks of code and warn the programmer. *)
 let kill_dead_code prog =
   let report_dead_code fcn pos =
     let warn = "Dead code in function \"" ^ fcn ^ "\": "
@@ -1004,5 +1050,6 @@ let return_all_paths prog =
 let scrub stmts =
   let (<<=) x f = f x in
   resolve_types stmts
+  <<= legit_gotos
   <<= kill_dead_code
   <<= return_all_paths
