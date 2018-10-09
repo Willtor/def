@@ -125,6 +125,24 @@ let err_bad_continue pos fcn =
     ("In function, " ^ fcn ^ ", nothing to continue.")
     pos
 
+(** Spawn appeared in a disallowed position in an expression. *)
+let err_bad_spawn_location pos fcn =
+  err_pos
+    ("In function, " ^ fcn ^ ", spawn cannot appear here.")
+    pos
+
+(** Found a spawn inside of a transaction. *)
+let err_spawn_in_transaction pos =
+  err_pos "Spawn is not allowed inside a transaction block." pos
+
+(** Found a parfor inside of a transaction. *)
+let err_parfor_in_transaction pos =
+  err_pos "Parfor is not allowed inside a transaction block." pos
+
+(** Found a sync inside of a transaction. *)
+let err_sync_in_transaction pos =
+  err_pos "Sync is not allowed inside a transaction block." pos
+
 (** Function has no return statement. *)
 let err_no_return pos fcn =
   err_pos ("Function " ^ fcn ^ " needs a return statement.") pos

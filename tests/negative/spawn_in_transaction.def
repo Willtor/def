@@ -1,0 +1,8 @@
+// Negative unit test for a spawn inside of a transaction.
+
+def foo () -> void
+begin
+    atomic begin
+        spawn foo();
+    end
+end

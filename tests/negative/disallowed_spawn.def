@@ -1,0 +1,10 @@
+// Negative unit test for a disallowed spawn.
+
+decl bar (i32) -> void;
+
+decl baz () -> i32;
+
+def foo () -> void
+begin
+    bar(spawn baz());
+end

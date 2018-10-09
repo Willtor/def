@@ -1,0 +1,10 @@
+// Negative unit test for a parfor inside of a transaction.
+
+def foo () -> void
+begin
+    atomic begin
+        parfor  ; true ; do
+            foo();
+        od
+    end
+end

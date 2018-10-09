@@ -890,6 +890,129 @@ let legit_breaks prog =
   List.iter toplevel prog.prog_ast;
   prog
 
+(** Verify that parallel constructs don't appear inside of transactions and
+    only at certain points within expressions. *)
+let legit_parallelism prog =
+  let verify name =
+    let rec check_no_spawn expr =
+      match expr.expr_ast with
+      | ExprNew (dim, _, inits) ->
+         let () = check_no_spawn dim in
+         List.iter (fun (_, e) -> check_no_spawn e) inits
+      | ExprFcnCall (_, _, true) ->
+         Report.err_bad_spawn_location (pos_of_cr expr.expr_cr) name
+      | ExprFcnCall (_, args, _) ->
+         List.iter check_no_spawn args
+      | ExprBuiltinCall (_, args) ->
+         List.iter check_no_spawn args
+      | ExprBinary op ->
+         let () = check_no_spawn op.op_left in
+         check_no_spawn (Util.the op.op_right)
+      | ExprPreUnary op | ExprPostUnary op ->
+         check_no_spawn op.op_left
+      | ExprTernaryCond (cond, a, b) ->
+         List.iter check_no_spawn [cond; a; b]
+      | ExprCast (_, _, e) ->
+         check_no_spawn e
+      | ExprIndex (base, idx) ->
+         let () = check_no_spawn base in
+         check_no_spawn idx
+      | ExprSelectField (base, _) ->
+         check_no_spawn base
+      | ExprStaticStruct (_, members) ->
+         List.iter check_no_spawn members
+      | ExprStaticArray el ->
+         List.iter check_no_spawn el
+      | ExprTypeString e ->
+         check_no_spawn e
+      | _ -> ()
+    in
+    let check_expr can_par pos expr =
+      match expr.expr_ast with
+      | ExprFcnCall (_, args, true) ->
+         begin
+           if not can_par then
+             Report.err_spawn_in_transaction pos;
+           List.iter check_no_spawn args
+         end
+      | ExprBinary { op_op = OperAssign;
+                     op_left = left;
+                     op_right = Some ({ expr_ast =
+                                          ExprFcnCall (_, args, true) })} ->
+         begin
+           if not can_par then
+             Report.err_spawn_in_transaction pos;
+           check_no_spawn left;
+           List.iter check_no_spawn args
+         end
+      | _ ->
+         check_no_spawn expr
+    in
+    let rec traverse can_par = function
+      | StmtExpr (pos, expr) -> check_expr can_par pos expr
+      | Block (_, stmts) -> List.iter (traverse can_par) stmts
+      | VarDecl (tok, _, inits, _, _) ->
+         if 1 = (List.length inits) then
+           check_expr can_par tok.td_pos (List.hd inits)
+         else
+           List.iter check_no_spawn inits
+      | InlineStructVarDecl (tok, _, (_, rhs)) ->
+         check_expr can_par tok.td_pos rhs
+      | TransactionBlock (_, body, None) -> List.iter (traverse false) body
+      | TransactionBlock (_, body, Some (_, fail_body)) ->
+         let () = List.iter (traverse false) body in
+         List.iter (traverse can_par) fail_body
+      | IfStmt (_, cond, body, None) ->
+         let () = check_no_spawn cond in
+         List.iter (traverse can_par) body
+      | IfStmt (_, cond, body, Some (_, ebody)) ->
+         let () = check_no_spawn cond in
+         let () = List.iter (traverse can_par) body in
+         List.iter (traverse can_par) ebody
+      | ForLoop (pos, is_par, init_maybe, (_, cond), iter_maybe, _, body) ->
+         begin
+           if is_par && not can_par then
+             Report.err_parfor_in_transaction pos;
+           let () =
+             match init_maybe with
+             | Some (StmtExpr (_, e)) -> check_no_spawn e
+             | Some (VarDecl (_, _, inits, _, _)) ->
+                List.iter check_no_spawn inits
+             | None -> ()
+             | _ -> Report.err_internal __FILE__ __LINE__ "non-StmtExpr"
+           in
+           check_no_spawn cond;
+           let () =
+             match iter_maybe with
+             | Some (_, e) -> check_no_spawn e
+             | None -> ()
+           in
+           List.iter (traverse can_par) body
+         end
+      | WhileLoop (_, _, cond, body) ->
+         let () = check_no_spawn cond in
+         List.iter (traverse can_par) body
+      | SwitchStmt (_, pattern, cases) ->
+         let () = check_no_spawn pattern in
+         List.iter
+           (fun (_, _, _, body) -> List.iter (traverse can_par) body)
+           cases
+      | Return (_, e) ->
+         check_no_spawn e
+      | Sync pos ->
+         if not can_par then
+           Report.err_sync_in_transaction pos
+      | _ -> ()
+    in
+    List.iter (traverse true)
+  in
+  let toplevel = function
+    | DefFcn (_, _, _, name, _, _, body) -> verify name body
+    | _ -> ()
+  in
+  List.iter toplevel prog.prog_ast;
+  prog
+
 (** Remove unused chunks of code and warn the programmer. *)
 let kill_dead_code prog =
   let report_dead_code fcn pos =
@@ -1090,5 +1213,6 @@ let scrub stmts =
   resolve_types stmts
   <<= legit_gotos
   <<= legit_breaks
+  <<= legit_parallelism
   <<= kill_dead_code
   <<= return_all_paths

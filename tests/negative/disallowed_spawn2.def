@@ -1,0 +1,10 @@
+// Another negative unit test for a disallowed spawn.
+
+decl bar () -> bool;
+
+def foo () -> void
+begin
+    if spawn bar() then
+        foo();
+    fi
+end

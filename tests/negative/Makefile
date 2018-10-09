@@ -11,7 +11,12 @@ UNIT =	undef_fcn	\
 	redefined_var	\
 	bad_goto	\
 	bad_break	\
-	bad_continue
+	bad_continue	\
+	spawn_in_transaction	\
+	sync_in_transaction	\
+	parfor_in_transaction	\
+	disallowed_spawn	\
+	disallowed_spawn2
 
 SMOKE =
 ALL = $(SMOKE) $(UNIT)

@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt disallowed_spawn2.def (line 7 column 13):
+  In function, foo, spawn cannot appear here.
+[33m    if spawn bar() then
+             ^[0m

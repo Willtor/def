@@ -1,0 +1,8 @@
+// Negative unit test for a sync inside of a transaction.
+
+def foo () -> void
+begin
+    atomic begin
+        sync;
+    end
+end

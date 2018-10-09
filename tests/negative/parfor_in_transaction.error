@@ -1,0 +1,5 @@
+[31;1mError:
+[0mAt parfor_in_transaction.def (line 6 column 8):
+  Parfor is not allowed inside a transaction block.
+[33m        parfor  ; true ; do
+        ^[0m
