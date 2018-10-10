@@ -1,0 +1,32 @@
+// Unit test for ternary conditionals (a ? b : c).
+
+import "stdio.h";
+
+def greater_than_two (n i32) -> bool
+begin
+    return n > 2 ? true : false;
+end
+
+export
+def main () -> i32
+begin
+    if greater_than_two(0) then
+        printf("failed 0.\n");
+    fi
+
+    if greater_than_two(-1) then
+        printf("failed -1.\n");
+    fi
+
+    if greater_than_two(2) then
+        printf("failed 2.\n");
+    fi
+
+    if !greater_than_two(4) then
+        printf("failed 4.\n");
+    fi
+
+    printf("done.\n");
+
+    return 0;
+end

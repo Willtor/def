@@ -7,7 +7,8 @@ UNIT =	incr decr neg addrof	\
 	lshift rshift		\
 	compare			\
 	bitwise			\
-	atomic fcn_ptr jump
+	atomic fcn_ptr jump	\
+	ternary
 SMOKE =
 ALL = $(SMOKE) $(UNIT)
 

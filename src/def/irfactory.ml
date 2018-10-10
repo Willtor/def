@@ -973,8 +973,28 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     | ExprBinary op -> llvm_binop scope op
     | ExprPreUnary op -> llvm_unop true scope op
     | ExprPostUnary op -> llvm_unop false scope op
-    | ExprTernaryCond _ ->
-       Report.err_internal __FILE__ __LINE__ "expr_gen ternary."
+    | ExprTernaryCond (cond, yes, no) ->
+       begin
+         let llcond = expr_gen scope true cond in
+         let yes_bb =
+           append_block data.ctx (label_of_pos (pos_of_astexpr yes)) llfcn in
+         let no_bb =
+           append_block data.ctx (label_of_pos (pos_of_astexpr no)) llfcn in
+         let join_bb =
+           append_block data.ctx
+             ((label_of_pos (pos_of_astexpr cond)) ^ ".ternary")
+             llfcn
+         in
+         ignore(build_cond_br llcond yes_bb no_bb data.bldr);
+         set_curr_bb yes_bb;
+         let llyes = expr_gen scope rval yes in
+         ignore(build_br join_bb data.bldr);
+         set_curr_bb no_bb;
+         let llno = expr_gen scope rval no in
+         ignore(build_br join_bb data.bldr);
+         set_curr_bb join_bb;
+         build_phi [(llyes, yes_bb); (llno, no_bb)] "" data.bldr
+       end
     | ExprVar var ->
        let vaddr = get_or_make_val data scope var in
        begin
