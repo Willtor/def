@@ -30,7 +30,7 @@
 %token <Parsetree.tokendata * float> LITERALF32 LITERALF64
 %token <Parsetree.tokendata> IDENT
 %token <Parsetree.tokendata * string> STRING
-%token <Parsetree.tokendata> IMPORT TYPE TYPEDEF ENUM PACKED
+%token <Parsetree.tokendata> IMPORT CAST TYPE TYPEDEF ENUM PACKED
 %token <Parsetree.tokendata> OPAQUE DEF DECL VAR GLOBAL RETURN BEGIN END
 %token <Parsetree.tokendata> IF THEN ELIF ELSE FI
 %token <Parsetree.tokendata> FOR PARFOR WHILE DO OD SWITCH
@@ -255,6 +255,7 @@ expr:
         ptfc_rparen = $4
       }
   }
+| CAST deftype LPAREN expr RPAREN { PTE_Cast ($1, $2, $3, $4, $5) }
 | IDENT { PTE_Var $1 }
 | LPAREN expr RPAREN { $2 }
 | LCURLY exprlist RCURLY { PTE_StaticStruct (None, $1, $2, $3) }

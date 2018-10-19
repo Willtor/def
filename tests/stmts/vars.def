@@ -15,7 +15,7 @@ begin
 
     if foo > 9.0 then
         var foo bool = true;
-        printf("foo (bool) = %d\n", cast(type i32, foo));
+        printf("foo (bool) = %d\n", cast i32 (foo));
     fi
 
     return 0;

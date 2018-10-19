@@ -479,6 +479,11 @@ let of_parsetree =
                               if fcn.ptfc_spawn = None then false else true)
        in
        make_expr e inferred_type ast
+    | PTE_Cast (_, tp, _, expr, _) ->
+       let deftp = deftype_of tp in
+       let defexpr = expr_of expr in
+       let ast = ExprCast (inferred_type, deftp, defexpr) in
+       make_expr e deftp ast
     | PTE_Var var ->
        make_expr e inferred_type (ExprVar var.td_text)
     | PTE_StaticStruct (packed_maybe, lcurly, fields, _) ->

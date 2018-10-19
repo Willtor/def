@@ -372,16 +372,6 @@ let resolve_types stmts =
               | "__builtin_setjmp" -> builtin_ret i32_type
               | "__builtin_longjmp" -> builtin_ret void_type
               | "typestr" -> builtin_ret string_type
-              | "cast" ->
-                 let rettp, e = match resolved_args with
-                   | [{ expr_ast = ExprType t }; e] -> t, e
-                   | _ -> Report.err_bad_args_for_builtin
-                            (pos_of_cr expr.expr_cr) "cast"
-                 in
-                 { expr_cr = expr.expr_cr;
-                   expr_tp = rettp;
-                   expr_ast = ExprCast (e.expr_tp, rettp, e)
-                 }
               | "__builtin_xbegin" -> builtin_ret i32_type
               | "__builtin_xend" -> builtin_ret void_type
               | "__builtin_xabort" ->

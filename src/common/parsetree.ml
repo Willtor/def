@@ -146,6 +146,7 @@ and pt_expr =
   | PTE_String of (tokendata * string)
   | PTE_Wildcard of tokendata
   | PTE_FcnCall of pt_fcn_call
+  | PTE_Cast of tokendata * pt_type * tokendata * pt_expr * tokendata
   | PTE_Var of tokendata
   | PTE_StaticStruct of tokendata option * tokendata * pt_expr list * tokendata
   | PTE_StaticArray of tokendata * pt_expr list * tokendata
@@ -187,6 +188,7 @@ let rec pt_expr_pos = function
   | PTE_String (tok, _)
   | PTE_Wildcard tok
   | PTE_FcnCall { ptfc_name = tok }
+  | PTE_Cast (tok, _, _, _, _)
   | PTE_Var tok
   | PTE_StaticStruct (None, tok, _, _)
   | PTE_StaticStruct (Some tok, _, _, _)
