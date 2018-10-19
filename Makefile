@@ -14,6 +14,9 @@ DEF = def
 DEFGHI = defghi
 LIBHYTM = libhytm.a
 
+INCLUDEFILES =		\
+	include/transaction.defi
+
 COMMON_SRC_DIR = src/common
 COMMONFILES =		\
 	deflex.mll	\
@@ -95,7 +98,9 @@ LIBHYTM_SRC = $(addprefix $(LIBHYTM_BUILD_DIR)/,$(LIBHYTMFILES))
 all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF) $(BINDIR)/$(DEFGHI) \
 	$(LIBDIR)/$(LIBHYTM)
 
-install: $(INSTALL_DIR)/bin/$(DEF) $(INSTALL_DIR)/bin/$(DEFGHI)	\
+install: $(addprefix $(INSTALL_DIR)/,$(INCLUDEFILES))	\
+	$(INSTALL_DIR)/bin/$(DEF)	\
+	$(INSTALL_DIR)/bin/$(DEFGHI)	\
 	$(INSTALL_DIR)/lib/$(LIBHYTM)
 
 test: $(BUILDDIR)/bin/$(DEF)
@@ -113,6 +118,9 @@ $(INSTALL_DIR)/bin/$(DEFGHI): $(BINDIR)/$(DEFGHI)
 	cp $< $@
 
 $(INSTALL_DIR)/lib/$(LIBHYTM): $(LIBDIR)/$(LIBHYTM)
+	cp $< $@
+
+$(INSTALL_DIR)/include/%: include/%
 	cp $< $@
 
 $(BUILDDIR):
