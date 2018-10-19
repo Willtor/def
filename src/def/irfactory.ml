@@ -661,7 +661,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
       let lllhs = expr_gen scope true lhs
       and llrhs = expr_gen scope true rhs
       in
-      let f = select_for_type sfcn ufcn ffcn lhs.expr_tp in
+      let rawtp = concrete_of None data.prog.prog_typemap lhs.expr_tp in
+      let f = select_for_type sfcn ufcn ffcn rawtp in
       f lllhs llrhs name data.bldr
     in
 
@@ -670,7 +671,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
       and llrhs = expr_gen scope true rhs
       in
       let lllhs = build_load_wrapper lhs.expr_tp lladdr "" in
-      let f = select_for_type sfcn ufcn ffcn lhs.expr_tp in
+      let rawtp = concrete_of None data.prog.prog_typemap lhs.expr_tp in
+      let f = select_for_type sfcn ufcn ffcn rawtp in
       let llval = f lllhs llrhs name data.bldr in
       ignore(build_store llval lladdr data.bldr);
       llval
@@ -1391,8 +1393,10 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
         | ExprEnum (_, lit) ->
            let label = label_of_pos @@ pos_of_cr pattern.expr_cr in
            let v = const_literal data.lltypesyms lit in
+           let rawtp =
+             concrete_of None data.prog.prog_typemap pattern.expr_tp in
            let f = select_for_type (build_icmp Icmp.Eq) (build_icmp Icmp.Eq)
-                     (build_fcmp Fcmp.Oeq) pattern.expr_tp
+                     (build_fcmp Fcmp.Oeq) rawtp
            in
            let result = f e v "" data.bldr in
            let succ_bb = append_block data.ctx (label ^ ".succ") llfcn in
@@ -1508,6 +1512,11 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     List.iter (stmt_gen body_scope) body;
     in_transaction_block := false;
     let body_end_bb = Util.the data.curr_bb in
+    if bb_needs_exit body_end_bb then
+      begin
+        let end_f = get_or_make_val data scope hwtm_end in
+        ignore(build_call end_f [| |] "" data.bldr)
+      end;
 
     set_curr_bb begin_bb;
     let begin_f = get_or_make_val data scope hwtm_begin in
@@ -1573,15 +1582,15 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     let final_cond, final_ftest, final_succ =
       List.fold_left process_clause (cond, begin_bb, body_bb) fclauses
     in
-    if bb_needs_exit (Util.the data.curr_bb) then
-      ignore(build_cond_br final_cond final_succ body_bb data.bldr);
+    if bb_needs_exit (Util.the data.curr_bb)
+       && (Util.the data.curr_bb) <> body_end_bb
+    then
+      ignore(build_br begin_bb data.bldr);
 
-    set_curr_bb body_end_bb;
-    if bb_needs_exit body_end_bb then
-      begin
-        let end_f = get_or_make_val data scope hwtm_end in
-        ignore(build_call end_f [| |] "" data.bldr)
-      end
+    set_curr_bb final_ftest;
+    ignore(build_cond_br final_cond final_succ begin_bb data.bldr);
+
+    set_curr_bb body_end_bb
 
   and hybrid_transaction scope pos body fclauses =
     if fclauses <> [] then

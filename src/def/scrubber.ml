@@ -75,13 +75,14 @@ let resolve_types stmts =
   List.iter (fun (nm, tp, _, _, _, _) -> add_symbol pre_typemap nm tp)
     Types.map_builtin_types;
   let read_type = function
-    | TypeDecl (p, nm, ({ bare = DefTypeEnum enums } as tp), _, _) ->
+    | TypeDecl (p, nm, ({ bare = DefTypeEnum enums } as enum), _, _) ->
+       let tp = maketype (Some p) (DefTypeNamed nm) in
        let () =
          List.iteri
            (fun i str -> add_symbol enummap str (i, tp))
            enums
        in
-       add_symbol pre_typemap nm tp
+       add_symbol pre_typemap nm enum
     | TypeDecl (_, nm, tp, _, _) ->
        add_symbol pre_typemap nm tp
     | DeclFcn (p, _, nm, tp, _)
