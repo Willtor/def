@@ -1554,6 +1554,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
            let conf = const_int (i32_type data.ctx) 4 in
            let bit = build_and tx_result conf "" data.bldr in
            build_icmp Icmp.Ugt bit zero "" data.bldr
+        | ExprEnum ("TF_INTERRUPT", _) ->
+           build_icmp Icmp.Eq tx_result zero "" data.bldr
         | ExprEnum ("TF_OVERFLOW", _) ->
            let oflow = const_int (i32_type data.ctx) 8 in
            let bit = build_and tx_result oflow "" data.bldr in
