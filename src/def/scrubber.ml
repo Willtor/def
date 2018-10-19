@@ -736,16 +736,19 @@ let resolve_types stmts =
        in
        InlineStructVarDecl (td, resolved_fields,
                             (p, implicit_cast resolved_tp resolved_rhs))
-    | TransactionBlock (p, body, maybe_fail) ->
-       let resolved_fail =
-         option_map (fun (p, fstmts) ->
-             let failvars = push_symtab_scope varmap in
-             p, List.map (stmt_to_stmt fcn rettp failvars) fstmts)
-           maybe_fail
+    | TransactionBlock (p, body, fail_clauses) ->
+       let resolve_fail (tok, pattern, fstmts) =
+         let rpattern = resolve varmap pattern in
+         if rpattern.expr_tp.bare <> (DefTypeNamed "transaction_failure_t")
+            && rpattern.expr_tp.bare <> DefTypeWildcard then
+           Report.err_transaction_fail_bad_type tok.td_pos
+             (string_of_type rpattern.expr_tp);
+         let failvars = push_symtab_scope varmap in
+         tok, rpattern, List.map (stmt_to_stmt fcn rettp failvars) fstmts
        in
        let bodyvars = push_symtab_scope varmap in
-       let resolved_body = List.map (stmt_to_stmt fcn rettp bodyvars) body in
-       TransactionBlock (p, resolved_body, resolved_fail)
+       let rbody = List.map (stmt_to_stmt fcn rettp bodyvars) body in
+       TransactionBlock (p, rbody, List.map resolve_fail fail_clauses)
     | IfStmt (p, cond, ifbody, elsebody_maybe) ->
        let rcond = resolve varmap cond in
        let () = check_castability true bool_type rcond in
@@ -815,10 +818,12 @@ let legit_gotos prog =
     let gotos = make_symtab () in
     let rec find_labels_n_gotos = function
       | Block (_, stmts) -> List.iter find_labels_n_gotos stmts
-      | TransactionBlock (_, body, None) -> List.iter find_labels_n_gotos body
-      | TransactionBlock (_, body, Some (_, fail_body)) ->
+      | TransactionBlock (_, body, fclauses) ->
          let () = List.iter find_labels_n_gotos body in
-         List.iter find_labels_n_gotos fail_body
+         List.iter
+           (fun (_, _, fbody) ->
+             List.iter find_labels_n_gotos fbody)
+           fclauses
       | IfStmt (_, _, body, None) -> List.iter find_labels_n_gotos body
       | IfStmt (_, _, body, Some (_, ebody)) ->
          let () = List.iter find_labels_n_gotos body in
@@ -857,10 +862,11 @@ let legit_breaks prog =
   let verify name body =
     let rec traverse can_break = function
       | Block (_, stmts) -> List.iter (traverse can_break) stmts
-      | TransactionBlock (_, body, None) -> List.iter (traverse can_break) body
-      | TransactionBlock (_, body, Some (_, fail_body)) ->
+      | TransactionBlock (_, body, fclauses) ->
          let () = List.iter (traverse can_break) body in
-         List.iter (traverse can_break) fail_body
+         List.iter
+           (fun (_, _, fstmts) -> List.iter (traverse can_break) fstmts)
+           fclauses
       | IfStmt (_, _, body, None) -> List.iter (traverse can_break) body
       | IfStmt (_, _, body, Some (_, ebody)) ->
          let () = List.iter (traverse can_break) body in
@@ -958,10 +964,11 @@ let legit_parallelism prog =
            List.iter check_no_spawn inits
       | InlineStructVarDecl (tok, _, (_, rhs)) ->
          check_expr can_par tok.td_pos rhs
-      | TransactionBlock (_, body, None) -> List.iter (traverse false) body
-      | TransactionBlock (_, body, Some (_, fail_body)) ->
+      | TransactionBlock (_, body, fclauses) ->
          let () = List.iter (traverse false) body in
-         List.iter (traverse can_par) fail_body
+         List.iter
+           (fun (_, _, fstmts) -> List.iter (traverse can_par) fstmts)
+           fclauses
       | IfStmt (_, cond, body, None) ->
          let () = check_no_spawn cond in
          List.iter (traverse can_par) body
@@ -1037,12 +1044,13 @@ let kill_dead_code prog =
          proc (stmt :: accum) rest
       | InlineStructVarDecl _ as stmt :: rest ->
          proc (stmt :: accum) rest
-      | TransactionBlock (pos, body, None) :: rest ->
-         let stmt = TransactionBlock (pos, proc [] body, None) in
-         proc (stmt :: accum) rest
-      | TransactionBlock (pos, body, Some (fpos, fbody)) :: rest ->
-         let stmt = TransactionBlock (pos, proc [] body,
-                                      Some (fpos, proc [] fbody)) in
+      | TransactionBlock (pos, body, fclauses) :: rest ->
+         let pfclauses =
+           List.map
+             (fun (tok, pattern, fstmts) -> tok, pattern, proc [] fstmts)
+             fclauses
+         in
+         let stmt = TransactionBlock (pos, proc [] body, pfclauses) in
          proc (stmt :: accum) rest
       | IfStmt (pos, cond, thenblk, maybe_else) :: rest ->
          let stmt = IfStmt (pos, cond, proc [] thenblk,
@@ -1103,12 +1111,11 @@ let return_all_paths prog =
     | DefFcn _ :: rest -> contains_break_p rest
     | VarDecl _ :: rest -> contains_break_p rest
     | InlineStructVarDecl _ :: rest -> contains_break_p rest
-    | TransactionBlock (_, body, None) :: rest ->
-       contains_break_p body || contains_break_p rest
-    | TransactionBlock (_, body, Some (_, txfail)) :: rest ->
+    | TransactionBlock (_, body, fclauses) :: rest ->
+       let clause_contains curr (_, _, fstmts) =
+         curr || (contains_break_p fstmts) in
        contains_break_p body
-       || contains_break_p txfail
-       || contains_break_p rest
+       || List.fold_left clause_contains false fclauses
     | IfStmt (_, _, then_block, None) :: rest ->
        contains_break_p then_block || contains_break_p rest
     | IfStmt (_, _, then_block, Some (_, else_block)) :: rest ->
@@ -1144,9 +1151,10 @@ let return_all_paths prog =
         | DefFcn _ -> false
         | VarDecl _ -> false
         | InlineStructVarDecl _ -> false
-        | TransactionBlock (_, body, None) -> returns_p body
-        | TransactionBlock (_, body, Some (_, txfail)) ->
-           returns_p body && returns_p txfail
+        | TransactionBlock (_, body, fclauses) ->
+           let clause_returns agg (_, _, fstmts) = agg && returns_p fstmts in
+           returns_p body
+           && List.fold_left clause_returns true fclauses
         | IfStmt (_, _, _, None) -> false
         | IfStmt (_, _, then_stmts, Some (_, else_stmts)) ->
            returns_p then_stmts && returns_p else_stmts

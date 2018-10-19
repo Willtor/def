@@ -98,7 +98,8 @@ type stmt =
   | InlineStructVarDecl of Parsetree.tokendata
                            * (position * string * Types.deftype) list
                            * (position * expr)
-  | TransactionBlock of position * stmt list * (position * stmt list) option
+  | TransactionBlock of position * stmt list
+                        * (Parsetree.tokendata * expr * stmt list) list
   | IfStmt of position * expr * stmt list * (position * stmt list) option
   (* ForLoop: start-pos * is_parallel * init * cond * iter * body *)
   | ForLoop of position * bool * stmt option * (position * expr)
@@ -279,11 +280,13 @@ let of_parsetree =
     | PTS_RetireExpr (r, e, _) ->
        let ast = ExprFcnCall ("forkscan_retire", [ expr_of e ], false) in
        StmtExpr (r.td_pos, make_inserted_expr e void_type ast)
-    | PTS_Transaction (atomic, xbegin, stmts, xend) ->
-       TransactionBlock (atomic.td_pos, List.map stmt_of stmts, None)
-    | PTS_TransactionFail (atomic, xbegin, stmts, xfail, fstmts, xend) ->
-       let failure = xfail.td_pos, List.map stmt_of fstmts in
-       TransactionBlock (atomic.td_pos, List.map stmt_of stmts, Some failure)
+    | PTS_Transaction (atomic, xbegin, stmts, failclauses, xend) ->
+       let clausify (ftok, pattern, _, stmts) =
+         (ftok, expr_of pattern, List.map stmt_of stmts)
+       in
+       TransactionBlock (atomic.td_pos,
+                         List.map stmt_of stmts,
+                         List.map clausify failclauses)
     | PTS_IfStmt (iftok, cond, _, stmts, elifs, maybe_else, _) ->
        let else_clause = match maybe_else with
          | None -> None

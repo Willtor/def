@@ -115,7 +115,8 @@ rule deflex = parse
 | "new" as tok { NEW (get_token_data tok lexbuf) }
 | "delete" as tok { DELETE (get_token_data tok lexbuf) }
 | "retire" as tok { RETIRE (get_token_data tok lexbuf) }
-| "fail" as tok { FAIL (get_token_data tok lexbuf) }
+| "xfail" as tok { XFAIL (get_token_data tok lexbuf) }
+| "ofail" as tok { OFAIL (get_token_data tok lexbuf) }
 | "nil" as tok { NIL (get_token_data tok lexbuf) }
 | "volatile" as tok { VOLATILE (get_token_data tok lexbuf) }
 | "atomic" as tok { ATOMIC (get_token_data tok lexbuf) }

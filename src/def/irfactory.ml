@@ -720,7 +720,6 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        begin
          let label = label_of_pos op.op_pos in
          let lllhs = expr_gen scope true lhs in
-         let notlllhs = build_not lllhs "" data.bldr in
          let lbb = Util.the data.curr_bb in
          let rbb_start = append_block data.ctx (label ^ ".rhs") llfcn in
          data.curr_bb <- Some rbb_start;
@@ -733,7 +732,7 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
          ignore(build_cond_br lllhs rbb_start phibb data.bldr);
          data.curr_bb <- Some phibb;
          position_at_end phibb data.bldr;
-         build_phi [(notlllhs, lbb); (llrhs, rbb)] "" data.bldr
+         build_phi [(lllhs, lbb); (llrhs, rbb)] "" data.bldr
        end
     | OperLogicalOr ->
        begin
@@ -1171,11 +1170,11 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
            let v = build_load_wrapper deftype lladdr "" in
            ignore(build_store v llvar data.bldr))
          fields
-    | TransactionBlock (p, body, fail) ->
+    | TransactionBlock (pos, body, fclauses) ->
        begin
          match !xact_kind with
-         | XACT_HARDWARE -> hardware_transaction scope p body fail
-         | XACT_HYBRID -> hybrid_transaction scope p body fail
+         | XACT_HARDWARE -> hardware_transaction scope pos body fclauses
+         | XACT_HYBRID -> hybrid_transaction scope pos body fclauses
          | XACT_SOFTWARE ->
             Report.err_internal __FILE__ __LINE__
               "software transactions not implemented"
@@ -1497,8 +1496,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     if !follow <> None then
       set_curr_bb (Util.the !follow)
 
-  and hardware_transaction scope p body fail =
-    let label = label_of_pos p in
+  and hardware_transaction scope pos body fclauses =
+    let label = label_of_pos pos in
     let begin_bb = append_block data.ctx (label ^ ".xact_begin") llfcn in
     ignore(build_br begin_bb data.bldr);
 
@@ -1510,23 +1509,72 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     in_transaction_block := false;
     let body_end_bb = Util.the data.curr_bb in
 
-    let fail_bb =
-      match fail with
-      | None -> begin_bb
-      | Some (p, failblock) ->
-         let fail_begin = append_block data.ctx (label ^ ".xact_fail") llfcn in
-         let fail_scope = push_symtab_scope scope in
-         let () = List.iter (stmt_gen fail_scope) failblock in
-         if bb_needs_exit (Util.the data.curr_bb) then
-           ignore(build_br begin_bb data.bldr);
-         fail_begin
-    in
     set_curr_bb begin_bb;
     let begin_f = get_or_make_val data scope hwtm_begin in
-    let ret = build_call begin_f [| |] "" data.bldr in
+    let tx_result = build_call begin_f [| |] "" data.bldr in
     let neg_one = const_int (i32_type data.ctx) (-1) in
-    let cond = build_icmp Icmp.Eq ret neg_one "" data.bldr in
-    ignore(build_cond_br cond body_bb fail_bb data.bldr);
+    let cond = build_icmp Icmp.Eq tx_result neg_one "" data.bldr in
+
+    let process_clause
+          (prev_cond, prev_ftest, prev_succ)
+          (tok, pattern, fbody) =
+
+      let label = label_of_pos tok.td_pos in
+      let ftest = append_block data.ctx (label ^ ".ftest") llfcn in
+      let succ = append_block data.ctx (label ^ ".succ") llfcn in
+
+      if bb_needs_exit (Util.the data.curr_bb)
+         && (Util.the data.curr_bb) <> body_end_bb
+      then
+        if tok.td_text = "ofail" then ignore(build_br succ data.bldr)
+        else ignore(build_br begin_bb data.bldr);
+
+      set_curr_bb prev_ftest;
+      ignore(build_cond_br prev_cond prev_succ ftest data.bldr);
+
+      set_curr_bb ftest;
+      let zero = const_null (i32_type data.ctx) in
+      let cond =
+        match pattern.expr_ast with
+        | ExprWildcard -> const_int (i1_type data.ctx) 1
+        | ExprEnum ("TF_ABORT", _) ->
+           let abrt = const_int (i32_type data.ctx) 1 in
+           let bit = build_and tx_result abrt "" data.bldr in
+           build_icmp Icmp.Ugt bit zero "" data.bldr
+        | ExprEnum ("TF_CONFLICT", _) ->
+           let conf = const_int (i32_type data.ctx) 4 in
+           let bit = build_and tx_result conf "" data.bldr in
+           build_icmp Icmp.Ugt bit zero "" data.bldr
+        | ExprEnum ("TF_OVERFLOW", _) ->
+           let oflow = const_int (i32_type data.ctx) 8 in
+           let bit = build_and tx_result oflow "" data.bldr in
+           build_icmp Icmp.Ugt bit zero "" data.bldr
+        | ExprEnum ("TF_SPURIOUS", _) ->
+           let spur = const_int (i32_type data.ctx) 2 in
+           let bit = build_and tx_result spur "" data.bldr in
+           build_icmp Icmp.Ugt bit zero "" data.bldr
+        | ExprEnum ("TF_DEBUG", _) ->
+           let dbg = const_int (i32_type data.ctx) 16 in
+           let bit = build_and tx_result dbg "" data.bldr in
+           build_icmp Icmp.Ugt bit zero "" data.bldr
+        | _ ->
+           Report.err_internal __FILE__ __LINE__
+             "Unexpected pattern in a fail block."
+      in
+
+      set_curr_bb succ;
+      let fscope = push_symtab_scope scope in
+      List.iter (stmt_gen fscope) fbody;
+
+      cond, ftest, succ
+    in
+
+    set_curr_bb body_end_bb;
+    let final_cond, final_ftest, final_succ =
+      List.fold_left process_clause (cond, begin_bb, body_bb) fclauses
+    in
+    if bb_needs_exit (Util.the data.curr_bb) then
+      ignore(build_cond_br final_cond final_succ body_bb data.bldr);
 
     set_curr_bb body_end_bb;
     if bb_needs_exit body_end_bb then
@@ -1535,8 +1583,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
         ignore(build_call end_f [| |] "" data.bldr)
       end
 
-  and hybrid_transaction scope p body fail =
-    if fail <> None then
+  and hybrid_transaction scope pos body fclauses =
+    if fclauses <> [] then
       Report.err_internal __FILE__ __LINE__
         "fail transaction blocks in hybrid transactions not yet implemented.";
 

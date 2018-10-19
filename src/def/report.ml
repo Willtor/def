@@ -102,6 +102,13 @@ let err_global_local_var_decl pos =
 let err_no_init_on_inferred_type pos =
   err_pos "Cannot infer variable type without an initializer." pos
 
+(** Specified an incompatible type to a transaction fail pattern. *)
+let err_transaction_fail_bad_type pos typestr =
+  err_pos
+    ("Type " ^ typestr ^ " is incompatible with a failure pattern.  "
+     ^ "Expected transaction_failure_t or a wildcard (_).")
+    pos
+
 let err_multiple_volatile_keywords pos =
   err_pos ("Keyword 'volatile' cannot be specified multiple times.  "
            ^ "This is probably a typo.")

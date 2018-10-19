@@ -73,7 +73,8 @@ type stmt =
   | InlineStructVarDecl of Parsetree.tokendata
                            * (position * string * Types.deftype) list
                            * (position * expr)
-  | TransactionBlock of position * stmt list * (position * stmt list) option
+  | TransactionBlock of position * stmt list
+                        * (Parsetree.tokendata * expr * stmt list) list
   | IfStmt of position * expr * stmt list * (position * stmt list) option
   (* ForLoop: start-pos * is_parallel * init * cond * iter * body *)
   | ForLoop of position * bool * stmt option * (position * expr)
