@@ -185,11 +185,7 @@ let parse_def_file file =
   let infile = try open_in file
                with _ -> Report.err_unable_to_open_file file
   in
-  let parsetree =
-    let lexbuf = set_fname file (Lexing.from_channel infile) in
-    try (defparse deflex) lexbuf
-    with _ -> Report.err_syntax (lexeme_start_p lexbuf)
-  in
+  let parsetree = Frontend.from_in_channel file infile in
   close_in infile;
   parsetree
 

@@ -23,6 +23,8 @@ COMMONFILES =		\
 	defparse.mly	\
 	error.ml	\
 	error.mli	\
+	frontend.ml	\
+	frontend.mli	\
 	Makefile	\
 	operator.ml	\
 	operator.mli	\
