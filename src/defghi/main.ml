@@ -53,28 +53,11 @@ let syntax_error pos = err_pos "Syntax error:" pos
 let file_open_error file =
   fatal_error ("Unable to open file \"" ^ file ^ "\".")
 
-let set_fname file lexbuf =
-  lexbuf.lex_start_p <- { pos_fname = file;
-                          pos_lnum = lexbuf.lex_start_p.pos_lnum;
-                          pos_bol = lexbuf.lex_start_p.pos_bol;
-                          pos_cnum = lexbuf.lex_start_p.pos_cnum };
-  lexbuf.lex_curr_p <- { pos_fname = file;
-                         pos_lnum = lexbuf.lex_curr_p.pos_lnum;
-                         pos_bol = lexbuf.lex_curr_p.pos_bol;
-                         pos_cnum = lexbuf.lex_curr_p.pos_cnum };
-  lexbuf
-
 let parse_def_file file =
-  (* FIXME: Need to unify this code with the [nearly] identical code in
-     the compiler source. *)
   let infile = try open_in file
                with _ -> file_open_error file
   in
-  let parsetree =
-    let lexbuf = set_fname file (Lexing.from_channel infile) in
-    try (defparse deflex) lexbuf
-    with _ -> syntax_error (lexeme_start_p lexbuf)
-  in
+  let parsetree = Frontend.from_in_channel file infile in
   close_in infile;
   parsetree
 
