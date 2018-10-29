@@ -29,8 +29,7 @@ let ident_token_of = function
 let define stubindings = function
   | [(StuIdent id); value] ->
      let binding =
-       { sb_kind = BKExpr;
-         sb_syms = [id];
+       { sb_syms = [id];
          sb_body = value
        }
      in
@@ -41,30 +40,7 @@ let define stubindings = function
      Error.fatal_error "FIXME: Need suitable error."
 
 let master_lexer depth stubindings lexbuf =
-  let store at = function
-    | StuSexpr ((StuIdent fcn) :: _) as sexpr ->
-       let binding =
-         try Hashtbl.find stubindings fcn.td_text
-         with _ ->
-           Error.fatal_error "FIXME: Need suitable error."
-       in
-       begin
-         match binding.sb_kind with
-         | BKExpr -> Some (STU_EXPR (at, sexpr))
-       end
-    | (StuIdent tok) as atom ->
-       let binding =
-         try Hashtbl.find stubindings tok.td_text
-         with _ ->
-           Error.fatal_error "FIXME: Need suitable error."
-       in
-       begin
-         match binding.sb_kind with
-         | BKExpr -> Some (STU_EXPR (at, atom))
-       end
-    | _ ->
-       Error.fatal_error "internal error."
-  in
+  let store at sexpr = Some (STU_EXPR (at, sexpr)) in
 
   let store_or_stash at sexpr =
     match sexpr with

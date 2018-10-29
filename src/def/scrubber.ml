@@ -345,15 +345,11 @@ let resolve_types ast =
             Report.err_internal __FILE__ __LINE__
               "Need suitable error -- 'unknown STU symbol.'"
          | Some binding ->
-            if binding.sb_kind <> BKExpr then
-              Report.err_internal __FILE__ __LINE__
-                "not an expression."
-            else
-              let tp, ast = expr_of_stu bindings binding.sb_body in
-              { expr_cr = expr.expr_cr;
-                expr_tp = tp;
-                expr_ast = ast
-              }
+            let tp, ast = expr_of_stu bindings binding.sb_body in
+            { expr_cr = expr.expr_cr;
+              expr_tp = tp;
+              expr_ast = ast
+            }
        end
     | ExprStu sexpr ->
        let tp, ast = expr_of_stu bindings sexpr in
