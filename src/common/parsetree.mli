@@ -12,7 +12,16 @@ type pt_field =
   | PT_FieldString of tokendata
   | PT_FieldInt of tokendata * tokendata * int32 * tokendata
 
-type pt_stmt =
+type binding_kind =
+  | BKExpr
+
+(** STU meta program. *)
+type stu =
+  | StuSexpr of stu list
+  | StuInt of tokendata
+  | StuIdent of tokendata
+
+and pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of
@@ -111,6 +120,7 @@ and pt_field_init =
   }
 
 and pt_expr =
+  | PTE_StuExpr of tokendata * stu
   | PTE_New of tokendata * pt_type
                * (tokendata * pt_field_init list * tokendata) option
   | PTE_Nil of tokendata
@@ -139,6 +149,15 @@ and pt_expr =
   | PTE_PreUni of (Operator.t * tokendata) * pt_expr
   | PTE_Bin of pt_expr * tokendata option * (Operator.t * tokendata) * pt_expr
   | PTE_TernaryCond of pt_expr * tokendata * pt_expr * tokendata * pt_expr
+
+type binding =
+  { sb_kind : binding_kind;
+    sb_syms : tokendata list;
+    sb_body : stu
+  }
+
+(** Return a string representation of the STU. *)
+val string_of_stu : stu -> string
 
 val pt_type_pos : pt_type -> Lexing.position
 val pt_expr_pos : pt_expr -> Lexing.position

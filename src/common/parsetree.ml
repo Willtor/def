@@ -29,7 +29,16 @@ type pt_field =
   | PT_FieldString of tokendata
   | PT_FieldInt of tokendata * tokendata * int32 * tokendata
 
-type pt_stmt =
+type binding_kind =
+  | BKExpr
+
+(** STU meta program. *)
+type stu =
+  | StuSexpr of stu list
+  | StuInt of tokendata
+  | StuIdent of tokendata
+
+and pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of
@@ -128,6 +137,7 @@ and pt_fcn_call =
   }
 
 and pt_expr =
+  | PTE_StuExpr of tokendata * stu
   | PTE_New of tokendata * pt_type
                * (tokendata * pt_field_init list * tokendata) option
   | PTE_Nil of tokendata
@@ -157,6 +167,22 @@ and pt_expr =
   | PTE_Bin of pt_expr * tokendata option * (Operator.t * tokendata) * pt_expr
   | PTE_TernaryCond of pt_expr * tokendata * pt_expr * tokendata * pt_expr
 
+type binding =
+  { sb_kind : binding_kind;
+    sb_syms : tokendata list;
+    sb_body : stu
+  }
+
+(** Return a string representation of the STU. *)
+let rec string_of_stu = function
+  | StuSexpr sexpr ->
+     let strs = List.map string_of_stu sexpr in
+     "[" ^ (String.concat " " strs) ^ "]"
+  | StuInt tok ->
+     tok.td_text
+  | StuIdent tok ->
+     tok.td_text
+
 let pt_type_pos = function
   | PTT_Fcn (tok, _, _, _, _)
   | PTT_Volatile (tok, _)
@@ -171,6 +197,7 @@ let pt_type_pos = function
      tok.td_pos
 
 let rec pt_expr_pos = function
+  | PTE_StuExpr (tok, _)
   | PTE_New (tok, _, _)
   | PTE_Nil tok
   | PTE_Type (tok, _)

@@ -3,4 +3,4 @@ type program =
     prog_ast     : Ast.stmt list
   }
 
-val scrub : Ast.stmt list -> program
+val scrub : Parsetree.binding Util.symtab * Ast.stmt list -> program

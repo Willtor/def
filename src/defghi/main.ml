@@ -57,7 +57,10 @@ let parse_def_file file =
   let infile = try open_in file
                with _ -> file_open_error file
   in
-  let parsetree = Frontend.from_in_channel file infile in
+  (* FIXME: Will have to do what we're doing in the DEF compiler, here, since
+     meta-language bindings will be relevant.  Recursively parse the file and
+     do all the checking/evaluating. *)
+  let _, parsetree = Frontend.from_in_channel file infile in
   close_in infile;
   parsetree
 

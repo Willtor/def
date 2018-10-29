@@ -61,6 +61,7 @@ and expr =
   }
 
 and ast_expr =
+  | ExprStu of Parsetree.stu
   | ExprNew of (*array dim=*)expr * Types.deftype
                * (Parsetree.tokendata * expr) list
   | ExprFcnCall of string * expr list * (*spawn=*)bool
@@ -433,6 +434,9 @@ let of_parsetree =
 
   and expr_of e =
     match e with
+    | PTE_StuExpr (at, sexpr) ->
+       let ast = ExprStu sexpr in
+       make_expr e inferred_type ast
     | PTE_New (newtok, tp, init_p) ->
        let init = match init_p with
          | None -> []

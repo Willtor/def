@@ -185,30 +185,31 @@ let parse_def_file file =
   let infile = try open_in file
                with _ -> Report.err_unable_to_open_file file
   in
-  let parsetree = Frontend.from_in_channel file infile in
+  let bindings, parsetree = Frontend.from_in_channel file infile in
   close_in infile;
-  parsetree
+  bindings, parsetree
 
 let recursive_parse_def_file file =
   let cfiles = Hashtbl.create 8 in
   let rec do_parse file pos =
-    let proc parsetree = function
+    let proc (bind_accum, pt_accum) = function
       | PTS_Import (_, (tok, str), _) ->
          let subfile = findfile str (Filename.dirname file) tok.td_pos in
-         (do_parse subfile tok.td_pos) @ parsetree
-      | _ -> parsetree
+         let bindings, parsetree = do_parse subfile tok.td_pos in
+         bindings @ bind_accum, parsetree @ pt_accum
+      | _ -> bind_accum, pt_accum
     in
     match extension file with
     | ".def" | ".defi" ->
-       let parsetree = parse_def_file file in
-       List.fold_left proc (Ast.of_parsetree parsetree) parsetree
+       let bindings, parsetree = parse_def_file file in
+       List.fold_left proc ([bindings], Ast.of_parsetree parsetree) parsetree
     | ".h" ->
        let full_path_to_file = full_path file in
-       let () = Hashtbl.add cfiles full_path_to_file pos in []
+       let () = Hashtbl.add cfiles full_path_to_file pos in [], []
     | _ -> Report.err_internal __FILE__ __LINE__
                                "Need appropriate error message."
   in
-  let def_ast = do_parse file Util.faux_pos in
+  let bindings, def_ast = do_parse file Util.faux_pos in
   let cfile_str =
     Hashtbl.fold
       (fun f p accum ->
@@ -228,10 +229,17 @@ let recursive_parse_def_file file =
         Ast.of_cimport @@ import_c_file tmpfile !import_dirs
       with _ -> Report.err_parsing_c ()
   in
-  List.rev_append cimport_ast def_ast
+  let merge_tables table_list =
+    let symbols = make_symtab () in
+    let add k v = add_symbol symbols k v in
+    List.iter (Hashtbl.iter add) (List.rev table_list);
+    symbols
+  in
+  merge_tables bindings, List.rev_append cimport_ast def_ast
 
 let llmodule_of_ast infile ast =
-  let stmts = scrub (add_builtin_fcns ast) in
+  let bindings, parsetree = ast in
+  let stmts = scrub (bindings, (add_builtin_fcns parsetree)) in
   let mdl = ir_of_ast infile stmts in
   let () = Iropt.optimize mdl in
   mdl

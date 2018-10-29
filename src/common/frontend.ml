@@ -19,10 +19,106 @@
 open Deflex
 open Defparse
 open Lexing
+open Parsetree
+
+let ident_token_of = function
+  | StuIdent tok -> tok
+  | _ ->
+     Error.fatal_error "FIXME: Need suitable error. ident_token_of"
+
+let define stubindings = function
+  | [(StuIdent id); value] ->
+     let binding =
+       { sb_kind = BKExpr;
+         sb_syms = [id];
+         sb_body = value
+       }
+     in
+     Hashtbl.add stubindings id.td_text binding
+  | [(StuInt tok) ; _] ->
+     Error.fatal_error "FIXME: Need suitable error."
+  | _ ->
+     Error.fatal_error "FIXME: Need suitable error."
+
+let master_lexer depth stubindings lexbuf =
+  let store at = function
+    | StuSexpr ((StuIdent fcn) :: _) as sexpr ->
+       let binding =
+         try Hashtbl.find stubindings fcn.td_text
+         with _ ->
+           Error.fatal_error "FIXME: Need suitable error."
+       in
+       begin
+         match binding.sb_kind with
+         | BKExpr -> Some (STU_EXPR (at, sexpr))
+       end
+    | (StuIdent tok) as atom ->
+       let binding =
+         try Hashtbl.find stubindings tok.td_text
+         with _ ->
+           Error.fatal_error "FIXME: Need suitable error."
+       in
+       begin
+         match binding.sb_kind with
+         | BKExpr -> Some (STU_EXPR (at, atom))
+       end
+    | _ ->
+       Error.fatal_error "internal error."
+  in
+
+  let store_or_stash at sexpr =
+    match sexpr with
+    | StuSexpr ((StuIdent fcn) :: rest) ->
+       begin
+         match fcn.td_text with
+         | "define" ->
+            (define stubindings rest; None)
+         | _ ->
+            store at sexpr
+       end
+    | _ ->
+       Error.fatal_error "FIXME: Need suitable error.  Malformed s-expr."
+  in
+
+  let rec base_deflex () =
+    try deflex lexbuf
+    with BeginStu at ->
+      match base_stulex at with
+      | None -> base_deflex ()
+      | Some token -> token
+
+  and base_stulex at =
+    let rec stuparse accum =
+      match stulex lexbuf with
+      | StuLexOpen _ ->
+         let sexpr = stuparse [] in
+         stuparse (sexpr :: accum)
+      | StuLexClose _ ->
+         StuSexpr (List.rev accum)
+      | StuLexInt tok ->
+         let v = StuInt tok in
+         stuparse (v :: accum)
+      | StuLexIdent tok ->
+         let v = StuIdent tok in
+         stuparse (v :: accum)
+    in
+    match stulex lexbuf with
+    | StuLexOpen _ ->
+       let sexpr = stuparse [] in
+       store_or_stash at sexpr
+    | StuLexClose tok ->
+       Error.err_pos "No matching open square bracket." tok.td_pos
+    | StuLexInt tok ->
+       Error.err_pos "Not a function or DEF value." tok.td_pos
+    | StuLexIdent tok ->
+       store at (StuIdent tok)
+  in
+  base_deflex ()
 
 (** Generate a parse tree from the given input channel/filename. *)
 let from_in_channel filename channel =
   let lexbuf = Lexing.from_channel channel in
+  let stubindings = Hashtbl.create 32 in
   lexbuf.lex_start_p <-
     { pos_fname = filename;
       pos_lnum = lexbuf.lex_start_p.pos_lnum;
@@ -35,7 +131,7 @@ let from_in_channel filename channel =
       pos_bol = lexbuf.lex_curr_p.pos_bol;
       pos_cnum = lexbuf.lex_curr_p.pos_cnum
     };
-  try defparse deflex lexbuf
+  try stubindings, defparse (master_lexer 0 stubindings) lexbuf
   with _ ->
     let pos = lexeme_start_p lexbuf in
     let posstr = Error.format_position pos in

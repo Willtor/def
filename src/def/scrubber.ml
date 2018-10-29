@@ -29,6 +29,11 @@ type program =
     prog_ast     : Ast.stmt list
   }
 
+type stu_val =
+  | SVFalse
+  | SVBinding of binding
+  | SVI32 of int32
+
 exception NoReturn
 
 (** Basic types. *)
@@ -67,7 +72,31 @@ let position_of_stmt = function
     -> pos
   | Import (tok, _) -> tok.td_pos
 
-let resolve_types stmts =
+let rec eval_stu bindings = function
+  | StuSexpr sexpr ->
+     if sexpr = [] then SVFalse
+     else
+       Report.err_internal __FILE__ __LINE__ "Not implemented yet."
+  | StuInt tok ->
+     SVI32 (Int32.of_string tok.td_text)
+  | StuIdent tok ->
+     begin
+       match lookup_symbol bindings tok.td_text with
+       | Some binding -> SVBinding binding
+       | None ->
+          Report.err_internal __FILE__ __LINE__
+            "FIXME: suitable error for 'unknown STU symbol.'"
+     end
+
+let expr_of_stu bindings stu =
+  match eval_stu bindings stu with
+  | SVFalse -> bool_type, ExprLit (LitBool false)
+  | SVBinding binding ->
+     Report.err_internal __FILE__ __LINE__ "binding."
+  | SVI32 i32 -> i32_type, ExprLit (LitI32 i32)
+
+let resolve_types ast =
+  let bindings, stmts = ast in
   let pre_typemap = make_symtab () in
   let typemap = make_symtab () in
   let enummap = make_symtab () in
@@ -309,6 +338,29 @@ let resolve_types stmts =
   (* Resolve types of expressions and all subexpressions. *)
   let rec resolve varmap expr =
     match expr.expr_ast with
+    | ExprStu (StuIdent tok) ->
+       begin
+         match lookup_symbol bindings tok.td_text with
+         | None ->
+            Report.err_internal __FILE__ __LINE__
+              "Need suitable error -- 'unknown STU symbol.'"
+         | Some binding ->
+            if binding.sb_kind <> BKExpr then
+              Report.err_internal __FILE__ __LINE__
+                "not an expression."
+            else
+              let tp, ast = expr_of_stu bindings binding.sb_body in
+              { expr_cr = expr.expr_cr;
+                expr_tp = tp;
+                expr_ast = ast
+              }
+       end
+    | ExprStu sexpr ->
+       let tp, ast = expr_of_stu bindings sexpr in
+       { expr_cr = expr.expr_cr;
+         expr_tp = tp;
+         expr_ast = ast
+       }
     | ExprNew (dim, tp, inits) ->
        let resolved_inits =
          match (concrete_of None typemap tp).bare with
@@ -1207,9 +1259,9 @@ let return_all_paths prog =
     prog_ast = List.map toplevel prog.prog_ast
   }
 
-let scrub stmts =
+let scrub ast =
   let (<<=) x f = f x in
-  resolve_types stmts
+  resolve_types ast
   <<= legit_gotos
   <<= legit_breaks
   <<= legit_parallelism

@@ -21,6 +21,16 @@
   open Lexing
   open Parsetree
 
+  type stutoken =
+    | StuLexOpen of Parsetree.tokendata
+    | StuLexClose of Parsetree.tokendata
+    | StuLexInt of Parsetree.tokendata
+    | StuLexIdent of Parsetree.tokendata
+
+  (* Exception gets raised when an STU is detected.  A simple parser reads
+     the STU to completion before the main DEF parser gets its token. *)
+  exception BeginStu of Parsetree.tokendata
+
   (** Escaped character was unknown. *)
   let err_bad_escaped_char pos c =
     Error.err_pos ("Escaped (backslash'd) the char, " ^ (Char.escaped c)
@@ -57,6 +67,12 @@
   let noncode : string list ref = ref []
 
   let push_noncode s = noncode := s :: !noncode
+
+  let raw_token text lexbuf =
+    { td_pos = lexeme_start_p lexbuf;
+      td_text = text;
+      td_noncode = []
+    }
 
   let get_token_data text lexbuf =
     let nc = !noncode in
@@ -256,5 +272,16 @@ rule deflex = parse
 | '{' as tok { LCURLY (get_token_data (strify tok) lexbuf) }
 | '}' as tok { RCURLY (get_token_data (strify tok) lexbuf) }
 | ';' as tok { SEMICOLON (get_token_data (strify tok) lexbuf) }
+| '@' as tok { raise (BeginStu (raw_token (strify tok) lexbuf)) }
 | eof { EOF }
 | _ { err_lexing (lexeme_start_p lexbuf) (lexeme lexbuf) }
+
+and stulex = parse
+| '[' as tok { StuLexOpen (raw_token (strify tok) lexbuf) }
+| ']' as tok { StuLexClose (raw_token (strify tok) lexbuf) }
+| '-'?['0'-'9']+ as tok
+    { StuLexInt (raw_token tok lexbuf) }
+| ['A'-'Z''a'-'z''_''0'-'9''-''+''/''%''<''>''~''&''|''^''!''=']+ as tok
+    { StuLexIdent (raw_token tok lexbuf) }
+| [' ' '\t']+ { stulex lexbuf }
+| '\n' { new_line lexbuf; stulex lexbuf }
