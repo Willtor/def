@@ -28,13 +28,9 @@ let ident_token_of = function
 
 let define stubindings = function
   | [(StuIdent id); value] ->
-     let binding =
-       { sb_syms = [id];
-         sb_body = value
-       }
-     in
+     let binding = BBStu value in
      Hashtbl.add stubindings id.td_text binding
-  | [(StuInt tok) ; _] ->
+  | [(StuInt32 _) ; _] ->
      Error.fatal_error "FIXME: Need suitable error."
   | _ ->
      Error.fatal_error "FIXME: Need suitable error."
@@ -44,7 +40,7 @@ let master_lexer depth stubindings lexbuf =
 
   let store_or_stash at sexpr =
     match sexpr with
-    | StuSexpr ((StuIdent fcn) :: rest) ->
+    | StuSexpr (_, (StuIdent fcn) :: rest) ->
        begin
          match fcn.td_text with
          | "define" ->
@@ -64,23 +60,23 @@ let master_lexer depth stubindings lexbuf =
       | Some token -> token
 
   and base_stulex at =
-    let rec stuparse accum =
+    let rec stuparse pos accum =
       match stulex lexbuf with
-      | StuLexOpen _ ->
-         let sexpr = stuparse [] in
-         stuparse (sexpr :: accum)
+      | StuLexOpen tok ->
+         let sexpr = stuparse tok.td_pos [] in
+         stuparse pos (sexpr :: accum)
       | StuLexClose _ ->
-         StuSexpr (List.rev accum)
+         StuSexpr (pos, List.rev accum)
       | StuLexInt tok ->
-         let v = StuInt tok in
-         stuparse (v :: accum)
+         let v = StuInt32 (tok.td_pos, Int32.of_string tok.td_text) in
+         stuparse pos (v :: accum)
       | StuLexIdent tok ->
          let v = StuIdent tok in
-         stuparse (v :: accum)
+         stuparse pos (v :: accum)
     in
     match stulex lexbuf with
-    | StuLexOpen _ ->
-       let sexpr = stuparse [] in
+    | StuLexOpen tok ->
+       let sexpr = stuparse tok.td_pos [] in
        store_or_stash at sexpr
     | StuLexClose tok ->
        Error.err_pos "No matching open square bracket." tok.td_pos

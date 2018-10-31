@@ -29,10 +29,16 @@ type program =
     prog_ast     : Ast.stmt list
   }
 
-type stu_val =
-  | SVFalse
-  | SVBinding of binding
-  | SVI32 of int32
+let stu_add pos =
+  let add accum param =
+    match accum, param with
+    | StuInt32 (_, a), StuInt32 (_, b) -> StuInt32 (pos, Int32.add a b)
+    | _ -> Report.err_internal __FILE__ __LINE__ "adding non-num type."
+  in
+  List.fold_left add (StuInt32 (pos, 0l))
+
+let stu_builtins =
+  [ ("+", stu_add) ]
 
 exception NoReturn
 
@@ -73,30 +79,42 @@ let position_of_stmt = function
   | Import (tok, _) -> tok.td_pos
 
 let rec eval_stu bindings = function
-  | StuSexpr sexpr ->
-     if sexpr = [] then SVFalse
-     else
-       Report.err_internal __FILE__ __LINE__ "Not implemented yet."
-  | StuInt tok ->
-     SVI32 (Int32.of_string tok.td_text)
+  | StuSexpr (_, []) ->
+     Report.err_internal __FILE__ __LINE__ "empty s-expression."
+  | StuSexpr (pos, sexpr) ->
+     begin
+       match eval_stu bindings (List.hd sexpr) with
+       | StuBinding (BBNative native_f) ->
+          native_f pos (List.tl sexpr)
+       | StuBinding _ ->
+          Report.err_internal __FILE__ __LINE__
+            "Not implemented, yet."
+       | _ ->
+          Report.err_internal __FILE__ __LINE__
+            "Need suitable error: tried to call a non-function"
+     end
+  | (StuInt32 _) as v -> v
   | StuIdent tok ->
      begin
        match lookup_symbol bindings tok.td_text with
-       | Some binding -> SVBinding binding
+       | Some binding -> StuBinding binding
        | None ->
           Report.err_internal __FILE__ __LINE__
             "FIXME: suitable error for 'unknown STU symbol.'"
      end
+  | _ ->
+     Report.err_internal __FILE__ __LINE__ "Not implemented."
 
 let expr_of_stu bindings stu =
   match eval_stu bindings stu with
-  | SVFalse -> bool_type, ExprLit (LitBool false)
-  | SVBinding binding ->
-     Report.err_internal __FILE__ __LINE__ "binding."
-  | SVI32 i32 -> i32_type, ExprLit (LitI32 i32)
+  | StuInt32 (_, i32) -> i32_type, ExprLit (LitI32 i32)
+  | _ -> Report.err_internal __FILE__ __LINE__ "Need suitable error."
 
 let resolve_types ast =
   let bindings, stmts = ast in
+  List.iter
+    (fun (k, v) -> add_symbol bindings k (BBNative v))
+    stu_builtins;
   let pre_typemap = make_symtab () in
   let typemap = make_symtab () in
   let enummap = make_symtab () in
@@ -344,12 +362,15 @@ let resolve_types ast =
          | None ->
             Report.err_internal __FILE__ __LINE__
               "Need suitable error -- 'unknown STU symbol.'"
-         | Some binding ->
-            let tp, ast = expr_of_stu bindings binding.sb_body in
+         | Some (BBStu stu) ->
+            let tp, ast = expr_of_stu bindings stu in
             { expr_cr = expr.expr_cr;
               expr_tp = tp;
               expr_ast = ast
             }
+         | Some _ ->
+            Report.err_internal __FILE__ __LINE__
+              "Need appropriate error message."
        end
     | ExprStu sexpr ->
        let tp, ast = expr_of_stu bindings sexpr in

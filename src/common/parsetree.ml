@@ -31,9 +31,16 @@ type pt_field =
 
 (** STU meta program. *)
 type stu =
-  | StuSexpr of stu list
-  | StuInt of tokendata
+  | StuSexpr of Lexing.position * stu list
+  | StuInt32 of Lexing.position * int32
   | StuIdent of tokendata
+  | StuBinding of binding
+
+and binding =
+  (* BBStu of value *)
+  | BBStu of stu
+  (* BBNative of lambda (use-position * parameters * return value) *)
+  | BBNative of (Lexing.position -> stu list -> stu)
 
 and pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
@@ -164,20 +171,17 @@ and pt_expr =
   | PTE_Bin of pt_expr * tokendata option * (Operator.t * tokendata) * pt_expr
   | PTE_TernaryCond of pt_expr * tokendata * pt_expr * tokendata * pt_expr
 
-type binding =
-  { sb_syms : tokendata list;
-    sb_body : stu
-  }
-
 (** Return a string representation of the STU. *)
 let rec string_of_stu = function
-  | StuSexpr sexpr ->
+  | StuSexpr (_, sexpr) ->
      let strs = List.map string_of_stu sexpr in
      "[" ^ (String.concat " " strs) ^ "]"
-  | StuInt tok ->
-     tok.td_text
+  | StuInt32 (_, n) ->
+     Int32.to_string n
   | StuIdent tok ->
      tok.td_text
+  | StuBinding _ ->
+     Error.fatal_error "string_of_stu found binding."
 
 let pt_type_pos = function
   | PTT_Fcn (tok, _, _, _, _)
