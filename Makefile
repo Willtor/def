@@ -30,6 +30,8 @@ COMMONFILES =		\
 	operator.mli	\
 	parsetree.ml	\
 	parsetree.mli	\
+	util.ml		\
+	util.mli	\
 	version.ml
 
 CIMPORT_SRC_DIR = src/cimport
@@ -69,9 +71,7 @@ DEFFILES = 		\
 	scrubber.ml	\
 	scrubber.mli	\
 	types.ml	\
-	types.mli	\
-	util.ml		\
-	util.mli
+	types.mli
 
 DEFGHI_SRC_DIR = src/defghi
 DEFGHIFILES =		\

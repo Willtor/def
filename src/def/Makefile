@@ -23,10 +23,10 @@ APPENDLINK = -cclib -lLLVMTransformUtils $(addprefix -cclib ,$(CIMPORT_LIBS))
 CLANGPP = clang++-$(LLVM_VER)
 CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -I$(TAPIRC) -I$(TAPIRCPP)
 
-SRC = config.ml util.ml report.ml osspecific.ml link.ml types.ml ast.ml scrubber.ml iropt.ml irfactory.ml build.ml main.ml
+SRC = config.ml report.ml osspecific.ml link.ml types.ml ast.ml scrubber.ml iropt.ml irfactory.ml build.ml main.ml
 
 COMMONDIR = ../common
-COMMONOBJ = version.cmx operator.cmx error.cmx parsetree.cmx deflex.cmx defparse.cmx frontend.cmx
+COMMONOBJ = version.cmx operator.cmx error.cmx util.cmx parsetree.cmx deflex.cmx defparse.cmx frontend.cmx
 
 LLVMEXTDIR = ../llvmext
 LLVMEXTOBJ = cilky.o cmpxchg.o metadata.o llvmext.cmx
