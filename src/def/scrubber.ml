@@ -21,6 +21,7 @@ open Error
 open Lexing
 open Operator
 open Parsetree
+open Stuinterp
 open Types
 open Util
 
@@ -28,17 +29,6 @@ type program =
   { prog_typemap : Types.deftype Util.symtab;
     prog_ast     : Ast.stmt list
   }
-
-let stu_add pos =
-  let add accum param =
-    match accum, param with
-    | StuInt32 (_, a), StuInt32 (_, b) -> StuInt32 (pos, Int32.add a b)
-    | _ -> Report.err_internal __FILE__ __LINE__ "adding non-num type."
-  in
-  List.fold_left add (StuInt32 (pos, 0l))
-
-let stu_builtins =
-  [ ("+", stu_add) ]
 
 exception NoReturn
 
@@ -78,37 +68,10 @@ let position_of_stmt = function
     -> pos
   | Import (tok, _) -> tok.td_pos
 
-let rec eval_stu bindings = function
-  | StuSexpr (_, []) ->
-     Report.err_internal __FILE__ __LINE__ "empty s-expression."
-  | StuSexpr (pos, sexpr) ->
-     begin
-       match eval_stu bindings (List.hd sexpr) with
-       | StuBinding (BBNative native_f) ->
-          native_f pos (List.tl sexpr)
-       | StuBinding _ ->
-          Report.err_internal __FILE__ __LINE__
-            "Not implemented, yet."
-       | _ ->
-          Report.err_internal __FILE__ __LINE__
-            "Need suitable error: tried to call a non-function"
-     end
-  | (StuInt32 _) as v -> v
-  | StuIdent tok ->
-     begin
-       match lookup_symbol bindings tok.td_text with
-       | Some binding -> StuBinding binding
-       | None ->
-          Report.err_internal __FILE__ __LINE__
-            "FIXME: suitable error for 'unknown STU symbol.'"
-     end
-  | _ ->
-     Report.err_internal __FILE__ __LINE__ "Not implemented."
-
 let expr_of_stu bindings stu =
   match eval_stu bindings stu with
   | StuInt32 (_, i32) -> i32_type, ExprLit (LitI32 i32)
-  | _ -> Report.err_internal __FILE__ __LINE__ "Need suitable error."
+  | _ -> Error.fatal_error "Need suitable error."
 
 let resolve_types ast =
   let bindings, stmts = ast in

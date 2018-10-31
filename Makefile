@@ -30,6 +30,8 @@ COMMONFILES =		\
 	operator.mli	\
 	parsetree.ml	\
 	parsetree.mli	\
+	stuinterp.ml	\
+	stuinterp.mli	\
 	util.ml		\
 	util.mli	\
 	version.ml
