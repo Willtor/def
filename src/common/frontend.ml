@@ -20,6 +20,7 @@ open Deflex
 open Defparse
 open Lexing
 open Parsetree
+open Util
 
 let ident_token_of = function
   | StuIdent tok -> tok
@@ -29,7 +30,7 @@ let ident_token_of = function
 let define stubindings = function
   | [(StuIdent id); value] ->
      let binding = BBStu value in
-     Hashtbl.add stubindings id.td_text binding
+     add_symbol stubindings id.td_text binding
   | [(StuInt32 _) ; _] ->
      Error.fatal_error "FIXME: Need suitable error."
   | _ ->
@@ -88,9 +89,8 @@ let master_lexer depth stubindings lexbuf =
   base_deflex ()
 
 (** Generate a parse tree from the given input channel/filename. *)
-let from_in_channel filename channel =
+let from_in_channel filename channel stubindings =
   let lexbuf = Lexing.from_channel channel in
-  let stubindings = Hashtbl.create 32 in
   lexbuf.lex_start_p <-
     { pos_fname = filename;
       pos_lnum = lexbuf.lex_start_p.pos_lnum;
@@ -103,7 +103,7 @@ let from_in_channel filename channel =
       pos_bol = lexbuf.lex_curr_p.pos_bol;
       pos_cnum = lexbuf.lex_curr_p.pos_cnum
     };
-  try stubindings, defparse (master_lexer 0 stubindings) lexbuf
+  try defparse (master_lexer 0 stubindings) lexbuf
   with _ ->
     let pos = lexeme_start_p lexbuf in
     let posstr = Error.format_position pos in

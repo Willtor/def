@@ -28,10 +28,6 @@ let output_autogen oc filename =
      ^ " * CHANGES MAY GET CLOBBERED.\n"
      ^ " */\n\n")
 
-let the = function
-  | Some a -> a
-  | None -> Error.fatal_error "the"
-
 (** Dump doxygen-style documentation from the given token, if any exists. *)
 let dump_doc oc tok =
   let re = Str.regexp "^/\\*\\*" in

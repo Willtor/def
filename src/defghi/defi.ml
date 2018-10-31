@@ -16,6 +16,7 @@
    02110-1301, USA.
  *)
 
+open Doc
 open Parsetree
 open Lexing
 open Util

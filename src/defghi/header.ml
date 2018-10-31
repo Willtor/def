@@ -16,9 +16,9 @@
    02110-1301, USA.
  *)
 
+open Doc
 open Parsetree
 open Lexing
-open Util
 
 (* Tab-width. FIXME: This should be configurable. *)
 let tab = "  "

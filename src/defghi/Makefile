@@ -4,10 +4,10 @@ OCAMLC = OCAMLPATH=$(TAPIROCAML) ocamlfind ocamlopt -g
 PACKAGE = -package cmdliner,str,unix
 LINKPKG = -linkpkg $(PACKAGE)
 
-SRC = util.ml defi.ml header.ml main.ml
+SRC = doc.ml defi.ml header.ml main.ml
 
 COMMONDIR = ../common
-COMMONOBJ = version.cmx error.cmx parsetree.cmx deflex.cmx defparse.cmx frontend.cmx
+COMMONOBJ = version.cmx error.cmx util.cmx parsetree.cmx deflex.cmx defparse.cmx frontend.cmx
 OBJ = $(COMMONOBJ) $(SRC:.ml=.cmx)
 INTERFACE_OBJ = $(COMMONOBJ:.cmx=.cmi) $(SRC:.ml=.cmi)
 
@@ -27,5 +27,5 @@ $(TARGET): $(INTERFACE_OBJ) $(OBJ)
 %.cmi: $(COMMONDIR)/%.cmi
 	cp $< $@
 
-util.mli: util.ml
+doc.mli: doc.ml
 	$(OCAMLC) -i $< > $@

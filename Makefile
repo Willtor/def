@@ -79,12 +79,12 @@ DEFGHI_SRC_DIR = src/defghi
 DEFGHIFILES =		\
 	defi.ml		\
 	defi.mli	\
+	doc.ml		\
 	header.ml	\
 	header.mli	\
 	main.ml		\
 	main.mli	\
-	Makefile	\
-	util.ml
+	Makefile
 
 LIBHYTM_SRC_DIR = src/libhytm
 LIBHYTMFILES =		\
