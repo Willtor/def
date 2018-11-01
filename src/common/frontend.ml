@@ -20,6 +20,7 @@ open Deflex
 open Defparse
 open Lexing
 open Parsetree
+open Stuinterp
 open Util
 
 let ident_token_of = function
@@ -29,7 +30,8 @@ let ident_token_of = function
 
 let define stubindings = function
   | [(StuIdent id); value] ->
-     let binding = BBStu value in
+     let resolved_value = eval_stu stubindings value in
+     let binding = BBStu resolved_value in
      add_symbol stubindings id.td_text binding
   | [(StuInt32 _) ; _] ->
      Error.fatal_error "FIXME: Need suitable error."

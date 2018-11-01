@@ -75,9 +75,6 @@ let expr_of_stu bindings stu =
 
 let resolve_types ast =
   let bindings, stmts = ast in
-  List.iter
-    (fun (k, v) -> add_symbol bindings k (BBNative v))
-    stu_builtins;
   let pre_typemap = make_symtab () in
   let typemap = make_symtab () in
   let enummap = make_symtab () in

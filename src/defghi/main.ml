@@ -23,6 +23,7 @@ open Defparse
 open Header
 open Error
 open Lexing
+open Stuinterp
 open Version
 open Util
 
@@ -58,7 +59,7 @@ let parse_def_file file =
   let infile = try open_in file
                with _ -> file_open_error file
   in
-  let bindings = make_symtab () in
+  let bindings = bindings_create () in
   (* FIXME: Will have to do what we're doing in the DEF compiler, here, since
      meta-language bindings will be relevant.  Recursively parse the file and
      do all the checking/evaluating. *)

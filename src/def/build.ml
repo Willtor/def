@@ -32,6 +32,7 @@ open Llvm_irreader
 open Llvm_target
 open Parsetree
 open Scrubber
+open Stuinterp
 open Types
 open Util
 open Version
@@ -191,7 +192,7 @@ let parse_def_file file bindings =
 
 let recursive_parse_def_file file =
   let cfiles = Hashtbl.create 8 in
-  let bindings = make_symtab () in
+  let bindings = bindings_create () in
   let rec do_parse file pos =
     let proc accum = function
       | PTS_Import (_, (tok, str), _) ->

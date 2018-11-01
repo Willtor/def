@@ -30,6 +30,13 @@ let add pos =
 let stu_builtins =
   [ ("+", add) ]
 
+(** Return the default set of bindings. *)
+let bindings_create () =
+  let bindings = make_symtab () in
+  List.iter (fun (k, v) -> add_symbol bindings k (BBNative v)) stu_builtins;
+  bindings
+
+(** Interpret a STU expression and return the result. *)
 let rec eval_stu bindings = function
   | StuSexpr (_, []) ->
      Error.fatal_error "empty s-expression."
