@@ -20,8 +20,12 @@ open Parsetree
 open Util
 
 let add pos =
+  let debind = function
+    | StuBinding (BBStu stu) -> stu
+    | stu -> stu
+  in
   let add accum param =
-    match accum, param with
+    match debind accum, debind param with
     | StuInt32 (_, a), StuInt32 (_, b) -> StuInt32 (pos, Int32.add a b)
     | _ -> Error.fatal_error "adding non-num type."
   in
@@ -44,7 +48,7 @@ let rec eval_stu bindings = function
      begin
        match eval_stu bindings (List.hd sexpr) with
        | StuBinding (BBNative native_f) ->
-          native_f pos (List.tl sexpr)
+          native_f pos (List.tl (List.map (eval_stu bindings) sexpr))
        | StuBinding _ ->
           Error.fatal_error
             "Not implemented, yet."
