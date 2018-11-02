@@ -36,9 +36,15 @@ exception NoReturn
 let void_type = maketype None @@ DefTypeVoid
 let bool_type = maketype None @@ DefTypePrimitive PrimBool
 let char_type = maketype None @@ DefTypePrimitive PrimI8
+let uchar_type = maketype None @@ DefTypePrimitive PrimU8
+let i16_type = maketype None @@ DefTypePrimitive PrimI16
+let u16_type = maketype None @@ DefTypePrimitive PrimU16
 let i32_type = maketype None @@ DefTypePrimitive PrimI32
+let u32_type = maketype None @@ DefTypePrimitive PrimU32
 let i64_type = maketype None @@ DefTypePrimitive PrimI64
 let u64_type = maketype None @@ DefTypePrimitive PrimU64
+let f32_type = maketype None @@ DefTypePrimitive PrimF32
+let f64_type = maketype None @@ DefTypePrimitive PrimF64
 let string_type =
   makeptr @@ maketype None (DefTypePrimitive PrimI8)
 let nil_type = maketype None @@ DefTypeNullPtr
@@ -70,7 +76,17 @@ let position_of_stmt = function
 
 let expr_of_stu bindings stu =
   match eval_stu bindings stu with
+  | StuBool (_, bool) -> bool_type, ExprLit (LitBool bool)
+  | StuChar (_, i8) -> char_type, ExprLit (LitI8 i8)
+  | StuUChar (_, u8) -> uchar_type, ExprLit (LitU8 u8)
+  | StuInt16 (_, i16) -> i16_type, ExprLit (LitI16 i16)
+  | StuUInt16 (_, u16) -> u16_type, ExprLit (LitU16 u16)
   | StuInt32 (_, i32) -> i32_type, ExprLit (LitI32 i32)
+  | StuUInt32 (_, u32) -> u32_type, ExprLit (LitU32 u32)
+  | StuInt64 (_, i64) -> i64_type, ExprLit (LitI64 i64)
+  | StuUInt64 (_, u64) -> u64_type, ExprLit (LitU64 u64)
+  | StuFloat32 (_, f32) -> f32_type, ExprLit (LitF32 f32)
+  | StuFloat64 (_, f64) -> f64_type, ExprLit (LitF64 f64)
   | _ -> Error.fatal_error "Need suitable error."
 
 let resolve_types ast =

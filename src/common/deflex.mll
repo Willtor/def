@@ -340,6 +340,9 @@ and stulex = parse
 | '-'?['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)?"F32" as fstr
     { StuLexFloat32 (raw_token fstr lexbuf,
                      float_of_string (remove_suffix fstr 3)) }
+| '-'?['0'-'9']+'.'['e' 'E']['0'-'9']+ as fstr
+| '-'?['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)? as fstr
+    { StuLexFloat64 (raw_token fstr lexbuf, float_of_string fstr) }
 
 | ['A'-'Z''a'-'z''_''0'-'9''-''+''/''%''<''>''~''&''|''^''!''=']+ as tok
     { StuLexIdent (raw_token tok lexbuf) }

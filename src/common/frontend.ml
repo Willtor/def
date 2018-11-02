@@ -34,8 +34,10 @@ let define stubindings = function
      let binding = BBStu resolved_value in
      add_symbol stubindings id.td_text binding
   | [(StuInt32 _) ; _] ->
+     let () = prerr_endline "hey now int32" in
      Error.fatal_error "FIXME: Need suitable error."
   | _ ->
+     let () = prerr_endline "hey now" in
      Error.fatal_error "FIXME: Need suitable error."
 
 let master_lexer depth stubindings lexbuf =

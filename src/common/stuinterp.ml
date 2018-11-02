@@ -177,20 +177,48 @@ let generalize_nums a b =
 
   | _ -> Error.fatal_error "non-numerical type."
 
-let add pos =
-  let debind = function
-    | StuBinding (BBStu stu) -> stu
-    | stu -> stu
+let debind = function
+  | StuBinding (BBStu stu) -> stu
+  | stu -> stu
+
+let mathop name i32 i64 float =
+  let char a b =
+    let rawval =
+      i32 (Int32.of_int (Char.code a)) (Int32.of_int (Char.code b))
+    in
+    Char.chr ((Int32.to_int rawval) mod 256)
   in
-  let add accum param =
-    match debind accum, debind param with
-    | StuInt32 (_, a), StuInt32 (_, b) -> StuInt32 (pos, Int32.add a b)
-    | _ -> Error.fatal_error "adding non-num type."
-  in
-  List.fold_left add (StuInt32 (pos, 0l))
+  fun pos args ->
+    let op accum value =
+      match generalize_nums (debind accum) (debind value) with
+      | StuChar (pos, n), StuChar (_, m) -> StuChar (pos, char n m)
+      | StuUChar (pos, n), StuUChar (_, m) -> StuUChar (pos, char n m)
+      | StuInt16 (pos, n), StuInt16 (_, m) -> StuInt16 (pos, i32 n m)
+      | StuUInt16 (pos, n), StuUInt16 (_, m) -> StuUInt16 (pos, i32 n m)
+      | StuInt32 (pos, n), StuInt32 (_, m) -> StuInt32 (pos, i32 n m)
+      | StuUInt32 (pos, n), StuUInt32 (_, m) -> StuUInt32 (pos, i32 n m)
+      | StuInt64 (pos, n), StuInt64 (_, m) -> StuInt64 (pos, i64 n m)
+      | StuUInt64 (pos, n), StuUInt64 (_, m) -> StuUInt64 (pos, i64 n m)
+      | StuFloat32 (pos, n), StuFloat32 (_, m) -> StuFloat32 (pos, float n m)
+      | StuFloat64 (pos, n), StuFloat64 (_, m) -> StuFloat64 (pos, float n m)
+      | _ -> Error.fatal_error "Internal error in a STU mathop."
+    in
+    if args = [] then
+      Error.fatal_error ("need suitable error for noargs STU " ^ name)
+    else
+      List.fold_left op (List.hd args) (List.tl args)
+
+let add = mathop "+" Int32.add Int64.add (+.)
+let sub = mathop "-" Int32.sub Int64.sub (-.)
+let mul = mathop "*" Int32.mul Int64.mul ( *. )
+let div = mathop "/" Int32.div Int64.div (/.)
 
 let stu_builtins =
-  [ ("+", add) ]
+  [ ("+", add);
+    ("-", sub);
+    ("*", mul);
+    ("/", div)
+  ]
 
 (** Return the default set of bindings. *)
 let bindings_create () =
@@ -214,14 +242,24 @@ let rec eval_stu bindings = function
           Error.fatal_error
             "Need suitable error: tried to call a non-function"
      end
+  | (StuBool _) as v -> v
+  | (StuChar _) as v -> v
+  | (StuUChar _) as v -> v
+  | (StuInt16 _) as v -> v
+  | (StuUInt16 _) as v -> v
   | (StuInt32 _) as v -> v
+  | (StuUInt32 _) as v -> v
+  | (StuInt64 _) as v -> v
+  | (StuUInt64 _) as v -> v
+  | (StuFloat32 _) as v -> v
+  | (StuFloat64 _) as v -> v
   | StuIdent tok ->
      begin
        match lookup_symbol bindings tok.td_text with
        | Some binding -> StuBinding binding
        | None ->
           Error.fatal_error
-            "FIXME: suitable error for 'unknown STU symbol.'"
+            ("FIXME: suitable error for unknown sym: " ^ tok.td_text)
      end
   | _ ->
      Error.fatal_error "Not implemented."
