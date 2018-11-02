@@ -24,7 +24,17 @@
   type stutoken =
     | StuLexOpen of Parsetree.tokendata
     | StuLexClose of Parsetree.tokendata
-    | StuLexInt of Parsetree.tokendata
+    | StuLexBool of Parsetree.tokendata * bool
+    | StuLexChar of Parsetree.tokendata * char
+    | StuLexUChar of Parsetree.tokendata * char
+    | StuLexInt16 of Parsetree.tokendata * int32
+    | StuLexUInt16 of Parsetree.tokendata * int32
+    | StuLexInt32 of Parsetree.tokendata * int32
+    | StuLexUInt32 of Parsetree.tokendata * int32
+    | StuLexInt64 of Parsetree.tokendata * int64
+    | StuLexUInt64 of Parsetree.tokendata * int64
+    | StuLexFloat32 of Parsetree.tokendata * float
+    | StuLexFloat64 of Parsetree.tokendata * float
     | StuLexIdent of Parsetree.tokendata
 
   (* Exception gets raised when an STU is detected.  A simple parser reads
@@ -279,8 +289,58 @@ rule deflex = parse
 and stulex = parse
 | '[' as tok { StuLexOpen (raw_token (strify tok) lexbuf) }
 | ']' as tok { StuLexClose (raw_token (strify tok) lexbuf) }
-| '-'?['0'-'9']+ as tok
-    { StuLexInt (raw_token tok lexbuf) }
+| "true" as tok { StuLexBool (raw_token tok lexbuf, true) }
+| "false" as tok { StuLexBool (raw_token tok lexbuf, false) }
+| '-'?['0'-'9']+"I64" as istr
+| '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I64" as istr
+    { StuLexInt64 (raw_token istr lexbuf,
+                   Int64.of_string (remove_suffix istr 3)) }
+| ['0'-'9']+"U64" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U64" as istr
+    { StuLexUInt64 (raw_token istr lexbuf,
+                    Int64.of_string (remove_suffix istr 3)) }
+| '-'?['0'-'9']+"I32" as istr
+| '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I32" as istr
+    { StuLexInt32 (raw_token istr lexbuf,
+                   Int32.of_string (remove_suffix istr 3)) }
+| ['0'-'9']+"U32" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U32" as istr
+    { StuLexUInt32 (raw_token istr lexbuf,
+                    Int32.of_string (remove_suffix istr 3)) }
+| '-'?['0'-'9']+"I16" as istr
+| '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I16" as istr
+    { StuLexInt16 (raw_token istr lexbuf,
+                   Int32.of_string (remove_suffix istr 3)) }
+| ['0'-'9']+"U16" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U16" as istr
+    { StuLexUInt16 (raw_token istr lexbuf,
+                    Int32.of_string (remove_suffix istr 3)) }
+| '-'?['0'-'9']+"I8" as istr
+| '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I8" as istr
+    { StuLexChar (raw_token istr lexbuf,
+                  Char.chr (Int32.to_int (Int32.of_string
+                                            (remove_suffix istr 2)))) }
+| ['0'-'9']+"U8" as istr
+| "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U8" as istr
+    { StuLexUChar (raw_token istr lexbuf,
+                   Char.chr (Int32.to_int (Int32.of_string
+                                             (remove_suffix istr 2)))) }
+| '-'?['0'-'9']+ as istr
+| '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+ as istr
+    { StuLexInt32 (raw_token istr lexbuf, Int32.of_string istr) }
+
+(* Floating point. *)
+
+| '-'?['0'-'9']+'.'?(['e' 'E']['0'-'9']+)?"F64" as fstr
+| '-'?['0'-'9']*'.'?['0'-'9']+(['e' 'E']['0'-'9']+)?"F64" as fstr
+    { StuLexFloat64 (raw_token fstr lexbuf,
+                     float_of_string (remove_suffix fstr 3)) }
+
+| '-'?['0'-'9']+'.'(['e' 'E']['0'-'9']+)?"F32" as fstr
+| '-'?['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)?"F32" as fstr
+    { StuLexFloat32 (raw_token fstr lexbuf,
+                     float_of_string (remove_suffix fstr 3)) }
+
 | ['A'-'Z''a'-'z''_''0'-'9''-''+''/''%''<''>''~''&''|''^''!''=']+ as tok
     { StuLexIdent (raw_token tok lexbuf) }
 | [' ' '\t']+ { stulex lexbuf }

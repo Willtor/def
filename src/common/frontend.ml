@@ -64,18 +64,36 @@ let master_lexer depth stubindings lexbuf =
 
   and base_stulex at =
     let rec stuparse pos accum =
+      let continue v = stuparse pos (v :: accum) in
       match stulex lexbuf with
       | StuLexOpen tok ->
-         let sexpr = stuparse tok.td_pos [] in
-         stuparse pos (sexpr :: accum)
+         continue @@ stuparse tok.td_pos []
       | StuLexClose _ ->
          StuSexpr (pos, List.rev accum)
-      | StuLexInt tok ->
-         let v = StuInt32 (tok.td_pos, Int32.of_string tok.td_text) in
-         stuparse pos (v :: accum)
+      | StuLexBool (tok, bool) ->
+         continue @@ StuBool (tok.td_pos, bool)
+      | StuLexChar (tok, n) ->
+         continue @@ StuChar (tok.td_pos, n)
+      | StuLexUChar (tok, n) ->
+         continue @@ StuUChar (tok.td_pos, n)
+      | StuLexInt16 (tok, n) ->
+         continue @@ StuInt16 (tok.td_pos, n)
+      | StuLexUInt16 (tok, n) ->
+         continue @@ StuUInt16 (tok.td_pos, n)
+      | StuLexInt32 (tok, n) ->
+         continue @@ StuInt32 (tok.td_pos, n)
+      | StuLexUInt32 (tok, n) ->
+         continue @@ StuUInt32 (tok.td_pos, n)
+      | StuLexInt64 (tok, n) ->
+         continue @@ StuInt64 (tok.td_pos, n)
+      | StuLexUInt64 (tok, n) ->
+         continue @@ StuUInt64 (tok.td_pos, n)
+      | StuLexFloat32 (tok, n) ->
+         continue @@ StuFloat32 (tok.td_pos, n)
+      | StuLexFloat64 (tok, n) ->
+         continue @@ StuFloat64 (tok.td_pos, n)
       | StuLexIdent tok ->
-         let v = StuIdent tok in
-         stuparse pos (v :: accum)
+         continue @@ StuIdent tok
     in
     match stulex lexbuf with
     | StuLexOpen tok ->
@@ -83,10 +101,11 @@ let master_lexer depth stubindings lexbuf =
        store_or_stash at sexpr
     | StuLexClose tok ->
        Error.err_pos "No matching open square bracket." tok.td_pos
-    | StuLexInt tok ->
-       Error.err_pos "Not a function or DEF value." tok.td_pos
     | StuLexIdent tok ->
        store at (StuIdent tok)
+    | _ ->
+       Error.fatal_error "Not a function or DEF value."
+
   in
   base_deflex ()
 

@@ -32,7 +32,17 @@ type pt_field =
 (** STU meta program. *)
 type stu =
   | StuSexpr of Lexing.position * stu list
+  | StuBool of Lexing.position * bool
+  | StuChar of Lexing.position * char
+  | StuUChar of Lexing.position * char
+  | StuInt16 of Lexing.position * int32
+  | StuUInt16 of Lexing.position * int32
   | StuInt32 of Lexing.position * int32
+  | StuUInt32 of Lexing.position * int32
+  | StuInt64 of Lexing.position * int64
+  | StuUInt64 of Lexing.position * int64
+  | StuFloat32 of Lexing.position * float
+  | StuFloat64 of Lexing.position * float
   | StuIdent of tokendata
   | StuBinding of binding
 
@@ -176,10 +186,19 @@ let rec string_of_stu = function
   | StuSexpr (_, sexpr) ->
      let strs = List.map string_of_stu sexpr in
      "[" ^ (String.concat " " strs) ^ "]"
-  | StuInt32 (_, n) ->
-     Int32.to_string n
-  | StuIdent tok ->
-     tok.td_text
+  | StuBool (_, true) -> "true"
+  | StuBool (_, false) -> "false"
+  | StuChar (_, c) -> (string_of_int (Char.code c)) ^ "I8"
+  | StuUChar (_, c) -> (string_of_int (Char.code c)) ^ "U8"
+  | StuInt16 (_, n) -> (Int32.to_string n) ^ "I16"
+  | StuUInt16 (_, n) -> (Int32.to_string n) ^ "U16"
+  | StuInt32 (_, n) -> Int32.to_string n
+  | StuUInt32 (_, n) ->( Int32.to_string n) ^ "U32"
+  | StuInt64 (_, n) -> (Int64.to_string n) ^ "I64"
+  | StuUInt64 (_, n) -> (Int64.to_string n) ^ "U64"
+  | StuFloat32 (_, n) -> (string_of_float n) ^ "f"
+  | StuFloat64 (_, n) -> string_of_float n
+  | StuIdent tok -> tok.td_text
   | StuBinding _ ->
      Error.fatal_error "string_of_stu found binding."
 
