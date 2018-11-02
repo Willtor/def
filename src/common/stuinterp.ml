@@ -19,6 +19,22 @@
 open Parsetree
 open Util
 
+type op_kind =
+  | Multi of (int32 -> int32 -> int32) * (int64 -> int64 -> int64)
+             * (float -> float -> float)
+  | Binary of (int32 -> int32 -> int32) * (int64 -> int64 -> int64)
+              * (float -> float -> float)
+  | Unary of (int32 -> int32) * (int64 -> int64) * (float -> float)
+
+let is_num stu =
+  match stu with
+  | StuChar _ | StuUChar _
+  | StuInt16 _ | StuUInt16 _
+  | StuInt32 _ | StuUInt32 _
+  | StuInt64 _ | StuUInt64 _
+  | StuFloat32 _ | StuFloat64 _ -> stu
+  | _ -> Error.fatal_error "STU value isn't a number."
+
 let generalize_nums a b =
   match a, b with
 
@@ -181,43 +197,76 @@ let debind = function
   | StuBinding (BBStu stu) -> stu
   | stu -> stu
 
-let mathop name i32 i64 float =
-  let char a b =
+let mathop name op_kind =
+  let char i32 a b =
     let rawval =
       i32 (Int32.of_int (Char.code a)) (Int32.of_int (Char.code b))
     in
     Char.chr ((Int32.to_int rawval) mod 256)
   in
   fun pos args ->
-    let op accum value =
-      match generalize_nums (debind accum) (debind value) with
-      | StuChar (pos, n), StuChar (_, m) -> StuChar (pos, char n m)
-      | StuUChar (pos, n), StuUChar (_, m) -> StuUChar (pos, char n m)
-      | StuInt16 (pos, n), StuInt16 (_, m) -> StuInt16 (pos, i32 n m)
-      | StuUInt16 (pos, n), StuUInt16 (_, m) -> StuUInt16 (pos, i32 n m)
-      | StuInt32 (pos, n), StuInt32 (_, m) -> StuInt32 (pos, i32 n m)
-      | StuUInt32 (pos, n), StuUInt32 (_, m) -> StuUInt32 (pos, i32 n m)
-      | StuInt64 (pos, n), StuInt64 (_, m) -> StuInt64 (pos, i64 n m)
-      | StuUInt64 (pos, n), StuUInt64 (_, m) -> StuUInt64 (pos, i64 n m)
-      | StuFloat32 (pos, n), StuFloat32 (_, m) -> StuFloat32 (pos, float n m)
-      | StuFloat64 (pos, n), StuFloat64 (_, m) -> StuFloat64 (pos, float n m)
-      | _ -> Error.fatal_error "Internal error in a STU mathop."
-    in
-    if args = [] then
-      Error.fatal_error ("need suitable error for noargs STU " ^ name)
-    else
-      List.fold_left op (List.hd args) (List.tl args)
+  let binop i32 i64 float accum value =
+    match generalize_nums (debind accum) (debind value) with
+    | StuChar (pos, n), StuChar (_, m) -> StuChar (pos, char i32 n m)
+    | StuUChar (pos, n), StuUChar (_, m) -> StuUChar (pos, char i32 n m)
+    | StuInt16 (pos, n), StuInt16 (_, m) -> StuInt16 (pos, i32 n m)
+    | StuUInt16 (pos, n), StuUInt16 (_, m) -> StuUInt16 (pos, i32 n m)
+    | StuInt32 (pos, n), StuInt32 (_, m) -> StuInt32 (pos, i32 n m)
+    | StuUInt32 (pos, n), StuUInt32 (_, m) -> StuUInt32 (pos, i32 n m)
+    | StuInt64 (pos, n), StuInt64 (_, m) -> StuInt64 (pos, i64 n m)
+    | StuUInt64 (pos, n), StuUInt64 (_, m) -> StuUInt64 (pos, i64 n m)
+    | StuFloat32 (pos, n), StuFloat32 (_, m) -> StuFloat32 (pos, float n m)
+    | StuFloat64 (pos, n), StuFloat64 (_, m) -> StuFloat64 (pos, float n m)
+    | _ -> Error.fatal_error "Internal error in a STU mathop."
+  in
+  if args = [] then
+    Error.fatal_error ("need suitable error for noargs STU " ^ name)
+  else
+    match op_kind with
+    | Multi (i32, i64, float) ->
+       let first = is_num (debind (List.hd args)) in
+       List.fold_left (binop i32 i64 float) first (List.tl args)
+    | Binary (i32, i64, float) ->
+       if List.length args <> 2 then
+         Error.fatal_error "require two arguments."
+       else
+         let first = is_num (debind (List.hd args)) in
+         let second = is_num (debind (List.hd (List.tl args))) in
+         binop i32 i64 float first second
+    | Unary _ ->
+       Error.fatal_error "unary not implemented, yet."
 
-let add = mathop "+" Int32.add Int64.add (+.)
-let sub = mathop "-" Int32.sub Int64.sub (-.)
-let mul = mathop "*" Int32.mul Int64.mul ( *. )
-let div = mathop "/" Int32.div Int64.div (/.)
+let add = mathop "+" @@ Multi (Int32.add, Int64.add, (+.))
+let sub = mathop "-" @@ Multi (Int32.sub, Int64.sub, (-.))
+let mul = mathop "*" @@ Multi (Int32.mul, Int64.mul, ( *. ))
+let div = mathop "/" @@ Multi (Int32.div, Int64.div, (/.))
+let modulo = mathop "%" @@
+               Binary (Int32.rem, Int64.rem,
+                       (fun _ -> Error.fatal_error
+                                   "Modulo doesn't apply to floats."))
+
+let i32_conv pos = function
+  | [StuBool (pos, v)] -> StuInt32 (pos, if v then 1l else 0l)
+  | [StuChar (pos, v)] | [StuUChar (pos, v)] ->
+     StuInt32 (pos, Int32.of_int (Char.code v))
+  | [StuInt16 (pos, v)] | [StuUInt16 (pos, v)]
+  | [StuInt32 (pos, v)] | [StuUInt32 (pos, v)] ->
+     StuInt32 (pos, v)
+  | [StuInt64 (pos, v)] | [StuUInt64 (pos, v)] ->
+     StuInt32 (pos, Int64.to_int32 v)
+  | [StuFloat32 (pos, v)] | [StuFloat64 (pos, v)] ->
+     StuInt32 (pos, Int32.of_float v)
+  | _ ->
+     Error.fatal_error "need suitable err for bad conversion."
 
 let stu_builtins =
-  [ ("+", add);
-    ("-", sub);
-    ("*", mul);
-    ("/", div)
+  [ (*-- Operations --*)
+    ("+", add); ("-", sub);
+    ("*", mul); ("/", div);
+    ("%", modulo);
+
+    (*-- Conversions --*)
+    ("i32", i32_conv);
   ]
 
 (** Return the default set of bindings. *)
