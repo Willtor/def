@@ -32,6 +32,7 @@ type pt_field =
 (** STU meta program. *)
 type stu =
   | StuSexpr of Lexing.position * stu list
+  | StuString of Lexing.position * string
   | StuBool of Lexing.position * bool
   | StuChar of Lexing.position * char
   | StuUChar of Lexing.position * char
@@ -186,6 +187,7 @@ let rec string_of_stu = function
   | StuSexpr (_, sexpr) ->
      let strs = List.map string_of_stu sexpr in
      "[" ^ (String.concat " " strs) ^ "]"
+  | StuString (_, str) -> "\"" ^ str ^ "\""
   | StuBool (_, true) -> "true"
   | StuBool (_, false) -> "false"
   | StuChar (_, c) -> (string_of_int (Char.code c)) ^ "I8"

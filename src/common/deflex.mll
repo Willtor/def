@@ -24,6 +24,7 @@
   type stutoken =
     | StuLexOpen of Parsetree.tokendata
     | StuLexClose of Parsetree.tokendata
+    | StuLexString of Parsetree.tokendata * string
     | StuLexBool of Parsetree.tokendata * bool
     | StuLexChar of Parsetree.tokendata * char
     | StuLexUChar of Parsetree.tokendata * char
@@ -291,6 +292,8 @@ and stulex = parse
 | ']' as tok { StuLexClose (raw_token (strify tok) lexbuf) }
 | "true" as tok { StuLexBool (raw_token tok lexbuf, true) }
 | "false" as tok { StuLexBool (raw_token tok lexbuf, false) }
+| ['"']([^'\\' '"']*(['\\']_)?)+['"'] as str
+    { StuLexString (raw_token str lexbuf, remove_quotes str) }
 | '-'?['0'-'9']+"I64" as istr
 | '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I64" as istr
     { StuLexInt64 (raw_token istr lexbuf,

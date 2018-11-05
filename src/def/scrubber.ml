@@ -76,6 +76,7 @@ let position_of_stmt = function
 
 let expr_of_stu bindings stu =
   match eval_stu bindings stu with
+  | StuString (_, str) -> string_type, ExprString str
   | StuBool (_, bool) -> bool_type, ExprLit (LitBool bool)
   | StuChar (_, i8) -> char_type, ExprLit (LitI8 i8)
   | StuUChar (_, u8) -> uchar_type, ExprLit (LitU8 u8)

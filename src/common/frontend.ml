@@ -72,6 +72,8 @@ let master_lexer depth stubindings lexbuf =
          continue @@ stuparse tok.td_pos []
       | StuLexClose _ ->
          StuSexpr (pos, List.rev accum)
+      | StuLexString (tok, str) ->
+         continue @@ StuString (tok.td_pos, str)
       | StuLexBool (tok, bool) ->
          continue @@ StuBool (tok.td_pos, bool)
       | StuLexChar (tok, n) ->

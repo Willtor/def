@@ -355,6 +355,7 @@ let rec eval_stu bindings = function
           Error.fatal_error
             "Need suitable error: tried to call a non-function"
      end
+  | (StuString _) as v -> v
   | (StuBool _) as v -> v
   | (StuChar _) as v -> v
   | (StuUChar _) as v -> v

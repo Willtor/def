@@ -15,6 +15,7 @@ type pt_field =
 (** STU meta program. *)
 type stu =
   | StuSexpr of Lexing.position * stu list
+  | StuString of Lexing.position * string
   | StuBool of Lexing.position * bool
   | StuChar of Lexing.position * char
   | StuUChar of Lexing.position * char
