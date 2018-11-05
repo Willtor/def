@@ -245,19 +245,62 @@ let modulo = mathop "%" @@
                        (fun _ -> Error.fatal_error
                                    "Modulo doesn't apply to floats."))
 
-let i32_conv pos = function
-  | [StuBool (pos, v)] -> StuInt32 (pos, if v then 1l else 0l)
-  | [StuChar (pos, v)] | [StuUChar (pos, v)] ->
-     StuInt32 (pos, Int32.of_int (Char.code v))
-  | [StuInt16 (pos, v)] | [StuUInt16 (pos, v)]
-  | [StuInt32 (pos, v)] | [StuUInt32 (pos, v)] ->
-     StuInt32 (pos, v)
-  | [StuInt64 (pos, v)] | [StuUInt64 (pos, v)] ->
-     StuInt32 (pos, Int64.to_int32 v)
-  | [StuFloat32 (pos, v)] | [StuFloat64 (pos, v)] ->
-     StuInt32 (pos, Int32.of_float v)
-  | _ ->
-     Error.fatal_error "need suitable err for bad conversion."
+let generic_conv pos bool char i32 i64 float = function
+  | [StuBool (p, v)] -> p, bool v
+  | [StuChar (p, v)]    | [StuUChar (p, v)] -> p, char v
+  | [StuInt16 (p, v)]   | [StuUInt16 (p, v)] -> p, i32 v
+  | [StuInt32 (p, v)]   | [StuUInt32 (p, v)] -> p, i32 v
+  | [StuInt64 (p, v)]   | [StuUInt64 (p, v)] -> p, i64 v
+  | [StuFloat32 (p, v)] | [StuFloat64 (p, v)] -> p, float v
+  | [] -> Error.fatal_error "need suitable err for conv w/ no args."
+  | _ -> Error.fatal_error "need suitable err for bad conv."
+
+let ident x = x
+
+let bool_conv pos =
+  generic_conv pos
+    ident
+    (fun c -> if (Char.code c) = 0 then false else true)
+    (fun n -> if Int32.equal n 0l then false else true)
+    (fun n -> if Int64.equal n 0L then false else true)
+    (fun n -> if n <> 0.0 then true else false)
+
+let cchr n =
+  if n > 255 then Char.chr 255
+  else if n < 0 then Char.chr 0
+  else Char.chr n
+
+let char_conv pos =
+  generic_conv pos
+    (fun b -> if b then Char.chr 1 else Char.chr 0)
+    ident
+    (fun n -> cchr (Int32.to_int n))
+    (fun n -> cchr (Int64.to_int n))
+    (fun n -> cchr (int_of_float n))
+
+let i32_conv pos =
+  generic_conv pos
+    (fun b -> if b then 1l else 0l)
+    (fun c -> Int32.of_int (Char.code c))
+    ident
+    Int64.to_int32
+    Int32.of_float
+
+let i64_conv pos =
+  generic_conv pos
+    (fun b -> if b then 1L else 0L)
+    (fun c -> Int64.of_int (Char.code c))
+    Int64.of_int32
+    ident
+    Int64.of_float
+
+let float_conv pos =
+  generic_conv pos
+    (fun b -> if b then 1.0 else 0.0)
+    (fun c -> float_of_int (Char.code c))
+    Int32.to_float
+    Int64.to_float
+    ident
 
 let stu_builtins =
   [ (*-- Operations --*)
@@ -266,7 +309,28 @@ let stu_builtins =
     ("%", modulo);
 
     (*-- Conversions --*)
-    ("i32", i32_conv);
+    ("bool",
+     (fun pos args -> let p, v = bool_conv pos args in StuBool (p, v)));
+    ("char",
+     (fun pos args -> let p, v = char_conv pos args in StuChar (p, v)));
+    ("uchar",
+     (fun pos args -> let p, v = char_conv pos args in StuUChar (p, v)));
+    ("i16",
+     (fun pos args -> let p, v = i32_conv pos args in StuInt16 (p, v)));
+    ("u16",
+     (fun pos args -> let p, v = i32_conv pos args in StuUInt16 (p, v)));
+    ("i32",
+     (fun pos args -> let p, v = i32_conv pos args in StuInt32 (p, v)));
+    ("u32",
+     (fun pos args -> let p, v = i32_conv pos args in StuUInt32 (p, v)));
+    ("i64",
+     (fun pos args -> let p, v = i64_conv pos args in StuInt64 (p, v)));
+    ("u64",
+     (fun pos args -> let p, v = i64_conv pos args in StuUInt64 (p, v)));
+    ("float32",
+     (fun pos args -> let p, v = float_conv pos args in StuFloat32 (p, v)));
+    ("float64",
+     (fun pos args -> let p, v = float_conv pos args in StuFloat64 (p, v)));
   ]
 
 (** Return the default set of bindings. *)
