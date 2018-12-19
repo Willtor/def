@@ -32,7 +32,7 @@ open Llvm_irreader
 open Llvm_target
 open Parsetree
 open Scrubber
-open Stuinterp
+open Isminterp
 open Types
 open Util
 open Version

@@ -20,7 +20,7 @@ open Deflex
 open Defparse
 open Lexing
 open Parsetree
-open Stuinterp
+open Isminterp
 open Util
 
 let ident_token_of = function

@@ -21,7 +21,7 @@ open Error
 open Lexing
 open Operator
 open Parsetree
-open Stuinterp
+open Isminterp
 open Types
 open Util
 

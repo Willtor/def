@@ -23,7 +23,7 @@ open Defparse
 open Header
 open Error
 open Lexing
-open Stuinterp
+open Isminterp
 open Version
 open Util
 

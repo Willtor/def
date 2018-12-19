@@ -7,7 +7,7 @@ LINKPKG = -linkpkg $(PACKAGE)
 SRC = doc.ml defi.ml header.ml main.ml
 
 COMMONDIR = ../common
-COMMONOBJ = version.cmx error.cmx util.cmx parsetree.cmx stuinterp.cmx deflex.cmx defparse.cmx frontend.cmx
+COMMONOBJ = version.cmx error.cmx util.cmx parsetree.cmx isminterp.cmx deflex.cmx defparse.cmx frontend.cmx
 OBJ = $(COMMONOBJ) $(SRC:.ml=.cmx)
 INTERFACE_OBJ = $(COMMONOBJ:.cmx=.cmi) $(SRC:.ml=.cmi)
 
