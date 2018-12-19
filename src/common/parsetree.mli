@@ -12,29 +12,29 @@ type pt_field =
   | PT_FieldString of tokendata
   | PT_FieldInt of tokendata * tokendata * int32 * tokendata
 
-(** STU meta program. *)
-type stu =
-  | StuSexpr of Lexing.position * stu list
-  | StuString of Lexing.position * string
-  | StuBool of Lexing.position * bool
-  | StuChar of Lexing.position * char
-  | StuUChar of Lexing.position * char
-  | StuInt16 of Lexing.position * int32
-  | StuUInt16 of Lexing.position * int32
-  | StuInt32 of Lexing.position * int32
-  | StuUInt32 of Lexing.position * int32
-  | StuInt64 of Lexing.position * int64
-  | StuUInt64 of Lexing.position * int64
-  | StuFloat32 of Lexing.position * float
-  | StuFloat64 of Lexing.position * float
-  | StuIdent of tokendata
-  | StuBinding of binding
+(** ISM meta program. *)
+type ism =
+  | IsmSexpr of Lexing.position * ism list
+  | IsmString of Lexing.position * string
+  | IsmBool of Lexing.position * bool
+  | IsmChar of Lexing.position * char
+  | IsmUChar of Lexing.position * char
+  | IsmInt16 of Lexing.position * int32
+  | IsmUInt16 of Lexing.position * int32
+  | IsmInt32 of Lexing.position * int32
+  | IsmUInt32 of Lexing.position * int32
+  | IsmInt64 of Lexing.position * int64
+  | IsmUInt64 of Lexing.position * int64
+  | IsmFloat32 of Lexing.position * float
+  | IsmFloat64 of Lexing.position * float
+  | IsmIdent of tokendata
+  | IsmBinding of binding
 
 and binding =
-  (* BBStu of value *)
-  | BBStu of stu
+  (* BBIsm of value *)
+  | BBIsm of ism
   (* BBNative of lambda (use-position * parameters * return value) *)
-  | BBNative of (Lexing.position -> stu list -> stu)
+  | BBNative of (Lexing.position -> ism list -> ism)
 
 and pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
@@ -135,7 +135,7 @@ and pt_field_init =
   }
 
 and pt_expr =
-  | PTE_StuExpr of tokendata * stu
+  | PTE_IsmExpr of tokendata * ism
   | PTE_New of tokendata * pt_type
                * (tokendata * pt_field_init list * tokendata) option
   | PTE_Nil of tokendata
@@ -165,8 +165,8 @@ and pt_expr =
   | PTE_Bin of pt_expr * tokendata option * (Operator.t * tokendata) * pt_expr
   | PTE_TernaryCond of pt_expr * tokendata * pt_expr * tokendata * pt_expr
 
-(** Return a string representation of the STU. *)
-val string_of_stu : stu -> string
+(** Return a string representation of the ISM. *)
+val string_of_ism : ism -> string
 
 val pt_type_pos : pt_type -> Lexing.position
 val pt_expr_pos : pt_expr -> Lexing.position

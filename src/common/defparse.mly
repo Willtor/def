@@ -55,8 +55,8 @@
 %token <Parsetree.tokendata> SEMICOLON
 %token EOF
 
-(* STU stand-ins. *)
-%token <Parsetree.tokendata * Parsetree.stu> STU_EXPR
+(* ISM stand-ins. *)
+%token <Parsetree.tokendata * Parsetree.ism> ISM_EXPR
 
 %start <Parsetree.pt_stmt list> defparse
 
@@ -224,7 +224,7 @@ struct_init:
     { $1, $2, $3 }
 
 expr:
-| STU_EXPR { let at, sexpr = $1 in PTE_StuExpr (at, sexpr) }
+| ISM_EXPR { let at, sexpr = $1 in PTE_IsmExpr (at, sexpr) }
 | NEW deftype struct_init? { PTE_New ($1, $2, $3) }
 | NIL { PTE_Nil $1 }
 | TYPE deftype { PTE_Type ($1, $2) }

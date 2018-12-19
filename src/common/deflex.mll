@@ -21,26 +21,26 @@
   open Lexing
   open Parsetree
 
-  type stutoken =
-    | StuLexOpen of Parsetree.tokendata
-    | StuLexClose of Parsetree.tokendata
-    | StuLexString of Parsetree.tokendata * string
-    | StuLexBool of Parsetree.tokendata * bool
-    | StuLexChar of Parsetree.tokendata * char
-    | StuLexUChar of Parsetree.tokendata * char
-    | StuLexInt16 of Parsetree.tokendata * int32
-    | StuLexUInt16 of Parsetree.tokendata * int32
-    | StuLexInt32 of Parsetree.tokendata * int32
-    | StuLexUInt32 of Parsetree.tokendata * int32
-    | StuLexInt64 of Parsetree.tokendata * int64
-    | StuLexUInt64 of Parsetree.tokendata * int64
-    | StuLexFloat32 of Parsetree.tokendata * float
-    | StuLexFloat64 of Parsetree.tokendata * float
-    | StuLexIdent of Parsetree.tokendata
+  type ismtoken =
+    | IsmLexOpen of Parsetree.tokendata
+    | IsmLexClose of Parsetree.tokendata
+    | IsmLexString of Parsetree.tokendata * string
+    | IsmLexBool of Parsetree.tokendata * bool
+    | IsmLexChar of Parsetree.tokendata * char
+    | IsmLexUChar of Parsetree.tokendata * char
+    | IsmLexInt16 of Parsetree.tokendata * int32
+    | IsmLexUInt16 of Parsetree.tokendata * int32
+    | IsmLexInt32 of Parsetree.tokendata * int32
+    | IsmLexUInt32 of Parsetree.tokendata * int32
+    | IsmLexInt64 of Parsetree.tokendata * int64
+    | IsmLexUInt64 of Parsetree.tokendata * int64
+    | IsmLexFloat32 of Parsetree.tokendata * float
+    | IsmLexFloat64 of Parsetree.tokendata * float
+    | IsmLexIdent of Parsetree.tokendata
 
-  (* Exception gets raised when an STU is detected.  A simple parser reads
-     the STU to completion before the main DEF parser gets its token. *)
-  exception BeginStu of Parsetree.tokendata
+  (* Exception gets raised when an ISM is detected.  A simple parser reads
+     the ISM to completion before the main DEF parser gets its token. *)
+  exception BeginIsm of Parsetree.tokendata
 
   (** Escaped character was unknown. *)
   let err_bad_escaped_char pos c =
@@ -283,71 +283,71 @@ rule deflex = parse
 | '{' as tok { LCURLY (get_token_data (strify tok) lexbuf) }
 | '}' as tok { RCURLY (get_token_data (strify tok) lexbuf) }
 | ';' as tok { SEMICOLON (get_token_data (strify tok) lexbuf) }
-| '@' as tok { raise (BeginStu (raw_token (strify tok) lexbuf)) }
+| '@' as tok { raise (BeginIsm (raw_token (strify tok) lexbuf)) }
 | eof { EOF }
 | _ { err_lexing (lexeme_start_p lexbuf) (lexeme lexbuf) }
 
-and stulex = parse
-| '[' as tok { StuLexOpen (raw_token (strify tok) lexbuf) }
-| ']' as tok { StuLexClose (raw_token (strify tok) lexbuf) }
-| "true" as tok { StuLexBool (raw_token tok lexbuf, true) }
-| "false" as tok { StuLexBool (raw_token tok lexbuf, false) }
+and ismlex = parse
+| '[' as tok { IsmLexOpen (raw_token (strify tok) lexbuf) }
+| ']' as tok { IsmLexClose (raw_token (strify tok) lexbuf) }
+| "true" as tok { IsmLexBool (raw_token tok lexbuf, true) }
+| "false" as tok { IsmLexBool (raw_token tok lexbuf, false) }
 | ['"']([^'\\' '"']*(['\\']_)?)+['"'] as str
-    { StuLexString (raw_token str lexbuf, remove_quotes str) }
+    { IsmLexString (raw_token str lexbuf, remove_quotes str) }
 | '-'?['0'-'9']+"I64" as istr
 | '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I64" as istr
-    { StuLexInt64 (raw_token istr lexbuf,
+    { IsmLexInt64 (raw_token istr lexbuf,
                    Int64.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"U64" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U64" as istr
-    { StuLexUInt64 (raw_token istr lexbuf,
+    { IsmLexUInt64 (raw_token istr lexbuf,
                     Int64.of_string (remove_suffix istr 3)) }
 | '-'?['0'-'9']+"I32" as istr
 | '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I32" as istr
-    { StuLexInt32 (raw_token istr lexbuf,
+    { IsmLexInt32 (raw_token istr lexbuf,
                    Int32.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"U32" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U32" as istr
-    { StuLexUInt32 (raw_token istr lexbuf,
+    { IsmLexUInt32 (raw_token istr lexbuf,
                     Int32.of_string (remove_suffix istr 3)) }
 | '-'?['0'-'9']+"I16" as istr
 | '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I16" as istr
-    { StuLexInt16 (raw_token istr lexbuf,
+    { IsmLexInt16 (raw_token istr lexbuf,
                    Int32.of_string (remove_suffix istr 3)) }
 | ['0'-'9']+"U16" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U16" as istr
-    { StuLexUInt16 (raw_token istr lexbuf,
+    { IsmLexUInt16 (raw_token istr lexbuf,
                     Int32.of_string (remove_suffix istr 3)) }
 | '-'?['0'-'9']+"I8" as istr
 | '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+"I8" as istr
-    { StuLexChar (raw_token istr lexbuf,
+    { IsmLexChar (raw_token istr lexbuf,
                   Char.chr (Int32.to_int (Int32.of_string
                                             (remove_suffix istr 2)))) }
 | ['0'-'9']+"U8" as istr
 | "0x"['0'-'9' 'A'-'F' 'a'-'f']+"U8" as istr
-    { StuLexUChar (raw_token istr lexbuf,
+    { IsmLexUChar (raw_token istr lexbuf,
                    Char.chr (Int32.to_int (Int32.of_string
                                              (remove_suffix istr 2)))) }
 | '-'?['0'-'9']+ as istr
 | '-'?"0x"['0'-'9' 'A'-'F' 'a'-'f']+ as istr
-    { StuLexInt32 (raw_token istr lexbuf, Int32.of_string istr) }
+    { IsmLexInt32 (raw_token istr lexbuf, Int32.of_string istr) }
 
 (* Floating point. *)
 
 | '-'?['0'-'9']+'.'?(['e' 'E']['0'-'9']+)?"F64" as fstr
 | '-'?['0'-'9']*'.'?['0'-'9']+(['e' 'E']['0'-'9']+)?"F64" as fstr
-    { StuLexFloat64 (raw_token fstr lexbuf,
+    { IsmLexFloat64 (raw_token fstr lexbuf,
                      float_of_string (remove_suffix fstr 3)) }
 
 | '-'?['0'-'9']+'.'(['e' 'E']['0'-'9']+)?"F32" as fstr
 | '-'?['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)?"F32" as fstr
-    { StuLexFloat32 (raw_token fstr lexbuf,
+    { IsmLexFloat32 (raw_token fstr lexbuf,
                      float_of_string (remove_suffix fstr 3)) }
 | '-'?['0'-'9']+'.'['e' 'E']['0'-'9']+ as fstr
 | '-'?['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)? as fstr
-    { StuLexFloat64 (raw_token fstr lexbuf, float_of_string fstr) }
+    { IsmLexFloat64 (raw_token fstr lexbuf, float_of_string fstr) }
 
 | ['A'-'Z''a'-'z''_''0'-'9''-''+''/''%''<''>''~''&''|''^''!''=']+ as tok
-    { StuLexIdent (raw_token tok lexbuf) }
-| [' ' '\t']+ { stulex lexbuf }
-| '\n' { new_line lexbuf; stulex lexbuf }
+    { IsmLexIdent (raw_token tok lexbuf) }
+| [' ' '\t']+ { ismlex lexbuf }
+| '\n' { new_line lexbuf; ismlex lexbuf }

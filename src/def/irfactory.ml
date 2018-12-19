@@ -914,8 +914,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
      final value. *)
   and expr_gen scope rval expr =
     match expr.expr_ast with
-    | ExprStu _ ->
-       Report.err_internal __FILE__ __LINE__ "unresolved STU expression."
+    | ExprIsm _ ->
+       Report.err_internal __FILE__ __LINE__ "unresolved ISM expression."
     | ExprNew (dim, tp, inits) ->
        let lli32dim = expr_gen scope true dim in
        let lldim = build_zext lli32dim (i64_type data.ctx) "" data.bldr in

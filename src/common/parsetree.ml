@@ -29,29 +29,29 @@ type pt_field =
   | PT_FieldString of tokendata
   | PT_FieldInt of tokendata * tokendata * int32 * tokendata
 
-(** STU meta program. *)
-type stu =
-  | StuSexpr of Lexing.position * stu list
-  | StuString of Lexing.position * string
-  | StuBool of Lexing.position * bool
-  | StuChar of Lexing.position * char
-  | StuUChar of Lexing.position * char
-  | StuInt16 of Lexing.position * int32
-  | StuUInt16 of Lexing.position * int32
-  | StuInt32 of Lexing.position * int32
-  | StuUInt32 of Lexing.position * int32
-  | StuInt64 of Lexing.position * int64
-  | StuUInt64 of Lexing.position * int64
-  | StuFloat32 of Lexing.position * float
-  | StuFloat64 of Lexing.position * float
-  | StuIdent of tokendata
-  | StuBinding of binding
+(** ISM meta program. *)
+type ism =
+  | IsmSexpr of Lexing.position * ism list
+  | IsmString of Lexing.position * string
+  | IsmBool of Lexing.position * bool
+  | IsmChar of Lexing.position * char
+  | IsmUChar of Lexing.position * char
+  | IsmInt16 of Lexing.position * int32
+  | IsmUInt16 of Lexing.position * int32
+  | IsmInt32 of Lexing.position * int32
+  | IsmUInt32 of Lexing.position * int32
+  | IsmInt64 of Lexing.position * int64
+  | IsmUInt64 of Lexing.position * int64
+  | IsmFloat32 of Lexing.position * float
+  | IsmFloat64 of Lexing.position * float
+  | IsmIdent of tokendata
+  | IsmBinding of binding
 
 and binding =
-  (* BBStu of value *)
-  | BBStu of stu
+  (* BBIsm of value *)
+  | BBIsm of ism
   (* BBNative of lambda (use-position * parameters * return value) *)
-  | BBNative of (Lexing.position -> stu list -> stu)
+  | BBNative of (Lexing.position -> ism list -> ism)
 
 and pt_stmt =
   | PTS_Import of tokendata * (tokendata * string) * tokendata
@@ -152,7 +152,7 @@ and pt_fcn_call =
   }
 
 and pt_expr =
-  | PTE_StuExpr of tokendata * stu
+  | PTE_IsmExpr of tokendata * ism
   | PTE_New of tokendata * pt_type
                * (tokendata * pt_field_init list * tokendata) option
   | PTE_Nil of tokendata
@@ -182,27 +182,27 @@ and pt_expr =
   | PTE_Bin of pt_expr * tokendata option * (Operator.t * tokendata) * pt_expr
   | PTE_TernaryCond of pt_expr * tokendata * pt_expr * tokendata * pt_expr
 
-(** Return a string representation of the STU. *)
-let rec string_of_stu = function
-  | StuSexpr (_, sexpr) ->
-     let strs = List.map string_of_stu sexpr in
+(** Return a string representation of the ISM. *)
+let rec string_of_ism = function
+  | IsmSexpr (_, sexpr) ->
+     let strs = List.map string_of_ism sexpr in
      "[" ^ (String.concat " " strs) ^ "]"
-  | StuString (_, str) -> "\"" ^ str ^ "\""
-  | StuBool (_, true) -> "true"
-  | StuBool (_, false) -> "false"
-  | StuChar (_, c) -> (string_of_int (Char.code c)) ^ "I8"
-  | StuUChar (_, c) -> (string_of_int (Char.code c)) ^ "U8"
-  | StuInt16 (_, n) -> (Int32.to_string n) ^ "I16"
-  | StuUInt16 (_, n) -> (Int32.to_string n) ^ "U16"
-  | StuInt32 (_, n) -> Int32.to_string n
-  | StuUInt32 (_, n) ->( Int32.to_string n) ^ "U32"
-  | StuInt64 (_, n) -> (Int64.to_string n) ^ "I64"
-  | StuUInt64 (_, n) -> (Int64.to_string n) ^ "U64"
-  | StuFloat32 (_, n) -> (string_of_float n) ^ "f"
-  | StuFloat64 (_, n) -> string_of_float n
-  | StuIdent tok -> tok.td_text
-  | StuBinding _ ->
-     Error.fatal_error "string_of_stu found binding."
+  | IsmString (_, str) -> "\"" ^ str ^ "\""
+  | IsmBool (_, true) -> "true"
+  | IsmBool (_, false) -> "false"
+  | IsmChar (_, c) -> (string_of_int (Char.code c)) ^ "I8"
+  | IsmUChar (_, c) -> (string_of_int (Char.code c)) ^ "U8"
+  | IsmInt16 (_, n) -> (Int32.to_string n) ^ "I16"
+  | IsmUInt16 (_, n) -> (Int32.to_string n) ^ "U16"
+  | IsmInt32 (_, n) -> Int32.to_string n
+  | IsmUInt32 (_, n) ->( Int32.to_string n) ^ "U32"
+  | IsmInt64 (_, n) -> (Int64.to_string n) ^ "I64"
+  | IsmUInt64 (_, n) -> (Int64.to_string n) ^ "U64"
+  | IsmFloat32 (_, n) -> (string_of_float n) ^ "f"
+  | IsmFloat64 (_, n) -> string_of_float n
+  | IsmIdent tok -> tok.td_text
+  | IsmBinding _ ->
+     Error.fatal_error "string_of_ism found binding."
 
 let pt_type_pos = function
   | PTT_Fcn (tok, _, _, _, _)
@@ -218,7 +218,7 @@ let pt_type_pos = function
      tok.td_pos
 
 let rec pt_expr_pos = function
-  | PTE_StuExpr (tok, _)
+  | PTE_IsmExpr (tok, _)
   | PTE_New (tok, _, _)
   | PTE_Nil tok
   | PTE_Type (tok, _)

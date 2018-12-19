@@ -74,20 +74,20 @@ let position_of_stmt = function
     -> pos
   | Import (tok, _) -> tok.td_pos
 
-let expr_of_stu bindings stu =
-  match eval_stu bindings stu with
-  | StuString (_, str) -> string_type, ExprString str
-  | StuBool (_, bool) -> bool_type, ExprLit (LitBool bool)
-  | StuChar (_, i8) -> char_type, ExprLit (LitI8 i8)
-  | StuUChar (_, u8) -> uchar_type, ExprLit (LitU8 u8)
-  | StuInt16 (_, i16) -> i16_type, ExprLit (LitI16 i16)
-  | StuUInt16 (_, u16) -> u16_type, ExprLit (LitU16 u16)
-  | StuInt32 (_, i32) -> i32_type, ExprLit (LitI32 i32)
-  | StuUInt32 (_, u32) -> u32_type, ExprLit (LitU32 u32)
-  | StuInt64 (_, i64) -> i64_type, ExprLit (LitI64 i64)
-  | StuUInt64 (_, u64) -> u64_type, ExprLit (LitU64 u64)
-  | StuFloat32 (_, f32) -> f32_type, ExprLit (LitF32 f32)
-  | StuFloat64 (_, f64) -> f64_type, ExprLit (LitF64 f64)
+let expr_of_ism bindings ism =
+  match eval_ism bindings ism with
+  | IsmString (_, str) -> string_type, ExprString str
+  | IsmBool (_, bool) -> bool_type, ExprLit (LitBool bool)
+  | IsmChar (_, i8) -> char_type, ExprLit (LitI8 i8)
+  | IsmUChar (_, u8) -> uchar_type, ExprLit (LitU8 u8)
+  | IsmInt16 (_, i16) -> i16_type, ExprLit (LitI16 i16)
+  | IsmUInt16 (_, u16) -> u16_type, ExprLit (LitU16 u16)
+  | IsmInt32 (_, i32) -> i32_type, ExprLit (LitI32 i32)
+  | IsmUInt32 (_, u32) -> u32_type, ExprLit (LitU32 u32)
+  | IsmInt64 (_, i64) -> i64_type, ExprLit (LitI64 i64)
+  | IsmUInt64 (_, u64) -> u64_type, ExprLit (LitU64 u64)
+  | IsmFloat32 (_, f32) -> f32_type, ExprLit (LitF32 f32)
+  | IsmFloat64 (_, f64) -> f64_type, ExprLit (LitF64 f64)
   | _ -> Error.fatal_error "Need suitable error."
 
 let resolve_types ast =
@@ -333,14 +333,14 @@ let resolve_types ast =
   (* Resolve types of expressions and all subexpressions. *)
   let rec resolve varmap expr =
     match expr.expr_ast with
-    | ExprStu (StuIdent tok) ->
+    | ExprIsm (IsmIdent tok) ->
        begin
          match lookup_symbol bindings tok.td_text with
          | None ->
             Report.err_internal __FILE__ __LINE__
-              "Need suitable error -- 'unknown STU symbol.'"
-         | Some (BBStu stu) ->
-            let tp, ast = expr_of_stu bindings stu in
+              "Need suitable error -- 'unknown ISM symbol.'"
+         | Some (BBIsm ism) ->
+            let tp, ast = expr_of_ism bindings ism in
             { expr_cr = expr.expr_cr;
               expr_tp = tp;
               expr_ast = ast
@@ -349,8 +349,8 @@ let resolve_types ast =
             Report.err_internal __FILE__ __LINE__
               "Need appropriate error message."
        end
-    | ExprStu sexpr ->
-       let tp, ast = expr_of_stu bindings sexpr in
+    | ExprIsm sexpr ->
+       let tp, ast = expr_of_ism bindings sexpr in
        { expr_cr = expr.expr_cr;
          expr_tp = tp;
          expr_ast = ast

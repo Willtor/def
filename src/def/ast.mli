@@ -36,7 +36,7 @@ and expr =
   }
 
 and ast_expr =
-  | ExprStu of Parsetree.stu
+  | ExprIsm of Parsetree.ism
   | ExprNew of (*array dim=*)expr * Types.deftype
                * (Parsetree.tokendata * expr) list
   | ExprFcnCall of string * expr list * (*spawn=*)bool
