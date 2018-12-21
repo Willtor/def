@@ -40,8 +40,10 @@ let define ismbindings = function
      let () = prerr_endline "hey now" in
      Error.fatal_error "FIXME: Need suitable error."
 
-let master_lexer depth ismbindings lexbuf =
-  let store at sexpr = Some (ISM_EXPR (at, sexpr)) in
+let rec master_lexer preseed ismbindings lexbuf =
+  let store_expr at sexpr = Some (ISM_EXPR (at, sexpr)) in
+
+  let store_stmts sexpr = Some (ISM_STMTS sexpr) in
 
   let store_or_stash at sexpr =
     match sexpr with
@@ -51,8 +53,10 @@ let master_lexer depth ismbindings lexbuf =
          | "define" ->
             (define ismbindings rest; None)
          | _ ->
-            store at sexpr
+            store_expr at sexpr
        end
+    | IsmDefStmts stmts ->
+       store_stmts stmts
     | _ ->
        Error.fatal_error "FIXME: Need suitable error.  Malformed s-expr."
   in
@@ -97,7 +101,17 @@ let master_lexer depth ismbindings lexbuf =
       | IsmLexFloat64 (tok, n) ->
          continue @@ IsmFloat64 (tok.td_pos, n)
       | IsmLexIdent tok ->
-         continue @@ IsmIdent tok
+         if accum = [] && tok.td_text = "def-stmt" then
+           let subbindings = push_symtab_scope ismbindings in
+           let stmts =
+             match master_parser (Some ISM_STATEMENTS) subbindings lexbuf with
+             | [PTS_ISM_Stmts (stmts)] -> stmts
+             | _ -> Error.fatal_error
+                      "Tried to parse statements and got something else back."
+           in
+           IsmDefStmts stmts
+         else
+           continue @@ IsmIdent tok
     in
     match ismlex lexbuf with
     | IsmLexOpen tok ->
@@ -106,12 +120,25 @@ let master_lexer depth ismbindings lexbuf =
     | IsmLexClose tok ->
        Error.err_pos "No matching open square bracket." tok.td_pos
     | IsmLexIdent tok ->
-       store at (IsmIdent tok)
+       store_expr at (IsmIdent tok)
     | _ ->
        Error.fatal_error "Not a function or DEF value."
 
   in
-  base_deflex ()
+  if !preseed = None then
+    base_deflex ()
+  else
+    let v = Util.the !preseed in
+    preseed := None;
+    v
+
+and master_parser preseed ismbindings lexbuf =
+  try defparse (master_lexer (ref preseed) ismbindings) lexbuf
+  with _ ->
+    let pos = lexeme_start_p lexbuf in
+    let posstr = Error.format_position pos in
+    let srcstr = Error.show_source pos in
+    Error.fatal_error (posstr ^ "\n  Syntax error.\n" ^ srcstr ^ "\n")
 
 (** Generate a parse tree from the given input channel/filename. *)
 let from_in_channel filename channel ismbindings =
@@ -128,9 +155,4 @@ let from_in_channel filename channel ismbindings =
       pos_bol = lexbuf.lex_curr_p.pos_bol;
       pos_cnum = lexbuf.lex_curr_p.pos_cnum
     };
-  try defparse (master_lexer 0 ismbindings) lexbuf
-  with _ ->
-    let pos = lexeme_start_p lexbuf in
-    let posstr = Error.format_position pos in
-    let srcstr = Error.show_source pos in
-    Error.fatal_error (posstr ^ "\n  Syntax error.\n" ^ srcstr ^ "\n")
+  master_parser None ismbindings lexbuf

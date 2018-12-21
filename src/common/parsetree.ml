@@ -45,6 +45,7 @@ type ism =
   | IsmFloat32 of Lexing.position * float
   | IsmFloat64 of Lexing.position * float
   | IsmIdent of tokendata
+  | IsmDefStmts of pt_stmt list
   | IsmBinding of binding
 
 and binding =
@@ -54,6 +55,8 @@ and binding =
   | BBNative of (Lexing.position -> ism list -> ism)
 
 and pt_stmt =
+  | PTS_ISM_Stmts of pt_stmt list
+
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of
@@ -201,6 +204,7 @@ let rec string_of_ism = function
   | IsmFloat32 (_, n) -> (string_of_float n) ^ "f"
   | IsmFloat64 (_, n) -> string_of_float n
   | IsmIdent tok -> tok.td_text
+  | IsmDefStmts _ -> "defism-statements"
   | IsmBinding _ ->
      Error.fatal_error "string_of_ism found binding."
 

@@ -51,7 +51,7 @@ let nil_type = maketype None @@ DefTypeNullPtr
 let wildcard_type = maketype None @@ DefTypeWildcard
 
 (* FIXME: This function should be in ast.ml. *)
-let position_of_stmt = function
+let rec position_of_stmt = function
   | StmtExpr (pos, _)
   | Block (pos, _)
   | DeclFcn (pos, _, _, _, _)
@@ -72,6 +72,9 @@ let position_of_stmt = function
   | Continue pos
   | Sync pos
     -> pos
+  | MultiStmt stmts ->
+     (* Should never be an empty list. *)
+     position_of_stmt (List.hd stmts)
   | Import (tok, _) -> tok.td_pos
 
 let expr_of_ism bindings ism =
@@ -723,6 +726,8 @@ let resolve_types ast =
 
   let rec stmt_to_stmt fcn rettp varmap stmt =
     match stmt with
+    | MultiStmt stmts ->
+       MultiStmt (List.map (stmt_to_stmt fcn rettp varmap) stmts)
     | StmtExpr (p, e) -> StmtExpr (p, resolve varmap e)
     | Block (p, slist) ->
        Block (p, List.map (stmt_to_stmt fcn rettp varmap) slist)
@@ -854,6 +859,7 @@ let legit_gotos prog =
     let labels = make_symtab () in
     let gotos = make_symtab () in
     let rec find_labels_n_gotos = function
+      | MultiStmt stmts -> List.iter find_labels_n_gotos stmts
       | Block (_, stmts) -> List.iter find_labels_n_gotos stmts
       | TransactionBlock (_, body, fclauses) ->
          let () = List.iter find_labels_n_gotos body in
@@ -898,6 +904,7 @@ let legit_gotos prog =
 let legit_breaks prog =
   let verify name body =
     let rec traverse can_break = function
+      | MultiStmt stmts -> List.iter (traverse can_break) stmts
       | Block (_, stmts) -> List.iter (traverse can_break) stmts
       | TransactionBlock (_, body, fclauses) ->
          let () = List.iter (traverse can_break) body in
@@ -993,6 +1000,7 @@ let legit_parallelism prog =
     in
     let rec traverse can_par = function
       | StmtExpr (pos, expr) -> check_expr can_par pos expr
+      | MultiStmt stmts -> List.iter (traverse can_par) stmts
       | Block (_, stmts) -> List.iter (traverse can_par) stmts
       | VarDecl (tok, _, inits, _, _) ->
          if 1 = (List.length inits) then
@@ -1070,6 +1078,9 @@ let kill_dead_code prog =
       | [] -> List.rev accum
       | StmtExpr _ as stmt :: rest ->
          proc (stmt :: accum) rest
+      | MultiStmt stmts :: rest ->
+         let stmt = MultiStmt (proc [] stmts) in
+         proc (stmt :: accum) rest
       | Block (pos, slist) :: rest ->
          let stmt = Block (pos, proc [] slist) in
          proc (stmt :: accum) rest
@@ -1142,6 +1153,8 @@ let return_all_paths prog =
     | [] -> false
     | Import _ :: rest -> contains_break_p rest
     | StmtExpr _ :: rest -> contains_break_p rest
+    | MultiStmt stmts :: rest ->
+       contains_break_p stmts || contains_break_p rest
     | Block (_, body) :: rest ->
        contains_break_p body || contains_break_p rest
     | DeclFcn _ :: rest -> contains_break_p rest
@@ -1183,6 +1196,7 @@ let return_all_paths prog =
         match List.hd (List.rev stmts) with
         | Import _ -> false
         | StmtExpr _ -> false
+        | MultiStmt stmts -> returns_p stmts
         | Block (_, body) -> returns_p body
         | DeclFcn _ -> false
         | DefFcn _ -> false

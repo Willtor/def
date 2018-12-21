@@ -1131,6 +1131,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
   in
 
   let rec stmt_gen scope = function
+    | MultiStmt stmts ->
+       List.iter (stmt_gen scope) stmts
     | Import _ -> ()
     | StmtExpr (_, expr) ->
        if is_spawn_expr expr then

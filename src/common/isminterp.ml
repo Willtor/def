@@ -375,5 +375,6 @@ let rec eval_ism bindings = function
           Error.fatal_error
             ("FIXME: suitable error for unknown sym: " ^ tok.td_text)
      end
+  | IsmDefStmts _ as v -> v
   | _ ->
      Error.fatal_error "Not implemented."

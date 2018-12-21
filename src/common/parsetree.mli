@@ -28,6 +28,7 @@ type ism =
   | IsmFloat32 of Lexing.position * float
   | IsmFloat64 of Lexing.position * float
   | IsmIdent of tokendata
+  | IsmDefStmts of pt_stmt list
   | IsmBinding of binding
 
 and binding =
@@ -37,6 +38,7 @@ and binding =
   | BBNative of (Lexing.position -> ism list -> ism)
 
 and pt_stmt =
+  | PTS_ISM_Stmts of pt_stmt list
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of

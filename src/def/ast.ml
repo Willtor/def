@@ -85,6 +85,7 @@ and ast_expr =
   | ExprWildcard
 
 type stmt =
+  | MultiStmt of stmt list
   | Import of Parsetree.tokendata * Parsetree.tokendata
   | StmtExpr of position * expr
   | Block of position * stmt list
@@ -224,6 +225,7 @@ let of_parsetree =
     | _ -> false
   in
   let rec stmt_of = function
+    | PTS_ISM_Stmts stmts -> MultiStmt (List.map stmt_of stmts)
     | PTS_Import (importtok, (pathtok, _), _) -> Import (importtok, pathtok)
     | PTS_Begin (b, stmts, _) -> Block (b.td_pos, List.map stmt_of stmts)
     | PTS_FcnDefExpr ((exp, def, id, tp), equals, e, _) ->

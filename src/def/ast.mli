@@ -60,6 +60,7 @@ and ast_expr =
   | ExprWildcard
 
 type stmt =
+  | MultiStmt of stmt list
   | Import of Parsetree.tokendata * Parsetree.tokendata
   | StmtExpr of position * expr
   | Block of position * stmt list

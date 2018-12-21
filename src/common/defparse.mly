@@ -22,6 +22,9 @@
   open Parsetree
 %}
 
+(* Special token for parsing statements within an ISM block. *)
+%token ISM_STATEMENTS
+
 %token <Parsetree.tokendata * int64> LITERALI64 LITERALU64
 %token <Parsetree.tokendata * int32> LITERALI32 LITERALU32
 %token <Parsetree.tokendata * int32> LITERALI16 LITERALU16
@@ -57,6 +60,7 @@
 
 (* ISM stand-ins. *)
 %token <Parsetree.tokendata * Parsetree.ism> ISM_EXPR
+%token <Parsetree.pt_stmt list> ISM_STMTS
 
 %start <Parsetree.pt_stmt list> defparse
 
@@ -88,11 +92,13 @@
 
 defparse:
 | stmts = statement+ EOF { stmts }
+| ISM_STATEMENTS statement+ RSQUARE { [PTS_ISM_Stmts $2] }
 
 block:
 | BEGIN statement* END { PTS_Begin ($1, $2, $3) }
 
 statement:
+| ISM_STMTS { PTS_ISM_Stmts $1 }
 | IMPORT STRING SEMICOLON { PTS_Import ($1, $2, $3) }
 | fcndef EQUALS expr SEMICOLON { PTS_FcnDefExpr ($1, $2, $3, $4) }
 | fcndef block { PTS_FcnDefBlock ($1, $2) }
