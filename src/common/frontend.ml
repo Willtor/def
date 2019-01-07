@@ -33,6 +33,15 @@ let define ismbindings = function
      let resolved_value = eval_ism ismbindings value in
      let binding = BBIsm resolved_value in
      add_symbol ismbindings id.td_text binding
+  | [(IsmSexpr (_, fname :: profile)); body] ->
+     let get_variables = function
+       | IsmIdent tok -> tok
+       | _ ->
+          Error.fatal_error "FIXME: Need suitable error.  Bad profile"
+     in
+     let variables = List.map get_variables (fname :: profile) in
+     let lambda = BBLambda (List.tl variables, ismbindings, body) in
+     add_symbol ismbindings (List.hd variables).td_text lambda
   | [(IsmInt32 _) ; _] ->
      let () = prerr_endline "hey now int32" in
      Error.fatal_error "FIXME: Need suitable error."
@@ -101,7 +110,7 @@ let rec master_lexer preseed ismbindings lexbuf =
       | IsmLexFloat64 (tok, n) ->
          continue @@ IsmFloat64 (tok.td_pos, n)
       | IsmLexIdent tok ->
-         if accum = [] && tok.td_text = "def-stmt" then
+         if accum = [] && tok.td_text = "parse-stmt" then
            let subbindings = push_symtab_scope ismbindings in
            let stmts =
              match master_parser (Some ISM_STATEMENTS) subbindings lexbuf with
@@ -120,7 +129,15 @@ let rec master_lexer preseed ismbindings lexbuf =
     | IsmLexClose tok ->
        Error.err_pos "No matching open square bracket." tok.td_pos
     | IsmLexIdent tok ->
-       store_expr at (IsmIdent tok)
+       begin
+         match lookup_symbol ismbindings tok.td_text with
+         | None ->
+            Error.fatal_error "no binding; need suitable error."
+         | Some (BBIsm (IsmDefStmts stmts)) ->
+            store_stmts stmts
+         | Some _ ->
+            store_expr at (IsmIdent tok)
+       end
     | _ ->
        Error.fatal_error "Not a function or DEF value."
 

@@ -36,6 +36,8 @@ and binding =
   | BBIsm of ism
   (* BBNative of lambda (use-position * parameters * return value) *)
   | BBNative of (Lexing.position -> ism list -> ism)
+  (* BBLambda of variables * environment * body *)
+  | BBLambda of tokendata list * binding Util.symtab * ism
 
 and pt_stmt =
   | PTS_ISM_Stmts of pt_stmt list

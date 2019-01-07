@@ -348,9 +348,16 @@ let rec eval_ism bindings = function
        match eval_ism bindings (List.hd sexpr) with
        | IsmBinding (BBNative native_f) ->
           native_f pos (List.tl (List.map (eval_ism bindings) sexpr))
-       | IsmBinding _ ->
-          Error.fatal_error
-            "Not implemented, yet."
+       | IsmBinding (BBLambda (params, env, body)) ->
+          if List.length params <> List.length (List.tl sexpr) then
+            Error.fatal_error "unequal # of parameters in ISM function"
+          else
+            let subscope = push_symtab_scope env in
+            let bind a b =
+              add_symbol subscope a.td_text (BBIsm (eval_ism bindings b))
+            in
+            let () = List.iter2 bind params (List.tl sexpr) in
+            eval_ism subscope body
        | _ ->
           Error.fatal_error
             "Need suitable error: tried to call a non-function"
