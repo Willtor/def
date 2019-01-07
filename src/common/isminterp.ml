@@ -33,6 +33,12 @@ let is_num ism =
   | IsmInt32 _ | IsmUInt32 _
   | IsmInt64 _ | IsmUInt64 _
   | IsmFloat32 _ | IsmFloat64 _ -> ism
+  | IsmBinding (BBIsm (IsmFloat32 _)) ->
+     Error.fatal_error "float32."
+  | IsmBinding (BBIsm _) ->
+     Error.fatal_error "why didn't it get rid of this?"
+  | IsmBinding _ ->
+     Error.fatal_error "is_num found a binding."
   | _ -> Error.fatal_error "ISM value isn't a number."
 
 let generalize_nums a b =
@@ -354,7 +360,12 @@ let rec eval_ism bindings = function
           else
             let subscope = push_symtab_scope env in
             let bind a b =
-              add_symbol subscope a.td_text (BBIsm (eval_ism bindings b))
+              let binding =
+                match eval_ism bindings b with
+                | IsmBinding (BBIsm v) -> v
+                | v -> v
+              in
+              add_symbol subscope a.td_text (BBIsm binding)
             in
             let () = List.iter2 bind params (List.tl sexpr) in
             eval_ism subscope body
