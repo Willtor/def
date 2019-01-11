@@ -303,6 +303,25 @@ let float_conv pos =
     Int64.to_float
     ident
 
+let list_op name op pos = function
+  | [ IsmSexpr (_, list) ] ->
+     begin
+       try op list
+       with _ -> Error.fatal_error ("Operation " ^ name ^ " failed.")
+     end
+  | _ :: [] ->
+     Error.fatal_error ("Attempted to perform " ^ name ^ " on a non-list.")
+  | _ ->
+     Error.fatal_error ("Too many arguments for " ^ name)
+
+let car = function
+  | el :: _ -> el
+  | [] -> Error.fatal_error "Unable to extract element from list."
+
+let cdr = function
+  | _ :: rest -> IsmSexpr (faux_pos, rest)
+  | [] -> Error.fatal_error "Unable to return cdr from list."
+
 let ism_builtins =
   [ (*-- Operations --*)
     ("+", add); ("-", sub);
@@ -332,6 +351,10 @@ let ism_builtins =
      (fun pos args -> let p, v = float_conv pos args in IsmFloat32 (p, v)));
     ("float64",
      (fun pos args -> let p, v = float_conv pos args in IsmFloat64 (p, v)));
+
+    (*-- List Operations --*)
+    ("car", list_op "car" car);
+    ("cdr", list_op "cdr" cdr);
   ]
 
 (** Return the default set of bindings. *)
