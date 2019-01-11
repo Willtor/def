@@ -340,10 +340,16 @@ let bindings_create () =
   List.iter (fun (k, v) -> add_symbol bindings k (BBNative v)) ism_builtins;
   bindings
 
+let verify_one_param name = function
+  | [ param ] -> param
+  | _ -> Error.fatal_error ("Expected one parameter for " ^ name)
+
 (** Interpret a ISM expression and return the result. *)
 let rec eval_ism bindings = function
   | IsmSexpr (_, []) ->
      Error.fatal_error "empty s-expression."
+  | IsmSexpr (pos, (IsmIdent { td_text = "quote" }) :: rest) ->
+     verify_one_param "quote" rest
   | IsmSexpr (pos, sexpr) ->
      begin
        match eval_ism bindings (List.hd sexpr) with
