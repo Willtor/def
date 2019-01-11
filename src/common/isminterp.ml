@@ -383,11 +383,159 @@ let rec eval_ism bindings = function
   | IsmIdent tok ->
      begin
        match lookup_symbol bindings tok.td_text with
-       | Some binding -> IsmBinding binding
+       | Some binding ->
+          begin
+            match binding with
+            | BBIsm bbism -> bbism
+            | _ -> IsmBinding binding
+          end
        | None ->
+          let () = symtab_iter (fun str _ -> prerr_endline str) bindings in
           Error.fatal_error
             ("FIXME: suitable error for unknown sym: " ^ tok.td_text)
      end
-  | IsmDefStmts _ as v -> v
-  | _ ->
-     Error.fatal_error "Not implemented."
+  | IsmDefStmts stmts ->
+     IsmDefStmts (List.map (resolve_stmt bindings) stmts)
+  | IsmBinding binding ->
+     match binding with
+     | BBIsm _ -> Error.fatal_error "bbism"
+     | BBNative _ -> Error.fatal_error "bbnative"
+     | BBLambda _ -> Error.fatal_error "bblambda"
+
+and resolve_stmt bindings stmt =
+  let map_apply = List.map (resolve_stmt bindings) in
+  let process_for_init = function
+    | PTForInit_Var (v, id, tp, eq, expr) ->
+       PTForInit_Var (v, id, tp, eq, resolve_expr bindings expr)
+    | PTForInit_Expr expr ->
+       PTForInit_Expr (resolve_expr bindings expr)
+  in
+  match stmt with
+  | PTS_ISM_Stmts stmts -> PTS_ISM_Stmts (map_apply stmts)
+  | PTS_Import _ -> stmt
+  | PTS_Begin (b, stmts, e) -> PTS_Begin (b, map_apply stmts, e)
+  | PTS_FcnDefExpr (decl, eq, expr, semi) ->
+     PTS_FcnDefExpr (decl, eq, resolve_expr bindings expr, semi)
+  | PTS_FcnDefBlock (decl, stmt) ->
+     PTS_FcnDefBlock (decl, resolve_stmt bindings stmt)
+  | PTS_FcnDecl _ -> stmt
+  | PTS_Expr (expr, semi) -> PTS_Expr (resolve_expr bindings expr, semi)
+  | PTS_Var _ -> stmt
+  | PTS_VarInit (v, ids, tp, eq, exprs, semi) ->
+     PTS_VarInit (v, ids, tp, eq, List.map (resolve_expr bindings) exprs, semi)
+  | PTS_VarInlineStruct (v, oc, vars, cc, eq, expr, semi) ->
+     PTS_VarInlineStruct
+       (v, oc, vars, cc, eq, resolve_expr bindings expr, semi)
+  | PTS_VarInlineStructInferred (v, oc, vars, cc, eq, expr, semi) ->
+     PTS_VarInlineStructInferred
+       (v, oc, vars, cc, eq, resolve_expr bindings expr, semi)
+  | PTS_DeleteExpr (del, expr, semi) ->
+     PTS_DeleteExpr (del, resolve_expr bindings expr, semi)
+  | PTS_RetireExpr (retire, expr, semi) ->
+     PTS_RetireExpr (retire, resolve_expr bindings expr, semi)
+  | PTS_Transaction (atomic, b, body, cases, e) ->
+     let process_case (c, e, colon, stmts) =
+       c, resolve_expr bindings e, colon, map_apply stmts
+     in
+     PTS_Transaction
+       (atomic, b, map_apply body, List.map process_case cases, e)
+  | PTS_IfStmt (iftok, cond, thentok, body, elifs, default, fi) ->
+     let process_elif (elif, cond, thentok, body) =
+       elif, resolve_expr bindings cond, thentok, map_apply body
+     in
+     let process_else (elsetok, body) = elsetok, map_apply body in
+     PTS_IfStmt (iftok, resolve_expr bindings cond, thentok,
+                 map_apply body,
+                 List.map process_elif elifs,
+                 option_map process_else default,
+                 fi)
+  | PTS_ForLoop (fortok, init, semi1, cond, semi2, iter, dotok, body, od) ->
+     PTS_ForLoop (fortok, option_map process_for_init init, semi1,
+                  resolve_expr bindings cond, semi2,
+                  option_map (resolve_expr bindings) iter, dotok,
+                  map_apply body, od)
+  | PTS_ParforLoop (parfor, init, semi1, cond, semi2, iter, dotok, body, od) ->
+     PTS_ParforLoop (parfor, option_map process_for_init init, semi1,
+                     resolve_expr bindings cond, semi2,
+                     option_map (resolve_expr bindings) iter, dotok,
+                     map_apply body, od)
+  | PTS_WhileLoop (wtok, cond, dotok, body, od) ->
+     PTS_WhileLoop (wtok, resolve_expr bindings cond, dotok,
+                    map_apply body, od)
+  | PTS_DoWhileLoop (dotok, body, od, wtok, cond, semi) ->
+     PTS_DoWhileLoop (dotok, map_apply body,
+                      od, wtok, resolve_expr bindings cond, semi)
+  | PTS_SwitchStmt (switch, pattern, withtok, cases, esac) ->
+     let process_case = function
+       | PTMatchCase (case, expr, colon, stmts) ->
+          PTMatchCase (case, resolve_expr bindings expr, colon,
+                       map_apply stmts)
+       | PTFallCase (case, expr, colon, stmts) ->
+          PTFallCase (case, resolve_expr bindings expr, colon,
+                      map_apply stmts)
+     in
+     PTS_SwitchStmt (switch, resolve_expr bindings pattern,
+                     withtok, List.map process_case cases, esac)
+  | PTS_ReturnExpr (ret, expr, semi) ->
+     PTS_ReturnExpr (ret, resolve_expr bindings expr, semi)
+  | PTS_Type _ -> stmt
+  | PTS_Return _ -> stmt
+  | PTS_Goto _ -> stmt
+  | PTS_Break _ -> stmt
+  | PTS_Label _ -> stmt
+  | PTS_Continue _ -> stmt
+  | PTS_Sync _ -> stmt
+
+and resolve_expr bindings expr =
+  let rec resolve e =
+    match e with
+    | PTE_IsmExpr (tok, ism) -> PTE_IsmExpr (tok, eval_ism bindings ism)
+    | PTE_New (newtok, tp, field_inits) ->
+       let process_fi fi =
+         { ptfi_fname = fi.ptfi_fname;
+           ptfi_colon = fi.ptfi_colon;
+           ptfi_expr = resolve fi.ptfi_expr
+         }
+       in
+       let process_filist (oc, filist, cc) =
+         oc, List.map process_fi filist, oc
+       in
+       PTE_New (newtok, tp, option_map process_filist field_inits)
+    | PTE_Nil _ -> e
+    | PTE_Type _ -> e
+    | PTE_I64 _ -> e | PTE_U64 _ -> e
+    | PTE_I32 _ -> e | PTE_U32 _ -> e
+    | PTE_I16 _ -> e | PTE_U16 _ -> e
+    | PTE_I8 _ -> e  | PTE_U8 _ -> e
+    | PTE_Bool _ -> e
+    | PTE_F64 _ -> e | PTE_F32 _ -> e
+    | PTE_String _ -> e
+    | PTE_Wildcard _ -> e
+    | PTE_FcnCall fcn ->
+       PTE_FcnCall
+         { ptfc_spawn = fcn.ptfc_spawn;
+           ptfc_name = fcn.ptfc_name;
+           ptfc_lparen = fcn.ptfc_lparen;
+           ptfc_args = List.map resolve fcn.ptfc_args;
+           ptfc_rparen = fcn.ptfc_rparen
+         }
+    | PTE_Cast (cast, tp, lp, expr, rp) ->
+       PTE_Cast (cast, tp, lp, resolve expr, rp)
+    | PTE_Var _ -> e
+    | PTE_StaticStruct (name, oc, exprs, cc) ->
+       PTE_StaticStruct (name, oc, List.map resolve exprs, cc)
+    | PTE_StaticArray (os, exprs, cs) ->
+       PTE_StaticArray (os, List.map resolve exprs, cs)
+    | PTE_Index (base, os, idx, cs) ->
+       PTE_Index (resolve base, os, resolve idx, cs)
+    | PTE_SelectField (obj, dot, field) ->
+       PTE_SelectField (resolve obj, dot, field)
+    | PTE_PostUni (expr, oper) -> PTE_PostUni (resolve expr, oper)
+    | PTE_PreUni (oper, expr) -> PTE_PreUni (oper, resolve expr)
+    | PTE_Bin (left, atomic, oper, right) ->
+       PTE_Bin (resolve left, atomic, oper, resolve right)
+    | PTE_TernaryCond (cond, qmark, texpr, colon, fexpr) ->
+       PTE_TernaryCond
+         (resolve cond, qmark, resolve texpr, colon, resolve fexpr)
+  in
+  resolve expr

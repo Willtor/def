@@ -56,13 +56,26 @@ let rec master_lexer preseed ismbindings lexbuf =
 
   let store_or_stash at sexpr =
     match sexpr with
-    | IsmSexpr (_, (IsmIdent fcn) :: rest) ->
+    | IsmSexpr (pos, (IsmIdent fcn) :: rest) ->
+       let extract_single_arg fcn =
+         match rest with
+         | [ arg ] -> arg
+         | _ -> Error.fatal_error ("expected single arg for " ^ fcn)
+       in
        begin
          match fcn.td_text with
+         (* Special forms:
+            FIXME: Identifying special forms should be handled by the lexer. *)
          | "define" ->
             (define ismbindings rest; None)
+         | "emit-expr" ->
+            store_expr at (extract_single_arg "emit-expr")
          | _ ->
-            store_expr at sexpr
+            match eval_ism ismbindings sexpr with
+            | IsmDefStmts stmts ->
+               store_stmts stmts
+            | v ->
+               store_expr at v
        end
     | IsmDefStmts stmts ->
        store_stmts stmts
