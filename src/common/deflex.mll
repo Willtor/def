@@ -24,6 +24,7 @@
   type ismtoken =
     | IsmLexOpen of Parsetree.tokendata
     | IsmLexClose of Parsetree.tokendata
+    | IsmLexQuote of Parsetree.tokendata
     | IsmLexString of Parsetree.tokendata * string
     | IsmLexBool of Parsetree.tokendata * bool
     | IsmLexChar of Parsetree.tokendata * char
@@ -290,6 +291,7 @@ rule deflex = parse
 and ismlex = parse
 | '[' as tok { IsmLexOpen (raw_token (strify tok) lexbuf) }
 | ']' as tok { IsmLexClose (raw_token (strify tok) lexbuf) }
+| '`' as tok { IsmLexQuote (raw_token (strify tok) lexbuf) }
 | "true" as tok { IsmLexBool (raw_token tok lexbuf, true) }
 | "false" as tok { IsmLexBool (raw_token tok lexbuf, false) }
 | ['"']([^'\\' '"']*(['\\']_)?)+['"'] as str

@@ -98,6 +98,36 @@ let rec master_lexer preseed ismbindings lexbuf =
          continue @@ ismparse tok.td_pos []
       | IsmLexClose _ ->
          IsmSexpr (pos, List.rev accum)
+      | IsmLexQuote tok ->
+         let rec get_quoted_value = function
+           | IsmLexOpen tok -> ismparse tok.td_pos []
+           | IsmLexClose tok -> Ismerr.err_syntax tok.td_pos tok.td_text
+           | IsmLexQuote tok ->
+              return_quoted_value tok @@ get_quoted_value (ismlex lexbuf)
+           | IsmLexString (tok, str) -> IsmString (tok.td_pos, str)
+           | IsmLexBool (tok, bool) -> IsmBool (tok.td_pos, bool)
+           | IsmLexChar (tok, n) -> IsmChar (tok.td_pos, n)
+           | IsmLexUChar (tok, n) -> IsmUChar (tok.td_pos, n)
+           | IsmLexInt16 (tok, n) -> IsmInt16 (tok.td_pos, n)
+           | IsmLexUInt16 (tok, n) -> IsmUInt16 (tok.td_pos, n)
+           | IsmLexInt32 (tok, n) -> IsmInt32 (tok.td_pos, n)
+           | IsmLexUInt32 (tok, n) -> IsmUInt32 (tok.td_pos, n)
+           | IsmLexInt64 (tok, n) -> IsmInt64 (tok.td_pos, n)
+           | IsmLexUInt64 (tok, n) -> IsmUInt64 (tok.td_pos, n)
+           | IsmLexFloat32 (tok, n) -> IsmFloat32 (tok.td_pos, n)
+           | IsmLexFloat64 (tok, n) -> IsmFloat64 (tok.td_pos, n)
+           | IsmLexIdent tok -> IsmIdent tok
+         and return_quoted_value tok expr =
+           let fcn =
+             { td_pos = tok.td_pos;
+               td_text = "quote";
+               td_noncode = tok.td_noncode
+             }
+           in
+           IsmSexpr (tok.td_pos, [ IsmIdent fcn; expr ])
+         in
+         continue @@
+           return_quoted_value tok @@ get_quoted_value (ismlex lexbuf)
       | IsmLexString (tok, str) ->
          continue @@ IsmString (tok.td_pos, str)
       | IsmLexBool (tok, bool) ->

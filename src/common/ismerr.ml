@@ -23,6 +23,10 @@ let internal str =
   let bt = Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()) in
   fatal_error ("ISM internal error: " ^ str ^ "\n\nBacktrace:\n" ^ bt)
 
+(** Syntax error. *)
+let err_syntax pos str =
+  err_pos ("Unexpected token in ISM: " ^ str) pos
+
 (** Undefined variable. *)
 let err_unknown_symbol pos sym =
   err_pos ("Unknown symbol: " ^ sym) pos
