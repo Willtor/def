@@ -19,6 +19,8 @@
 open Parsetree
 open Util
 
+exception ExNoFloatPermitted
+
 type op_kind =
   | Multi of (int32 -> int32 -> int32) * (int64 -> int64 -> int64)
              * (float -> float -> float)
@@ -208,21 +210,24 @@ let mathop name op_kind =
   in
   fun pos args ->
   let binop i32 i64 float accum value =
-    match generalize_nums (debind accum) (debind value) with
-    | IsmChar (pos, n), IsmChar (_, m) -> IsmChar (pos, char i32 n m)
-    | IsmUChar (pos, n), IsmUChar (_, m) -> IsmUChar (pos, char i32 n m)
-    | IsmInt16 (pos, n), IsmInt16 (_, m) -> IsmInt16 (pos, i32 n m)
-    | IsmUInt16 (pos, n), IsmUInt16 (_, m) -> IsmUInt16 (pos, i32 n m)
-    | IsmInt32 (pos, n), IsmInt32 (_, m) -> IsmInt32 (pos, i32 n m)
-    | IsmUInt32 (pos, n), IsmUInt32 (_, m) -> IsmUInt32 (pos, i32 n m)
-    | IsmInt64 (pos, n), IsmInt64 (_, m) -> IsmInt64 (pos, i64 n m)
-    | IsmUInt64 (pos, n), IsmUInt64 (_, m) -> IsmUInt64 (pos, i64 n m)
-    | IsmFloat32 (pos, n), IsmFloat32 (_, m) -> IsmFloat32 (pos, float n m)
-    | IsmFloat64 (pos, n), IsmFloat64 (_, m) -> IsmFloat64 (pos, float n m)
-    | _ -> Ismerr.internal "ISM math binop error."
+    try
+      match generalize_nums (debind accum) (debind value) with
+      | IsmChar (pos, n), IsmChar (_, m) -> IsmChar (pos, char i32 n m)
+      | IsmUChar (pos, n), IsmUChar (_, m) -> IsmUChar (pos, char i32 n m)
+      | IsmInt16 (pos, n), IsmInt16 (_, m) -> IsmInt16 (pos, i32 n m)
+      | IsmUInt16 (pos, n), IsmUInt16 (_, m) -> IsmUInt16 (pos, i32 n m)
+      | IsmInt32 (pos, n), IsmInt32 (_, m) -> IsmInt32 (pos, i32 n m)
+      | IsmUInt32 (pos, n), IsmUInt32 (_, m) -> IsmUInt32 (pos, i32 n m)
+      | IsmInt64 (pos, n), IsmInt64 (_, m) -> IsmInt64 (pos, i64 n m)
+      | IsmUInt64 (pos, n), IsmUInt64 (_, m) -> IsmUInt64 (pos, i64 n m)
+      | IsmFloat32 (pos, n), IsmFloat32 (_, m) -> IsmFloat32 (pos, float n m)
+      | IsmFloat64 (pos, n), IsmFloat64 (_, m) -> IsmFloat64 (pos, float n m)
+      | _ -> Ismerr.internal "ISM math binop error."
+    with ExNoFloatPermitted ->
+      Ismerr.err_no_float_permitted pos name
   in
   if args = [] then
-    Error.fatal_error ("need suitable error for noargs ISM " ^ name)
+    Ismerr.err_no_args_present pos name
   else
     match op_kind with
     | Multi (i32, i64, float) ->
@@ -230,13 +235,14 @@ let mathop name op_kind =
        List.fold_left (binop i32 i64 float) first (List.tl args)
     | Binary (i32, i64, float) ->
        if List.length args <> 2 then
-         Error.fatal_error "require two arguments."
+         Ismerr.err_binary_fcn pos name (List.length args)
        else
          let first = is_num (debind (List.hd args)) in
          let second = is_num (debind (List.hd (List.tl args))) in
          binop i32 i64 float first second
     | Unary _ ->
-       Error.fatal_error "unary not implemented, yet."
+       (* FIXME! *)
+       Ismerr.internal "unary not implemented, yet."
 
 let add = mathop "+" @@ Multi (Int32.add, Int64.add, (+.))
 let sub = mathop "-" @@ Multi (Int32.sub, Int64.sub, (-.))
@@ -244,23 +250,23 @@ let mul = mathop "*" @@ Multi (Int32.mul, Int64.mul, ( *. ))
 let div = mathop "/" @@ Multi (Int32.div, Int64.div, (/.))
 let modulo = mathop "%" @@
                Binary (Int32.rem, Int64.rem,
-                       (fun _ -> Error.fatal_error
-                                   "Modulo doesn't apply to floats."))
+                       (fun _ -> raise ExNoFloatPermitted))
 
-let generic_conv pos bool char i32 i64 float = function
+let generic_conv name pos bool char i32 i64 float = function
   | [IsmBool (p, v)] -> p, bool v
   | [IsmChar (p, v)]    | [IsmUChar (p, v)] -> p, char v
   | [IsmInt16 (p, v)]   | [IsmUInt16 (p, v)] -> p, i32 v
   | [IsmInt32 (p, v)]   | [IsmUInt32 (p, v)] -> p, i32 v
   | [IsmInt64 (p, v)]   | [IsmUInt64 (p, v)] -> p, i64 v
   | [IsmFloat32 (p, v)] | [IsmFloat64 (p, v)] -> p, float v
-  | [] -> Error.fatal_error "need suitable err for conv w/ no args."
-  | _ -> Error.fatal_error "need suitable err for bad conv."
+  | [] -> Ismerr.err_no_args_present pos name
+  | _ :: _ :: _ -> Ismerr.err_too_many_args pos name
+  | _ -> Ismerr.err_nan pos
 
 let ident x = x
 
-let bool_conv pos =
-  generic_conv pos
+let bool_conv name pos =
+  generic_conv name pos
     ident
     (fun c -> if (Char.code c) = 0 then false else true)
     (fun n -> if Int32.equal n 0l then false else true)
@@ -272,32 +278,32 @@ let cchr n =
   else if n < 0 then Char.chr 0
   else Char.chr n
 
-let char_conv pos =
-  generic_conv pos
+let char_conv name pos =
+  generic_conv name pos
     (fun b -> if b then Char.chr 1 else Char.chr 0)
     ident
     (fun n -> cchr (Int32.to_int n))
     (fun n -> cchr (Int64.to_int n))
     (fun n -> cchr (int_of_float n))
 
-let i32_conv pos =
-  generic_conv pos
+let i32_conv name pos =
+  generic_conv name pos
     (fun b -> if b then 1l else 0l)
     (fun c -> Int32.of_int (Char.code c))
     ident
     Int64.to_int32
     Int32.of_float
 
-let i64_conv pos =
-  generic_conv pos
+let i64_conv name pos =
+  generic_conv name pos
     (fun b -> if b then 1L else 0L)
     (fun c -> Int64.of_int (Char.code c))
     Int64.of_int32
     ident
     Int64.of_float
 
-let float_conv pos =
-  generic_conv pos
+let float_conv name pos =
+  generic_conv name pos
     (fun b -> if b then 1.0 else 0.0)
     (fun c -> float_of_int (Char.code c))
     Int32.to_float
@@ -308,20 +314,20 @@ let list_op name op pos = function
   | [ IsmSexpr (_, list) ] ->
      begin
        try op list
-       with _ -> Error.fatal_error ("Operation " ^ name ^ " failed.")
+       with _ -> Ismerr.err_list_op_failed pos name
      end
   | _ :: [] ->
-     Error.fatal_error ("Attempted to perform " ^ name ^ " on a non-list.")
+     Ismerr.err_list_op_on_non_list pos name
   | _ ->
-     Error.fatal_error ("Too many arguments for " ^ name)
+     Ismerr.err_too_many_args pos name
 
 let car = function
   | el :: _ -> el
-  | [] -> Error.fatal_error "Unable to extract element from list."
+  | [] -> raise (Invalid_argument "")
 
 let cdr = function
   | _ :: rest -> IsmSexpr (faux_pos, rest)
-  | [] -> Error.fatal_error "Unable to return cdr from list."
+  | [] -> raise (Invalid_argument "")
 
 let ism_builtins =
   [ (*-- Operations --*)
@@ -331,27 +337,38 @@ let ism_builtins =
 
     (*-- Conversions --*)
     ("bool",
-     (fun pos args -> let p, v = bool_conv pos args in IsmBool (p, v)));
+     (fun pos args ->
+       let p, v = bool_conv "bool" pos args in IsmBool (p, v)));
     ("char",
-     (fun pos args -> let p, v = char_conv pos args in IsmChar (p, v)));
+     (fun pos args ->
+       let p, v = char_conv "char" pos args in IsmChar (p, v)));
     ("uchar",
-     (fun pos args -> let p, v = char_conv pos args in IsmUChar (p, v)));
+     (fun pos args ->
+       let p, v = char_conv "uchar" pos args in IsmUChar (p, v)));
     ("i16",
-     (fun pos args -> let p, v = i32_conv pos args in IsmInt16 (p, v)));
+     (fun pos args ->
+       let p, v = i32_conv "i16" pos args in IsmInt16 (p, v)));
     ("u16",
-     (fun pos args -> let p, v = i32_conv pos args in IsmUInt16 (p, v)));
+     (fun pos args ->
+       let p, v = i32_conv "u16" pos args in IsmUInt16 (p, v)));
     ("i32",
-     (fun pos args -> let p, v = i32_conv pos args in IsmInt32 (p, v)));
+     (fun pos args ->
+       let p, v = i32_conv "i32" pos args in IsmInt32 (p, v)));
     ("u32",
-     (fun pos args -> let p, v = i32_conv pos args in IsmUInt32 (p, v)));
+     (fun pos args ->
+       let p, v = i32_conv "u32" pos args in IsmUInt32 (p, v)));
     ("i64",
-     (fun pos args -> let p, v = i64_conv pos args in IsmInt64 (p, v)));
+     (fun pos args ->
+       let p, v = i64_conv "i64" pos args in IsmInt64 (p, v)));
     ("u64",
-     (fun pos args -> let p, v = i64_conv pos args in IsmUInt64 (p, v)));
+     (fun pos args ->
+       let p, v = i64_conv "u64" pos args in IsmUInt64 (p, v)));
     ("float32",
-     (fun pos args -> let p, v = float_conv pos args in IsmFloat32 (p, v)));
+     (fun pos args ->
+       let p, v = float_conv "float32" pos args in IsmFloat32 (p, v)));
     ("float64",
-     (fun pos args -> let p, v = float_conv pos args in IsmFloat64 (p, v)));
+     (fun pos args ->
+       let p, v = float_conv "float64" pos args in IsmFloat64 (p, v)));
 
     (*-- List Operations --*)
     ("car", list_op "car" car);
@@ -364,24 +381,26 @@ let bindings_create () =
   List.iter (fun (k, v) -> add_symbol bindings k (BBNative v)) ism_builtins;
   bindings
 
-let verify_one_param name = function
+let verify_one_param name pos = function
   | [ param ] -> param
-  | _ -> Error.fatal_error ("Expected one parameter for " ^ name)
+  | _ -> Ismerr.err_expected_one_arg pos name
 
 (** Interpret a ISM expression and return the result. *)
 let rec eval_ism bindings = function
-  | IsmSexpr (_, []) ->
-     Error.fatal_error "empty s-expression."
+  | IsmSexpr (pos, []) ->
+     Ismerr.err_eval_empty_sexpr pos
   | IsmSexpr (pos, (IsmIdent { td_text = "quote" }) :: rest) ->
-     verify_one_param "quote" rest
+     verify_one_param "quote" pos rest
   | IsmSexpr (pos, sexpr) ->
      begin
        match eval_ism bindings (List.hd sexpr) with
        | IsmBinding (BBNative native_f) ->
           native_f pos (List.tl (List.map (eval_ism bindings) sexpr))
        | IsmBinding (BBLambda (params, env, body)) ->
-          if List.length params <> List.length (List.tl sexpr) then
-            Error.fatal_error "unequal # of parameters in ISM function"
+          let n_params = List.length params
+          and n_profile = List.length (List.tl sexpr) in
+          if n_params <> n_profile then
+            Ismerr.err_args_mismatch pos n_params n_profile
           else
             let subscope = push_symtab_scope env in
             let bind a b =
@@ -395,8 +414,7 @@ let rec eval_ism bindings = function
             let () = List.iter2 bind params (List.tl sexpr) in
             eval_ism subscope body
        | _ ->
-          Error.fatal_error
-            "Need suitable error: tried to call a non-function"
+          Ismerr.err_called_non_fcn pos
      end
   | (IsmString _) as v -> v
   | (IsmBool _) as v -> v
@@ -420,9 +438,7 @@ let rec eval_ism bindings = function
             | _ -> IsmBinding binding
           end
        | None ->
-          let () = symtab_iter (fun str _ -> prerr_endline str) bindings in
-          Error.fatal_error
-            ("FIXME: suitable error for unknown sym: " ^ tok.td_text)
+          Ismerr.err_unknown_symbol tok.td_pos tok.td_text
      end
   | IsmDefStmts stmts ->
      IsmDefStmts (List.map (resolve_stmt bindings) stmts)
