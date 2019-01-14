@@ -227,7 +227,7 @@ let mathop name op_kind =
       Ismerr.err_no_float_permitted pos name
   in
   if args = [] then
-    Ismerr.err_no_args_present pos name
+    Ismerr.err_args_mismatch pos 2 0
   else
     match op_kind with
     | Multi (i32, i64, float) ->
@@ -259,8 +259,8 @@ let generic_conv name pos bool char i32 i64 float = function
   | [IsmInt32 (p, v)]   | [IsmUInt32 (p, v)] -> p, i32 v
   | [IsmInt64 (p, v)]   | [IsmUInt64 (p, v)] -> p, i64 v
   | [IsmFloat32 (p, v)] | [IsmFloat64 (p, v)] -> p, float v
-  | [] -> Ismerr.err_no_args_present pos name
-  | _ :: _ :: _ -> Ismerr.err_too_many_args pos name
+  | [] -> Ismerr.err_args_mismatch pos 1 0
+  | (_ :: _ :: _) as args -> Ismerr.err_args_mismatch pos 1 (List.length args)
   | _ -> Ismerr.err_nan pos
 
 let ident x = x
@@ -318,8 +318,8 @@ let list_op name op pos = function
      end
   | _ :: [] ->
      Ismerr.err_list_op_on_non_list pos name
-  | _ ->
-     Ismerr.err_too_many_args pos name
+  | args ->
+     Ismerr.err_args_mismatch pos 1 (List.length args)
 
 let car = function
   | el :: _ -> el
@@ -381,16 +381,16 @@ let bindings_create () =
   List.iter (fun (k, v) -> add_symbol bindings k (BBNative v)) ism_builtins;
   bindings
 
-let verify_one_param name pos = function
+let verify_one_param pos = function
   | [ param ] -> param
-  | _ -> Ismerr.err_expected_one_arg pos name
+  | params -> Ismerr.err_args_mismatch pos 1 (List.length params)
 
 (** Interpret a ISM expression and return the result. *)
 let rec eval_ism bindings = function
   | IsmSexpr (pos, []) ->
      Ismerr.err_eval_empty_sexpr pos
   | IsmSexpr (pos, (IsmIdent { td_text = "quote" }) :: rest) ->
-     verify_one_param "quote" pos rest
+     verify_one_param pos rest
   | IsmSexpr (pos, sexpr) ->
      begin
        match eval_ism bindings (List.hd sexpr) with
@@ -443,10 +443,7 @@ let rec eval_ism bindings = function
   | IsmDefStmts stmts ->
      IsmDefStmts (List.map (resolve_stmt bindings) stmts)
   | IsmBinding binding ->
-     match binding with
-     | BBIsm _ -> Error.fatal_error "bbism"
-     | BBNative _ -> Error.fatal_error "bbnative"
-     | BBLambda _ -> Error.fatal_error "bblambda"
+     Ismerr.internal "Unexpected binding."
 
 and resolve_stmt bindings stmt =
   let map_apply = List.map (resolve_stmt bindings) in

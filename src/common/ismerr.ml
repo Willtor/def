@@ -35,18 +35,6 @@ let err_nan pos =
 let err_called_non_fcn pos =
   err_pos "Tried to call a non-function." pos
 
-(** fcn was called with no arguments. *)
-let err_no_args_present pos fcn =
-  err_pos (fcn ^ " requires arguments.") pos
-
-(** Too many arguments were supplied to the function. *)
-let err_too_many_args pos fcn =
-  err_pos (fcn ^ ": too many arguments specified.") pos
-
-(** Expected one argument, got <> 1. *)
-let err_expected_one_arg pos fcn =
-  err_pos (fcn ^ " expected one argument.") pos
-
 (** Wrong number of arguments. *)
 let err_args_mismatch pos expected got =
   err_pos
