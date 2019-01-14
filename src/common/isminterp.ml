@@ -34,7 +34,8 @@ let is_num ism =
   | IsmInt64 _ | IsmUInt64 _
   | IsmFloat32 _ | IsmFloat64 _ -> ism
   | IsmBinding _ -> Ismerr.internal "is_num found a binding."
-  | _ -> Error.fatal_error "ISM value isn't a number."
+  | _ ->
+     Ismerr.err_nan (pos_of_ism ism)
 
 let generalize_nums a b =
   match a, b with
@@ -192,7 +193,7 @@ let generalize_nums a b =
   (* Float64 *)
   | IsmFloat64 _, IsmFloat64 _ -> a, b
 
-  | _ -> Error.fatal_error "non-numerical type."
+  | _ -> Ismerr.internal "non-numerical type."
 
 let debind = function
   | IsmBinding (BBIsm ism) -> ism
@@ -218,7 +219,7 @@ let mathop name op_kind =
     | IsmUInt64 (pos, n), IsmUInt64 (_, m) -> IsmUInt64 (pos, i64 n m)
     | IsmFloat32 (pos, n), IsmFloat32 (_, m) -> IsmFloat32 (pos, float n m)
     | IsmFloat64 (pos, n), IsmFloat64 (_, m) -> IsmFloat64 (pos, float n m)
-    | _ -> Error.fatal_error "Internal error in a ISM mathop."
+    | _ -> Ismerr.internal "ISM math binop error."
   in
   if args = [] then
     Error.fatal_error ("need suitable error for noargs ISM " ^ name)

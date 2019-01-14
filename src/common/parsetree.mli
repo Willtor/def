@@ -172,5 +172,8 @@ and pt_expr =
 (** Return a string representation of the ISM. *)
 val string_of_ism : ism -> string
 
+(** Return the position of an ISM. *)
+val pos_of_ism : ism -> Lexing.position
+
 val pt_type_pos : pt_type -> Lexing.position
 val pt_expr_pos : pt_expr -> Lexing.position

@@ -210,6 +210,23 @@ let rec string_of_ism = function
   | IsmBinding _ ->
      Error.fatal_error "string_of_ism found binding."
 
+(** Return the position of an ISM. *)
+let pos_of_ism = function
+  | IsmSexpr (pos, _)
+  | IsmString (pos, _)
+  | IsmBool (pos, _)
+  | IsmChar (pos, _)    | IsmUChar (pos, _)
+  | IsmInt16 (pos, _)   | IsmUInt16 (pos, _)
+  | IsmInt32 (pos, _)   | IsmUInt32 (pos, _)
+  | IsmInt64 (pos, _)   | IsmUInt64 (pos, _)
+  | IsmFloat32 (pos, _) | IsmFloat64 (pos, _)
+    -> pos
+  | IsmIdent tok -> tok.td_pos
+  | IsmDefStmts _
+  | IsmBinding _ ->
+     (* FIXME! *)
+     Util.faux_pos
+
 let pt_type_pos = function
   | PTT_Fcn (tok, _, _, _, _)
   | PTT_Volatile (tok, _)

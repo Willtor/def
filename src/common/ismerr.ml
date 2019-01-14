@@ -21,4 +21,8 @@ open Error
 (** Report an internal error. *)
 let internal str =
   let bt = Printexc.raw_backtrace_to_string (Printexc.get_raw_backtrace ()) in
-  fatal_error (str ^ "\n\nBacktrace:\n" ^ bt)
+  fatal_error ("ISM internal error: " ^ str ^ "\n\nBacktrace:\n" ^ bt)
+
+(** Tried to perform a numeric operation on a non-numeric value. *)
+let err_nan pos =
+  err_pos "Value is not a number." pos
