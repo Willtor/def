@@ -33,7 +33,7 @@ let is_num ism =
   | IsmInt32 _ | IsmUInt32 _
   | IsmInt64 _ | IsmUInt64 _
   | IsmFloat32 _ | IsmFloat64 _ -> ism
-  | IsmBinding _ -> Error.fatal_error "is_num found a binding."
+  | IsmBinding _ -> Ismerr.internal "is_num found a binding."
   | _ -> Error.fatal_error "ISM value isn't a number."
 
 let generalize_nums a b =

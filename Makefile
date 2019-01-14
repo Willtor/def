@@ -25,6 +25,7 @@ COMMONFILES =		\
 	error.mli	\
 	frontend.ml	\
 	frontend.mli	\
+	ismerr.ml	\
 	Makefile	\
 	operator.ml	\
 	operator.mli	\
