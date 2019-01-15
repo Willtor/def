@@ -17,6 +17,7 @@
  *)
 
 open Cimportext
+open Isminterp
 open Lexing
 open Operator
 open Parsetree
@@ -187,7 +188,7 @@ let make_inserted_expr e tp astexpr =
     expr_ast = astexpr
   }
 
-let of_parsetree =
+let of_parsetree bindings =
 
   let builtin_types =
     let builtins = Hashtbl.create 32 in
@@ -233,11 +234,13 @@ let of_parsetree =
        let contents = if void_rettp_p tp then StmtExpr (def.td_pos, expr_of e)
                       else Return (equals.td_pos, expr_of e)
        in
-       DefFcn (def.td_pos, doc, vis, id.td_text, deftype_of tp,
+       let idtok = tok_of_ident bindings id in
+       DefFcn (def.td_pos, doc, vis, idtok.td_text, deftype_of tp,
                params_of tp, [contents])
     | PTS_FcnDefBlock ((exp, def, id, tp), stmt) ->
        let vis, doc = visdoc exp in
-       DefFcn (def.td_pos, doc, vis, id.td_text, deftype_of tp,
+       let idtok = tok_of_ident bindings id in
+       DefFcn (def.td_pos, doc, vis, idtok.td_text, deftype_of tp,
                params_of tp, [stmt_of stmt])
     | PTS_FcnDecl (decl, id, tp, _) ->
        DeclFcn (decl.td_pos, VisExported decl.td_pos, id.td_text,

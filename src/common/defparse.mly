@@ -61,6 +61,7 @@
 (* ISM stand-ins. *)
 %token <Parsetree.tokendata * Parsetree.ism> ISM_EXPR
 %token <Parsetree.pt_stmt list> ISM_STMTS
+%token <Parsetree.tokendata * Parsetree.ism> ISM_IDENT
 
 %start <Parsetree.pt_stmt list> defparse
 
@@ -96,6 +97,10 @@ defparse:
 
 block:
 | BEGIN statement* END { PTS_Begin ($1, $2, $3) }
+
+ident:
+| IDENT { IdentTok $1 }
+| ISM_IDENT { let tok, ism = $1 in IdentIsm (tok.td_pos, ism) }
 
 statement:
 | ISM_STMTS { PTS_ISM_Stmts $1 }
@@ -212,7 +217,7 @@ variabledecl:
 | IDENT deftype { $1, $2 }
 
 fcndef:
-| EXPORT? DEF IDENT fcntype { $1, $2, $3, $4 }
+| EXPORT? DEF ident fcntype { $1, $2, $3, $4 }
 
 exprlist:
 | separated_nonempty_list(COMMA, expr) { $1 }

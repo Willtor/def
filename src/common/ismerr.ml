@@ -68,3 +68,11 @@ let err_list_op_on_non_list pos fcn =
 (** E.g., @[] *)
 let err_eval_empty_sexpr pos =
   err_pos "Tried to evaluate an empty s-expression." pos
+
+(** Tried to convert a non-string type to an identifier. *)
+let err_ident_from_non_string pos =
+  err_pos "Can't convert a non-string to an identifier." pos
+
+(** ISM expression didn't resolve to an ident where it should have. *)
+let err_non_ident_tok pos =
+  err_pos "Couldn't resolve identifier token." pos

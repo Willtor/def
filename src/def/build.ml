@@ -204,7 +204,7 @@ let recursive_parse_def_file file =
     match extension file with
     | ".def" | ".defi" ->
        let parsetree = parse_def_file file bindings in
-       List.fold_left proc (Ast.of_parsetree parsetree) parsetree
+       List.fold_left proc (Ast.of_parsetree bindings parsetree) parsetree
     | ".h" ->
        let full_path_to_file = full_path file in
        let () = Hashtbl.add cfiles full_path_to_file pos in []

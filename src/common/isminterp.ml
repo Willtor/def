@@ -310,6 +310,14 @@ let float_conv name pos =
     Int64.to_float
     ident
 
+let ident_of pos = function
+  | [ IsmString (pos, str) ] ->
+     IsmDefIdent (pos, str)
+  | _ :: [] ->
+     Ismerr.err_ident_from_non_string pos
+  | args ->
+     Ismerr.err_args_mismatch pos 1 (List.length args)
+
 let list_op name op pos = function
   | [ IsmSexpr (_, list) ] ->
      begin
@@ -369,6 +377,7 @@ let ism_builtins =
     ("float64",
      (fun pos args ->
        let p, v = float_conv "float64" pos args in IsmFloat64 (p, v)));
+    ("ident", ident_of);
 
     (*-- List Operations --*)
     ("car", list_op "car" car);
@@ -442,6 +451,7 @@ let rec eval_ism bindings = function
      end
   | IsmDefStmts stmts ->
      IsmDefStmts (List.map (resolve_stmt bindings) stmts)
+  | IsmDefIdent _ as v -> v
   | IsmBinding binding ->
      Ismerr.internal "Unexpected binding."
 
@@ -453,14 +463,31 @@ and resolve_stmt bindings stmt =
     | PTForInit_Expr expr ->
        PTForInit_Expr (resolve_expr bindings expr)
   in
+  let resolve_decl decl =
+    let ex, def, ident, tp = decl in
+    prerr_endline "resolving.";
+    match ident with
+    | IdentTok tok -> decl
+    | IdentIsm (_, ism) ->
+       match eval_ism bindings ism with
+       | IsmDefIdent (p, id) ->
+          let tok = { td_pos = p;
+                      td_text = id;
+                      td_noncode = [];
+                    }
+          in
+          ex, def, IdentTok tok, tp
+       | _ ->
+          Ismerr.err_non_ident_tok (pos_of_ism ism)
+  in
   match stmt with
   | PTS_ISM_Stmts stmts -> PTS_ISM_Stmts (map_apply stmts)
   | PTS_Import _ -> stmt
   | PTS_Begin (b, stmts, e) -> PTS_Begin (b, map_apply stmts, e)
   | PTS_FcnDefExpr (decl, eq, expr, semi) ->
-     PTS_FcnDefExpr (decl, eq, resolve_expr bindings expr, semi)
+     PTS_FcnDefExpr (resolve_decl decl, eq, resolve_expr bindings expr, semi)
   | PTS_FcnDefBlock (decl, stmt) ->
-     PTS_FcnDefBlock (decl, resolve_stmt bindings stmt)
+     PTS_FcnDefBlock (resolve_decl decl, resolve_stmt bindings stmt)
   | PTS_FcnDecl _ -> stmt
   | PTS_Expr (expr, semi) -> PTS_Expr (resolve_expr bindings expr, semi)
   | PTS_Var _ -> stmt
@@ -582,3 +609,17 @@ and resolve_expr bindings expr =
          (resolve cond, qmark, resolve texpr, colon, resolve fexpr)
   in
   resolve expr
+
+(** Return a token from an ident.  This will generate an internal error
+    if the ident is still an unevaluated ISM. *)
+let tok_of_ident bindings = function
+  | IdentTok tok -> tok
+  | IdentIsm (pos, ism) ->
+     match eval_ism bindings ism with
+     | IsmIdent tok -> tok
+     | IsmString (pos, str) ->
+        { td_pos = pos;
+          td_text = str;
+          td_noncode = [];
+        }
+     | _ -> Ismerr.err_non_ident_tok pos

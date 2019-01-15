@@ -54,6 +54,8 @@ let rec master_lexer preseed ismbindings lexbuf =
 
   let store_stmts sexpr = Some (ISM_STMTS sexpr) in
 
+  let store_ident at sexpr = Some (ISM_IDENT (at, sexpr)) in
+
   let store_or_stash at sexpr =
     match sexpr with
     | IsmSexpr (pos, (IsmIdent fcn) :: rest) ->
@@ -70,10 +72,19 @@ let rec master_lexer preseed ismbindings lexbuf =
             (define ismbindings rest; None)
          | "emit-expr" ->
             store_expr at (extract_single_arg "emit-expr")
+         | "emit-ident" ->
+            store_ident at (extract_single_arg "emit-ident")
          | _ ->
             match eval_ism ismbindings sexpr with
             | IsmDefStmts stmts ->
                store_stmts stmts
+            | IsmDefIdent (pos, id) ->
+               let tok = { td_pos = pos;
+                           td_text = id;
+                           td_noncode = []
+                         }
+               in
+               Some (IDENT tok)
             | v ->
                store_expr at v
        end
@@ -178,6 +189,13 @@ let rec master_lexer preseed ismbindings lexbuf =
             Error.fatal_error "no binding; need suitable error."
          | Some (BBIsm (IsmDefStmts stmts)) ->
             store_stmts stmts
+         | Some (BBIsm (IsmDefIdent (pos, id))) ->
+            let tok = { td_pos = pos;
+                        td_text = id;
+                        td_noncode = []
+                      }
+            in
+            Some (IDENT tok)
          | Some _ ->
             store_expr at (IsmIdent tok)
        end

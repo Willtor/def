@@ -65,12 +65,13 @@ let parse_def_file file =
      do all the checking/evaluating. *)
   let parsetree = Frontend.from_in_channel file infile bindings in
   close_in infile;
-  parsetree
+  bindings, parsetree
 
 let defghi output_kind files =
   let dot_def = Str.regexp "\\.def$" in
   let generate suffix generator file =
-    generator (parse_def_file file) (Str.global_replace dot_def suffix file)
+    let bindings, stmts = parse_def_file file in
+    generator bindings stmts (Str.global_replace dot_def suffix file)
   in
   match output_kind with
   | OUT_DEFI -> List.map (generate ".defi" make_defi) files

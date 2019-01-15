@@ -46,6 +46,7 @@ type ism =
   | IsmFloat64 of Lexing.position * float
   | IsmIdent of tokendata
   | IsmDefStmts of pt_stmt list
+  | IsmDefIdent of Lexing.position * string
   | IsmBinding of binding
 
 and binding =
@@ -56,16 +57,20 @@ and binding =
   (* BBLambda of variables * environment * body *)
   | BBLambda of tokendata list * binding Util.symtab * ism
 
+and ident =
+  | IdentTok of tokendata
+  | IdentIsm of Lexing.position * ism
+
 and pt_stmt =
   | PTS_ISM_Stmts of pt_stmt list
 
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of
-      (tokendata option * tokendata * tokendata * pt_type)
+      (tokendata option * tokendata * ident * pt_type)
       * tokendata * pt_expr * tokendata
   | PTS_FcnDefBlock of
-      (tokendata option * tokendata * tokendata * pt_type)
+      (tokendata option * tokendata * ident * pt_type)
       * pt_stmt
   | PTS_FcnDecl of tokendata * tokendata * pt_type * tokendata
   | PTS_Expr of pt_expr * tokendata
@@ -207,6 +212,7 @@ let rec string_of_ism = function
   | IsmFloat64 (_, n) -> string_of_float n
   | IsmIdent tok -> tok.td_text
   | IsmDefStmts _ -> "defism-statements"
+  | IsmDefIdent _ -> "defism-identifier"
   | IsmBinding _ ->
      Error.fatal_error "string_of_ism found binding."
 
@@ -220,6 +226,7 @@ let pos_of_ism = function
   | IsmInt32 (pos, _)   | IsmUInt32 (pos, _)
   | IsmInt64 (pos, _)   | IsmUInt64 (pos, _)
   | IsmFloat32 (pos, _) | IsmFloat64 (pos, _)
+  | IsmDefIdent (pos, _)
     -> pos
   | IsmIdent tok -> tok.td_pos
   | IsmDefStmts _

@@ -95,7 +95,9 @@ type stmt =
   | Continue of position
   | Sync of position
 
-val of_parsetree : Parsetree.pt_stmt list -> stmt list
+val of_parsetree : Parsetree.binding Util.symtab
+                   -> Parsetree.pt_stmt list
+                   -> stmt list
 
 val of_cimport : Cimportext.cvalue list -> stmt list
 

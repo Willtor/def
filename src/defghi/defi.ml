@@ -17,6 +17,7 @@
  *)
 
 open Doc
+open Isminterp
 open Parsetree
 open Lexing
 open Util
@@ -127,9 +128,10 @@ let output_exported_type oc = function
      end
   | _ -> ()
 
-let output_exported_func oc = function
-  | PTS_FcnDefExpr ((Some export, _, name, tp), _, _, _)
-  | PTS_FcnDefBlock ((Some export, _, name, tp), _) ->
+let output_exported_func bindings oc = function
+  | PTS_FcnDefExpr ((Some export, _, id, tp), _, _, _)
+  | PTS_FcnDefBlock ((Some export, _, id, tp), _) ->
+     let name = tok_of_ident bindings id in
      begin
        dump_doc oc export;
        output_string oc ("decl " ^ name.td_text ^ " ");
@@ -138,9 +140,9 @@ let output_exported_func oc = function
      end
   | _ -> ()
 
-let make_defi stmts outfile =
+let make_defi bindings stmts outfile =
   let oc = open_out outfile in
   output_autogen oc outfile;
   List.iter (output_exported_type oc) stmts;
-  List.iter (output_exported_func oc) stmts;
+  List.iter (output_exported_func bindings oc) stmts;
   close_out oc
