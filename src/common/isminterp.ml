@@ -252,6 +252,18 @@ let modulo = mathop "%" @@
                Binary (Int32.rem, Int64.rem,
                        (fun _ -> raise ExNoFloatPermitted))
 
+let strcat pos = function
+  | [] -> Ismerr.err_args_mismatch pos 2 0;
+  | args ->
+     let concatenate left right =
+       match left, right with
+       | IsmString (_, l), IsmString (_, r) ->
+          IsmString (pos, l ^ r)
+       | _, arg ->
+          Ismerr.err_strcat_expected_string (pos_of_ism arg)
+     in
+     List.fold_left concatenate (IsmString (pos, "")) args
+
 let generic_conv name pos bool char i32 i64 float = function
   | [IsmBool (p, v)] -> p, bool v
   | [IsmChar (p, v)]    | [IsmUChar (p, v)] -> p, char v
@@ -338,10 +350,13 @@ let cdr = function
   | [] -> raise (Invalid_argument "")
 
 let ism_builtins =
-  [ (*-- Operations --*)
+  [ (*-- Math Operations --*)
     ("+", add); ("-", sub);
     ("*", mul); ("/", div);
     ("%", modulo);
+
+    (*-- String operations --*)
+    ("strcat", strcat);
 
     (*-- Conversions --*)
     ("bool",

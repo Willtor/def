@@ -76,3 +76,7 @@ let err_ident_from_non_string pos =
 (** ISM expression didn't resolve to an ident where it should have. *)
 let err_non_ident_tok pos =
   err_pos "Couldn't resolve identifier token." pos
+
+(** strcat was supplied a non-string argument. *)
+let err_strcat_expected_string pos =
+  err_pos "strcat expected a string." pos
