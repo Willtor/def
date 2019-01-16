@@ -252,7 +252,7 @@ let modulo = mathop "%" @@
                Binary (Int32.rem, Int64.rem,
                        (fun _ -> raise ExNoFloatPermitted))
 
-let strcat pos = function
+let string_append pos = function
   | [] -> Ismerr.err_args_mismatch pos 2 0;
   | args ->
      let concatenate left right =
@@ -260,7 +260,7 @@ let strcat pos = function
        | IsmString (_, l), IsmString (_, r) ->
           IsmString (pos, l ^ r)
        | _, arg ->
-          Ismerr.err_strcat_expected_string (pos_of_ism arg)
+          Ismerr.err_string_append_expected_string (pos_of_ism arg)
      in
      List.fold_left concatenate (IsmString (pos, "")) args
 
@@ -349,54 +349,95 @@ let cdr = function
   | _ :: rest -> IsmSexpr (faux_pos, rest)
   | [] -> raise (Invalid_argument "")
 
+let map eval bindings pos raw_args =
+  let n_args = List.length raw_args in
+  if n_args <> 2 then
+    Ismerr.err_args_mismatch pos 2 n_args;
+  match List.map (eval bindings) raw_args with
+  | [ IsmBinding (BBLambda (params, env, body)); IsmSexpr (_, list) ] ->
+     let n_params = List.length params in
+     if n_params <> 1 then
+       Ismerr.err_map_lambda_needs_one_param pos
+     else
+       let param = List.hd params in
+       let apply_lambda arg =
+         let subscope = push_symtab_scope env in
+         add_symbol subscope param.td_text (BBIsm arg);
+         eval subscope body
+       in
+       IsmSexpr (pos, List.map apply_lambda list)
+  | [ IsmBinding (BBNative native_f); IsmSexpr (p, list) ] ->
+     Error.fatal_error "good arguments to map: Native"
+  | [ IsmBinding _; _ ] ->
+     Ismerr.err_map_needs_list pos
+  | [ _; _ ] ->
+     Ismerr.err_map_needs_fcn pos
+  | _ ->
+     Ismerr.internal "not two args to map?"
+
+let precompute f eval bindings pos args =
+  f pos (List.map (eval bindings) args)
+
 let ism_builtins =
   [ (*-- Math Operations --*)
-    ("+", add); ("-", sub);
-    ("*", mul); ("/", div);
-    ("%", modulo);
+    ("+", precompute add); ("-", precompute sub);
+    ("*", precompute mul); ("/", precompute div);
+    ("%", precompute modulo);
 
     (*-- String operations --*)
-    ("strcat", strcat);
+    ("string-append", precompute string_append);
 
     (*-- Conversions --*)
     ("bool",
-     (fun pos args ->
-       let p, v = bool_conv "bool" pos args in IsmBool (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = bool_conv "bool" pos args in IsmBool (p, v)));
     ("char",
-     (fun pos args ->
-       let p, v = char_conv "char" pos args in IsmChar (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = char_conv "char" pos args in IsmChar (p, v)));
     ("uchar",
-     (fun pos args ->
-       let p, v = char_conv "uchar" pos args in IsmUChar (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = char_conv "uchar" pos args in IsmUChar (p, v)));
     ("i16",
-     (fun pos args ->
-       let p, v = i32_conv "i16" pos args in IsmInt16 (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = i32_conv "i16" pos args in IsmInt16 (p, v)));
     ("u16",
-     (fun pos args ->
-       let p, v = i32_conv "u16" pos args in IsmUInt16 (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = i32_conv "u16" pos args in IsmUInt16 (p, v)));
     ("i32",
-     (fun pos args ->
-       let p, v = i32_conv "i32" pos args in IsmInt32 (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = i32_conv "i32" pos args in IsmInt32 (p, v)));
     ("u32",
-     (fun pos args ->
-       let p, v = i32_conv "u32" pos args in IsmUInt32 (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = i32_conv "u32" pos args in IsmUInt32 (p, v)));
     ("i64",
-     (fun pos args ->
-       let p, v = i64_conv "i64" pos args in IsmInt64 (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = i64_conv "i64" pos args in IsmInt64 (p, v)));
     ("u64",
-     (fun pos args ->
-       let p, v = i64_conv "u64" pos args in IsmUInt64 (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = i64_conv "u64" pos args in IsmUInt64 (p, v)));
     ("float32",
-     (fun pos args ->
-       let p, v = float_conv "float32" pos args in IsmFloat32 (p, v)));
+     precompute
+       (fun pos args ->
+         let p, v = float_conv "float32" pos args in IsmFloat32 (p, v)));
     ("float64",
-     (fun pos args ->
-       let p, v = float_conv "float64" pos args in IsmFloat64 (p, v)));
-    ("ident", ident_of);
+     precompute
+       (fun pos args ->
+         let p, v = float_conv "float64" pos args in IsmFloat64 (p, v)));
+    ("ident", precompute ident_of);
 
     (*-- List Operations --*)
-    ("car", list_op "car" car);
-    ("cdr", list_op "cdr" cdr);
+    ("car", precompute (list_op "car" car));
+    ("cdr", precompute (list_op "cdr" cdr));
+    ("map", map);
   ]
 
 (** Return the default set of bindings. *)
@@ -419,7 +460,7 @@ let rec eval_ism bindings = function
      begin
        match eval_ism bindings (List.hd sexpr) with
        | IsmBinding (BBNative native_f) ->
-          native_f pos (List.tl (List.map (eval_ism bindings) sexpr))
+          native_f eval_ism bindings pos (List.tl sexpr)
        | IsmBinding (BBLambda (params, env, body)) ->
           let n_params = List.length params
           and n_profile = List.length (List.tl sexpr) in

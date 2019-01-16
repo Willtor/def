@@ -52,8 +52,11 @@ type ism =
 and binding =
   (* BBIsm of value *)
   | BBIsm of ism
-  (* BBNative of lambda (use-position * parameters * return value) *)
-  | BBNative of (Lexing.position -> ism list -> ism)
+  (* BBNative of lambda (evaluator -> bindings -> pos -> args -> ret *)
+  | BBNative of
+      ((binding Util.symtab -> ism -> ism)
+       -> binding Util.symtab
+       -> Lexing.position -> ism list -> ism)
   (* BBLambda of variables * environment * body *)
   | BBLambda of tokendata list * binding Util.symtab * ism
 

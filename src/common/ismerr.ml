@@ -77,6 +77,17 @@ let err_ident_from_non_string pos =
 let err_non_ident_tok pos =
   err_pos "Couldn't resolve identifier token." pos
 
-(** strcat was supplied a non-string argument. *)
-let err_strcat_expected_string pos =
+(** string-append was supplied a non-string argument. *)
+let err_string_append_expected_string pos =
   err_pos "strcat expected a string." pos
+
+(** map's second argument was not a list. *)
+let err_map_needs_list pos =
+  err_pos "map expected a list for its second argument." pos
+
+(** map's first argument was not a function. *)
+let err_map_needs_fcn pos =
+  err_pos "map expected a function for its first argument." pos
+
+let err_map_lambda_needs_one_param pos =
+  err_pos "map requires its function to take one parameter." pos
