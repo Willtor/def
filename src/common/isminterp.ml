@@ -521,20 +521,7 @@ and resolve_stmt bindings stmt =
   in
   let resolve_decl decl =
     let ex, def, ident, tp = decl in
-    prerr_endline "resolving.";
-    match ident with
-    | IdentTok tok -> decl
-    | IdentIsm (_, ism) ->
-       match eval_ism bindings ism with
-       | IsmDefIdent (p, id) ->
-          let tok = { td_pos = p;
-                      td_text = id;
-                      td_noncode = [];
-                    }
-          in
-          ex, def, IdentTok tok, tp
-       | _ ->
-          Ismerr.err_non_ident_tok (pos_of_ism ism)
+    ex, def, IdentTok (tok_of_ident bindings ident), tp
   in
   match stmt with
   | PTS_ISM_Stmts stmts -> PTS_ISM_Stmts (map_apply stmts)
@@ -668,7 +655,7 @@ and resolve_expr bindings expr =
 
 (** Return a token from an ident.  This will generate an internal error
     if the ident is still an unevaluated ISM. *)
-let tok_of_ident bindings = function
+and tok_of_ident bindings = function
   | IdentTok tok -> tok
   | IdentIsm (pos, ism) ->
      match eval_ism bindings ism with

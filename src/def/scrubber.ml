@@ -101,7 +101,7 @@ let resolve_types ast =
   let global_varmap = make_symtab () in
   List.iter (fun (nm, tp, _, _, _, _) -> add_symbol pre_typemap nm tp)
     Types.map_builtin_types;
-  let read_type = function
+  let rec read_type = function
     | TypeDecl (p, nm, ({ bare = DefTypeEnum enums } as enum), _, _) ->
        let tp = maketype (Some p) (DefTypeNamed nm) in
        let () =
@@ -112,6 +112,8 @@ let resolve_types ast =
        add_symbol pre_typemap nm enum
     | TypeDecl (_, nm, tp, _, _) ->
        add_symbol pre_typemap nm tp
+    | MultiStmt stmts ->
+       List.iter read_type stmts
     | DeclFcn (p, _, nm, tp, _)
     | DefFcn (p, _, _, nm, tp, _, _) ->
        let lowered_type = dearray_fcn tp in
@@ -893,7 +895,8 @@ let legit_gotos prog =
           Report.warn_unreferenced_label pos name label)
       labels
   in
-  let toplevel = function
+  let rec toplevel = function
+    | MultiStmt stmts -> List.iter toplevel stmts
     | DefFcn (_, _, _, name, _, _, body) -> verify name body
     | _ -> ()
   in
@@ -933,7 +936,8 @@ let legit_breaks prog =
     in
     List.iter (traverse false) body
   in
-  let toplevel = function
+  let rec toplevel = function
+    | MultiStmt stmts -> List.iter toplevel stmts
     | DefFcn (_, _, _, name, _, _, body) -> verify name body
     | _ -> ()
   in
@@ -1058,7 +1062,8 @@ let legit_parallelism prog =
     in
     List.iter (traverse true)
   in
-  let toplevel = function
+  let rec toplevel = function
+    | MultiStmt stmts -> List.iter toplevel stmts
     | DefFcn (_, _, _, name, _, _, body) -> verify name body
     | _ -> ()
   in
@@ -1139,7 +1144,9 @@ let kill_dead_code prog =
     proc []
   in
 
-  let toplevel = function
+  let rec toplevel = function
+    | MultiStmt stmts ->
+       MultiStmt (List.map toplevel stmts)
     | DefFcn (pos, doc, vis, name, tp, params, body) ->
        DefFcn (pos, doc, vis, name, tp, params, process name body)
     | stmt -> stmt
@@ -1252,7 +1259,9 @@ let return_all_paths prog =
       Report.err_no_return pos name
   in
 
-  let toplevel = function
+  let rec toplevel = function
+    | MultiStmt stmts ->
+       MultiStmt (List.map toplevel stmts)
     | DefFcn (pos, doc, vis, name, tp, params, body) ->
        let rettp =
          match tp.bare with

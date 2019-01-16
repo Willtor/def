@@ -458,8 +458,10 @@ let get_or_make_val data scope name =
         | _ ->
            Report.err_internal __FILE__ __LINE__ "unexpected symbol type."
 
-let gather_global data stmt =
+let rec gather_global data stmt =
   match stmt with
+  | MultiStmt stmts ->
+     List.iter (gather_global data) stmts
   | VarDecl (_, names, _, _, _) ->
      List.iter
        (fun tok -> add_symbol data.globalsyms tok.td_text stmt)
@@ -1624,7 +1626,9 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
 
   List.iter (stmt_gen fcn_scope) fcn_body
 
-let build_function data = function
+let rec build_function data = function
+  | MultiStmt stmts ->
+     List.iter (build_function data) stmts
   | DefFcn (_, _, _, name,
             { bare = DefTypeFcn (ptypes, _, _) },
             defparams,
