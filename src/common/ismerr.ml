@@ -89,5 +89,10 @@ let err_map_needs_list pos =
 let err_map_needs_fcn pos =
   err_pos "map expected a function for its first argument." pos
 
+(** map was given a lambda with #args <> 1. *)
 let err_map_lambda_needs_one_param pos =
   err_pos "map requires its function to take one parameter." pos
+
+(** concat-stmts was given something other than a list of DEF statements. *)
+let err_concat_stmts_bad_arg pos =
+  err_pos "concat-stmts requires a list of DEF statements as an argument." pos

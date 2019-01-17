@@ -375,6 +375,16 @@ let map eval bindings pos raw_args =
   | _ ->
      Ismerr.internal "not two args to map?"
 
+let concat_stmts pos = function
+  | [ IsmSexpr (_, list) ] ->
+     let get_stmts = function
+       | IsmDefStmts stmts -> stmts
+       | _ -> Ismerr.err_concat_stmts_bad_arg pos
+     in
+     IsmDefStmts (List.flatten (List.map get_stmts list))
+  | _ ->
+     Ismerr.err_concat_stmts_bad_arg pos
+
 let precompute f eval bindings pos args =
   f pos (List.map (eval bindings) args)
 
@@ -438,6 +448,9 @@ let ism_builtins =
     ("car", precompute (list_op "car" car));
     ("cdr", precompute (list_op "cdr" cdr));
     ("map", map);
+
+    (*-- Statement Operations --*)
+    ("concat-stmts", precompute concat_stmts);
   ]
 
 (** Return the default set of bindings. *)
@@ -627,7 +640,7 @@ and resolve_expr bindings expr =
     | PTE_FcnCall fcn ->
        PTE_FcnCall
          { ptfc_spawn = fcn.ptfc_spawn;
-           ptfc_name = fcn.ptfc_name;
+           ptfc_name = IdentTok (tok_of_ident bindings fcn.ptfc_name);
            ptfc_lparen = fcn.ptfc_lparen;
            ptfc_args = List.map resolve fcn.ptfc_args;
            ptfc_rparen = fcn.ptfc_rparen

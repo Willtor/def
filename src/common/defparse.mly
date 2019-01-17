@@ -252,7 +252,7 @@ expr:
 | LITERALF32 { PTE_F32 $1 }
 | STRING { PTE_String $1 }
 | WILDCARD { PTE_Wildcard $1 }
-| SPAWN IDENT LPAREN separated_list(COMMA, expr) RPAREN
+| SPAWN ident LPAREN separated_list(COMMA, expr) RPAREN
   { PTE_FcnCall
       { ptfc_spawn = Some $1;
         ptfc_name = $2;
@@ -261,7 +261,7 @@ expr:
         ptfc_rparen = $5
       }
   }
-| IDENT LPAREN separated_list(COMMA, expr) RPAREN
+| ident LPAREN separated_list(COMMA, expr) RPAREN
   { PTE_FcnCall
       { ptfc_spawn = None;
         ptfc_name = $1;

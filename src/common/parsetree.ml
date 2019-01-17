@@ -158,7 +158,7 @@ and pt_field_init =
 
 and pt_fcn_call =
   { ptfc_spawn    : tokendata option;
-    ptfc_name     : tokendata;
+    ptfc_name     : ident;
     ptfc_lparen   : tokendata;
     ptfc_args     : pt_expr list;
     ptfc_rparen   : tokendata
@@ -268,7 +268,6 @@ let rec pt_expr_pos = function
   | PTE_F32 (tok, _)
   | PTE_String (tok, _)
   | PTE_Wildcard tok
-  | PTE_FcnCall { ptfc_name = tok }
   | PTE_Cast (tok, _, _, _, _)
   | PTE_Var tok
   | PTE_StaticStruct (None, tok, _, _)
@@ -276,6 +275,10 @@ let rec pt_expr_pos = function
   | PTE_StaticArray (tok, _, _)
   | PTE_PreUni ((_, tok), _) ->
      tok.td_pos
+  | PTE_FcnCall { ptfc_name = IdentTok tok } ->
+     tok.td_pos
+  | PTE_FcnCall { ptfc_name = IdentIsm (pos, _) } ->
+     pos
   | PTE_Index (e, _, _, _)
   | PTE_SelectField (e, _, _)
   | PTE_PostUni (e, _)

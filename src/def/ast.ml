@@ -483,7 +483,8 @@ let of_parsetree bindings =
        make_expr e (maketype None bare_array) (ExprString value)
     | PTE_Wildcard tok -> make_expr e wildcard_type ExprWildcard
     | PTE_FcnCall fcn ->
-       let ast = ExprFcnCall (fcn.ptfc_name.td_text,
+       let name = tok_of_ident bindings fcn.ptfc_name in
+       let ast = ExprFcnCall (name.td_text,
                               List.map expr_of fcn.ptfc_args,
                               if fcn.ptfc_spawn = None then false else true)
        in

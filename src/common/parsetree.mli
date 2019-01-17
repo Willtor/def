@@ -134,7 +134,7 @@ and pt_param =
 
 and pt_fcn_call =
   { ptfc_spawn    : tokendata option;
-    ptfc_name     : tokendata;
+    ptfc_name     : ident;
     ptfc_lparen   : tokendata;
     ptfc_args     : pt_expr list;
     ptfc_rparen   : tokendata
