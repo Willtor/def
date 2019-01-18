@@ -292,8 +292,8 @@ and ismlex = parse
 | '[' as tok { IsmLexOpen (raw_token (strify tok) lexbuf) }
 | ']' as tok { IsmLexClose (raw_token (strify tok) lexbuf) }
 | '`' as tok { IsmLexQuote (raw_token (strify tok) lexbuf) }
-| "true" as tok { IsmLexBool (raw_token tok lexbuf, true) }
-| "false" as tok { IsmLexBool (raw_token tok lexbuf, false) }
+| "#t" as tok { IsmLexBool (raw_token tok lexbuf, true) }
+| "#f" as tok { IsmLexBool (raw_token tok lexbuf, false) }
 | ['"']([^'\\' '"']*(['\\']_)?)+['"'] as str
     { IsmLexString (raw_token str lexbuf, remove_quotes str) }
 | '-'?['0'-'9']+"I64" as istr
