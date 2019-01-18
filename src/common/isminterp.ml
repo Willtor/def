@@ -330,6 +330,16 @@ let ident_of pos = function
   | args ->
      Ismerr.err_args_mismatch pos 1 (List.length args)
 
+let if_form eval bindings pos = function
+  | [ cond; t; f ] ->
+     begin
+       match eval bindings cond with
+       | IsmBool (_, false) -> eval bindings f
+       | _ -> eval bindings t
+     end
+  | args ->
+     Ismerr.err_args_mismatch pos 3 (List.length args)
+
 let list_op name op pos = function
   | [ IsmSexpr (_, list) ] ->
      begin
@@ -394,7 +404,7 @@ let ism_builtins =
     ("*", precompute mul); ("/", precompute div);
     ("%", precompute modulo);
 
-    (*-- String operations --*)
+    (*-- String Operations --*)
     ("string-append", precompute string_append);
 
     (*-- Conversions --*)
@@ -443,6 +453,9 @@ let ism_builtins =
        (fun pos args ->
          let p, v = float_conv "float64" pos args in IsmFloat64 (p, v)));
     ("ident", precompute ident_of);
+
+    (*-- Special Forms --*)
+    ("if", if_form);
 
     (*-- List Operations --*)
     ("car", precompute (list_op "car" car));
@@ -538,6 +551,14 @@ and resolve_stmt bindings stmt =
   in
   match stmt with
   | PTS_ISM_Stmts stmts -> PTS_ISM_Stmts (map_apply stmts)
+  | PTS_ISM_DelayedStmts (at, ism) ->
+     begin
+       match eval_ism bindings ism with
+       | IsmDefStmts stmts ->
+          PTS_ISM_Stmts (map_apply stmts)
+       | _ ->
+          Ismerr.err_emit_stmts_did_not_emit_stmts at.td_pos
+     end
   | PTS_Import _ -> stmt
   | PTS_Begin (b, stmts, e) -> PTS_Begin (b, map_apply stmts, e)
   | PTS_FcnDefExpr (decl, eq, expr, semi) ->

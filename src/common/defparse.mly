@@ -61,6 +61,7 @@
 (* ISM stand-ins. *)
 %token <Parsetree.tokendata * Parsetree.ism> ISM_EXPR
 %token <Parsetree.pt_stmt list> ISM_STMTS
+%token <Parsetree.tokendata * Parsetree.ism> ISM_DELAYED_STMTS
 %token <Parsetree.tokendata * Parsetree.ism> ISM_IDENT
 
 %start <Parsetree.pt_stmt list> defparse
@@ -104,6 +105,7 @@ ident:
 
 statement:
 | ISM_STMTS { PTS_ISM_Stmts $1 }
+| ISM_DELAYED_STMTS { let p, ism = $1 in PTS_ISM_DelayedStmts (p, ism) }
 | IMPORT STRING SEMICOLON { PTS_Import ($1, $2, $3) }
 | fcndef EQUALS expr SEMICOLON { PTS_FcnDefExpr ($1, $2, $3, $4) }
 | fcndef block { PTS_FcnDefBlock ($1, $2) }

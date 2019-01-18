@@ -96,3 +96,7 @@ let err_map_lambda_needs_one_param pos =
 (** concat-stmts was given something other than a list of DEF statements. *)
 let err_concat_stmts_bad_arg pos =
   err_pos "concat-stmts requires a list of DEF statements as an argument." pos
+
+(** The emit-stmts function generated something other than statements. *)
+let err_emit_stmts_did_not_emit_stmts pos =
+  err_pos "emit-stmts did not emit statements." pos

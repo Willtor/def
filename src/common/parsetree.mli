@@ -49,6 +49,8 @@ and ident =
 
 and pt_stmt =
   | PTS_ISM_Stmts of pt_stmt list
+  | PTS_ISM_DelayedStmts of tokendata * ism
+
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
   | PTS_FcnDefExpr of

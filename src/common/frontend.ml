@@ -54,6 +54,8 @@ let rec master_lexer preseed ismbindings lexbuf =
 
   let store_stmts sexpr = Some (ISM_STMTS sexpr) in
 
+  let store_delayed_stmts at sexpr = Some (ISM_DELAYED_STMTS (at, sexpr)) in
+
   let store_ident at sexpr = Some (ISM_IDENT (at, sexpr)) in
 
   let store_or_stash at sexpr =
@@ -74,6 +76,8 @@ let rec master_lexer preseed ismbindings lexbuf =
             store_expr at (extract_single_arg "emit-expr")
          | "emit-ident" ->
             store_ident at (extract_single_arg "emit-ident")
+         | "emit-stmts" ->
+            store_delayed_stmts at (extract_single_arg "emit-stmts")
          | _ ->
             match eval_ism ismbindings sexpr with
             | IsmDefStmts stmts ->

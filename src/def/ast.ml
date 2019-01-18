@@ -227,6 +227,9 @@ let of_parsetree bindings =
   in
   let rec stmt_of = function
     | PTS_ISM_Stmts stmts -> MultiStmt (List.map stmt_of stmts)
+    | PTS_ISM_DelayedStmts _ ->
+       Report.err_internal __FILE__ __LINE__
+         "Found an uninterpreted ISM at the stmt level in the AST."
     | PTS_Import (importtok, (pathtok, _), _) -> Import (importtok, pathtok)
     | PTS_Begin (b, stmts, _) -> Block (b.td_pos, List.map stmt_of stmts)
     | PTS_FcnDefExpr ((exp, def, id, tp), equals, e, _) ->
