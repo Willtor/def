@@ -340,6 +340,23 @@ let if_form eval bindings pos = function
   | args ->
      Ismerr.err_args_mismatch pos 3 (List.length args)
 
+let let_form eval bindings pos = function
+  | [ IsmSexpr (_, list); expr ] ->
+     let subscope = push_symtab_scope bindings in
+     let bind = function
+       | IsmSexpr (_, [IsmIdent id; e]) ->
+          let binding = eval bindings e in
+          add_symbol subscope id.td_text (BBIsm binding)
+       | _ ->
+          Ismerr.err_let_need_bindings pos
+     in
+     let () = List.iter bind list in
+     eval subscope expr
+  | [ _ ; _ ] ->
+     Ismerr.err_let_need_bindings pos
+  | args ->
+     Ismerr.err_args_mismatch pos 2 (List.length args)
+
 let list_op name op pos = function
   | [ IsmSexpr (_, list) ] ->
      begin
@@ -456,6 +473,7 @@ let ism_builtins =
 
     (*-- Special Forms --*)
     ("if", if_form);
+    ("let", let_form);
 
     (*-- List Operations --*)
     ("car", precompute (list_op "car" car));

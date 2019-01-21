@@ -100,3 +100,7 @@ let err_concat_stmts_bad_arg pos =
 (** The emit-stmts function generated something other than statements. *)
 let err_emit_stmts_did_not_emit_stmts pos =
   err_pos "emit-stmts did not emit statements." pos
+
+(** let function got something other than a list of bindings. *)
+let err_let_need_bindings pos =
+  err_pos "let: first argument should be a list of bindings." pos
