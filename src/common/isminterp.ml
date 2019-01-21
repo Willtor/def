@@ -342,6 +342,7 @@ let if_form eval bindings pos = function
 
 let let_form is_star eval bindings pos = function
   | [ IsmSexpr (_, list); expr ] ->
+     let () = prerr_endline "let yall" in
      let subscope = push_symtab_scope bindings in
      let bscope = if is_star then subscope
                   else bindings
