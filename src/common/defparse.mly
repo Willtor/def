@@ -25,6 +25,9 @@
 (* Special token for parsing statements within an ISM block. *)
 %token ISM_STATEMENTS
 
+(* Special token for parsing an expression within an ISM block. *)
+%token ISM_EXPRESSION
+
 %token <Parsetree.tokendata * int64> LITERALI64 LITERALU64
 %token <Parsetree.tokendata * int32> LITERALI32 LITERALU32
 %token <Parsetree.tokendata * int32> LITERALI16 LITERALU16
@@ -95,6 +98,7 @@
 defparse:
 | stmts = statement+ EOF { stmts }
 | ISM_STATEMENTS statement+ RSQUARE { [PTS_ISM_Stmts $2] }
+| ISM_EXPRESSION expr RSQUARE { [PTS_ISM_Expr $2] }
 
 block:
 | BEGIN statement* END { PTS_Begin ($1, $2, $3) }

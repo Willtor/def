@@ -91,6 +91,9 @@ let expr_of_ism bindings ism =
   | IsmUInt64 (_, u64) -> u64_type, ExprLit (LitU64 u64)
   | IsmFloat32 (_, f32) -> f32_type, ExprLit (LitF32 f32)
   | IsmFloat64 (_, f64) -> f64_type, ExprLit (LitF64 f64)
+  | IsmDefExpr (_, _) ->
+     Report.err_internal __FILE__ __LINE__
+       "Found an unresolved ISM DEF expression."
   | _ -> Error.fatal_error "Need suitable error."
 
 let resolve_types ast =

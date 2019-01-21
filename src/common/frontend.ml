@@ -82,6 +82,8 @@ let rec master_lexer preseed ismbindings lexbuf =
             match eval_ism ismbindings sexpr with
             | IsmDefStmts stmts ->
                store_stmts stmts
+            | IsmDefExpr (tok, expr) ->
+               store_expr tok (IsmDefExpr (tok, expr))
             | IsmDefIdent (pos, id) ->
                let tok = { td_pos = pos;
                            td_text = id;
@@ -94,6 +96,8 @@ let rec master_lexer preseed ismbindings lexbuf =
        end
     | IsmDefStmts stmts ->
        store_stmts stmts
+    | IsmDefExpr (tok, expr) ->
+       store_expr tok (IsmDefExpr (tok, expr))
     | _ ->
        Error.fatal_error "FIXME: Need suitable error.  Malformed s-expr."
   in
@@ -172,11 +176,20 @@ let rec master_lexer preseed ismbindings lexbuf =
            let subbindings = push_symtab_scope ismbindings in
            let stmts =
              match master_parser (Some ISM_STATEMENTS) subbindings lexbuf with
-             | [PTS_ISM_Stmts (stmts)] -> stmts
-             | _ -> Error.fatal_error
+             | [PTS_ISM_Stmts stmts] -> stmts
+             | _ -> Ismerr.internal
                       "Tried to parse statements and got something else back."
            in
            IsmDefStmts stmts
+         else if accum = [] && tok.td_text = "parse-expr" then
+           let subbindings = push_symtab_scope ismbindings in
+           let expr =
+             match master_parser (Some ISM_EXPRESSION) subbindings lexbuf with
+             | [PTS_ISM_Expr expr] -> expr
+             | _ -> Ismerr.internal
+                      "Tried to parse expression and got something else back."
+           in
+           IsmDefExpr (tok, expr)
          else
            continue @@ IsmIdent tok
     in
@@ -193,6 +206,8 @@ let rec master_lexer preseed ismbindings lexbuf =
             Error.fatal_error ("no binding; need suitable error " ^ tok.td_text)
          | Some (BBIsm (IsmDefStmts stmts)) ->
             store_stmts stmts
+         | Some (BBIsm (IsmDefExpr (tok, expr))) ->
+            store_expr at (IsmDefExpr (tok, expr))
          | Some (BBIsm (IsmDefIdent (pos, id))) ->
             let tok = { td_pos = pos;
                         td_text = id;

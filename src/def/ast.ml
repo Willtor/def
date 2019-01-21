@@ -230,6 +230,9 @@ let of_parsetree bindings =
     | PTS_ISM_DelayedStmts _ ->
        Report.err_internal __FILE__ __LINE__
          "Found an uninterpreted ISM at the stmt level in the AST."
+    | PTS_ISM_Expr _ ->
+       Report.err_internal __FILE__ __LINE__
+         "Found an ISM_Expr in the AST."
     | PTS_Import (importtok, (pathtok, _), _) -> Import (importtok, pathtok)
     | PTS_Begin (b, stmts, _) -> Block (b.td_pos, List.map stmt_of stmts)
     | PTS_FcnDefExpr ((exp, def, id, tp), equals, e, _) ->
@@ -442,6 +445,8 @@ let of_parsetree bindings =
 
   and expr_of e =
     match e with
+    | PTE_IsmExpr (_, IsmDefExpr (_, ismexpr)) ->
+       expr_of ismexpr
     | PTE_IsmExpr (at, sexpr) ->
        let ast = ExprIsm sexpr in
        make_expr e inferred_type ast

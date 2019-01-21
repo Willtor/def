@@ -46,6 +46,7 @@ type ism =
   | IsmFloat64 of Lexing.position * float
   | IsmIdent of tokendata
   | IsmDefStmts of pt_stmt list
+  | IsmDefExpr of tokendata * pt_expr
   | IsmDefIdent of Lexing.position * string
   | IsmBinding of binding
 
@@ -67,6 +68,11 @@ and ident =
 and pt_stmt =
   | PTS_ISM_Stmts of pt_stmt list
   | PTS_ISM_DelayedStmts of tokendata * ism
+
+  (* PTS_ISM_Expr: Not really a statement, but objects returned from the
+     parser need to be of the "pt_stmt list" type.  This should never
+     appear in an actual parsetree. *)
+  | PTS_ISM_Expr of pt_expr
 
   | PTS_Import of tokendata * (tokendata * string) * tokendata
   | PTS_Begin of tokendata * pt_stmt list * tokendata
@@ -216,6 +222,7 @@ let rec string_of_ism = function
   | IsmFloat64 (_, n) -> string_of_float n
   | IsmIdent tok -> tok.td_text
   | IsmDefStmts _ -> "defism-statements"
+  | IsmDefExpr _ -> "defism-expression"
   | IsmDefIdent _ -> "defism-identifier"
   | IsmBinding _ ->
      Error.fatal_error "string_of_ism found binding."
@@ -233,6 +240,7 @@ let pos_of_ism = function
   | IsmDefIdent (pos, _)
     -> pos
   | IsmIdent tok -> tok.td_pos
+  | IsmDefExpr (tok, _) -> tok.td_pos
   | IsmDefStmts _
   | IsmBinding _ ->
      (* FIXME! *)

@@ -555,6 +555,8 @@ let rec eval_ism bindings = function
      end
   | IsmDefStmts stmts ->
      IsmDefStmts (List.map (resolve_stmt bindings) stmts)
+  | IsmDefExpr (tok, expr) ->
+     IsmDefExpr (tok, resolve_expr bindings expr)
   | IsmDefIdent _ as v -> v
   | IsmBinding binding ->
      Ismerr.internal "Unexpected binding."
@@ -578,9 +580,13 @@ and resolve_stmt bindings stmt =
        match eval_ism bindings ism with
        | IsmDefStmts stmts ->
           PTS_ISM_Stmts (map_apply stmts)
+       | IsmDefExpr _ ->
+          Ismerr.internal "Should not see IsmDefExpr here."
        | _ ->
           Ismerr.err_emit_stmts_did_not_emit_stmts at.td_pos
      end
+  | PTS_ISM_Expr _ ->
+     Ismerr.internal "Shouldn't be seeing a PTS_ISM_Expr here."
   | PTS_Import _ -> stmt
   | PTS_Begin (b, stmts, e) -> PTS_Begin (b, map_apply stmts, e)
   | PTS_FcnDefExpr (decl, eq, expr, semi) ->
