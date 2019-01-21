@@ -168,7 +168,7 @@ let rec master_lexer preseed ismbindings lexbuf =
       | IsmLexFloat64 (tok, n) ->
          continue @@ IsmFloat64 (tok.td_pos, n)
       | IsmLexIdent tok ->
-         if accum = [] && tok.td_text = "parse-stmt" then
+         if accum = [] && tok.td_text = "parse-stmts" then
            let subbindings = push_symtab_scope ismbindings in
            let stmts =
              match master_parser (Some ISM_STATEMENTS) subbindings lexbuf with
