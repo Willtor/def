@@ -503,7 +503,8 @@ let of_parsetree bindings =
        let ast = ExprCast (inferred_type, deftp, defexpr) in
        make_expr e deftp ast
     | PTE_Var var ->
-       make_expr e inferred_type (ExprVar var.td_text)
+       let name = tok_of_ident bindings var in
+       make_expr e inferred_type (ExprVar name.td_text)
     | PTE_StaticStruct (packed_maybe, lcurly, fields, _) ->
        let is_packed = match packed_maybe with
          | None -> false

@@ -277,7 +277,7 @@ expr:
       }
   }
 | CAST deftype LPAREN expr RPAREN { PTE_Cast ($1, $2, $3, $4, $5) }
-| IDENT { PTE_Var $1 }
+| ident { PTE_Var $1 }
 | LPAREN expr RPAREN { $2 }
 | LCURLY exprlist RCURLY { PTE_StaticStruct (None, $1, $2, $3) }
 | PACKED LCURLY exprlist RCURLY { PTE_StaticStruct (Some $1, $2, $3, $4) }

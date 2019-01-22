@@ -192,7 +192,7 @@ and pt_expr =
   | PTE_Wildcard of tokendata
   | PTE_FcnCall of pt_fcn_call
   | PTE_Cast of tokendata * pt_type * tokendata * pt_expr * tokendata
-  | PTE_Var of tokendata
+  | PTE_Var of ident
   | PTE_StaticStruct of tokendata option * tokendata * pt_expr list * tokendata
   | PTE_StaticArray of tokendata * pt_expr list * tokendata
   | PTE_Index of pt_expr * tokendata * pt_expr * tokendata
@@ -278,7 +278,6 @@ let rec pt_expr_pos = function
   | PTE_String (tok, _)
   | PTE_Wildcard tok
   | PTE_Cast (tok, _, _, _, _)
-  | PTE_Var tok
   | PTE_StaticStruct (None, tok, _, _)
   | PTE_StaticStruct (Some tok, _, _, _)
   | PTE_StaticArray (tok, _, _)
@@ -287,6 +286,10 @@ let rec pt_expr_pos = function
   | PTE_FcnCall { ptfc_name = IdentTok tok } ->
      tok.td_pos
   | PTE_FcnCall { ptfc_name = IdentIsm (pos, _) } ->
+     pos
+  | PTE_Var (IdentTok tok) ->
+     tok.td_pos
+  | PTE_Var (IdentIsm (pos, _)) ->
      pos
   | PTE_Index (e, _, _, _)
   | PTE_SelectField (e, _, _)

@@ -175,7 +175,7 @@ and pt_expr =
   | PTE_Wildcard of tokendata
   | PTE_FcnCall of pt_fcn_call
   | PTE_Cast of tokendata * pt_type * tokendata * pt_expr * tokendata
-  | PTE_Var of tokendata
+  | PTE_Var of ident
   | PTE_StaticStruct of tokendata option * tokendata * pt_expr list * tokendata
   | PTE_StaticArray of tokendata * pt_expr list * tokendata
   | PTE_Index of pt_expr * tokendata * pt_expr * tokendata

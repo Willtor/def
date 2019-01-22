@@ -696,7 +696,8 @@ and resolve_expr bindings expr =
          }
     | PTE_Cast (cast, tp, lp, expr, rp) ->
        PTE_Cast (cast, tp, lp, resolve expr, rp)
-    | PTE_Var _ -> e
+    | PTE_Var var ->
+       PTE_Var (IdentTok (tok_of_ident bindings var))
     | PTE_StaticStruct (name, oc, exprs, cc) ->
        PTE_StaticStruct (name, oc, List.map resolve exprs, cc)
     | PTE_StaticArray (os, exprs, cs) ->

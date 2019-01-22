@@ -203,7 +203,7 @@ let rec master_lexer preseed ismbindings lexbuf =
        begin
          match lookup_symbol ismbindings tok.td_text with
          | None ->
-            Error.fatal_error ("no binding; need suitable error " ^ tok.td_text)
+            Ismerr.err_unknown_symbol tok.td_pos tok.td_text
          | Some (BBIsm (IsmDefStmts stmts)) ->
             store_stmts stmts
          | Some (BBIsm (IsmDefExpr (tok, expr))) ->
