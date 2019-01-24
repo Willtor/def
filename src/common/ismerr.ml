@@ -97,6 +97,13 @@ let err_map_lambda_needs_one_param pos =
 let err_concat_stmts_bad_arg pos =
   err_pos "concat-stmts requires a list of DEF statements as an argument." pos
 
+(** Bad argument to construct-if. *)
+let err_construct_if_bad_arg pos =
+  let msg = "construct-if requires a list of pairs as an argument.  "
+            ^ "The last element may optionally be a statement for the else."
+  in
+  err_pos msg pos
+
 (** The emit-stmts function generated something other than statements. *)
 let err_emit_stmts_did_not_emit_stmts pos =
   err_pos "emit-stmts did not emit statements." pos

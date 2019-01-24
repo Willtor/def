@@ -74,6 +74,8 @@ let rec master_lexer preseed ismbindings lexbuf =
             (define ismbindings rest; None)
          | "emit-expr" ->
             store_expr at (extract_single_arg "emit-expr")
+         | "emit-num" ->
+            store_expr at (extract_single_arg "emit-num")
          | "emit-ident" ->
             store_ident at (extract_single_arg "emit-ident")
          | "emit-stmts" ->
