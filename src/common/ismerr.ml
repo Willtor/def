@@ -99,8 +99,7 @@ let err_concat_stmts_bad_arg pos =
 
 (** Bad argument to construct-if. *)
 let err_construct_if_bad_arg pos =
-  let msg = "construct-if requires a list of pairs as an argument.  "
-            ^ "The last element may optionally be a statement for the else."
+  let msg = "construct-if requires a list of pairs as an argument."
   in
   err_pos msg pos
 

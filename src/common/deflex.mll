@@ -349,7 +349,7 @@ and ismlex = parse
 | '-'?['0'-'9']*'.'['0'-'9']+(['e' 'E']['0'-'9']+)? as fstr
     { IsmLexFloat64 (raw_token fstr lexbuf, float_of_string fstr) }
 
-| ['A'-'Z''a'-'z''_''0'-'9''-''+''*''/''%''<''>''~''&''|''^''!''=']+ as tok
+| ['A'-'Z''a'-'z''_''0'-'9''-''+''*''/''%''<''>''~''&''|''^''!''=''?']+ as tok
     { IsmLexIdent (raw_token tok lexbuf) }
 | [' ' '\t']+ { ismlex lexbuf }
 | '\n' { new_line lexbuf; ismlex lexbuf }

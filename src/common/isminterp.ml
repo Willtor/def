@@ -201,6 +201,11 @@ let debind = function
   | IsmBinding (BBIsm ism) -> ism
   | ism -> ism
 
+let boolean_p pos = function
+  | [ IsmBool _ ] -> IsmBool (pos, true)
+  | [ _ ] -> IsmBool (pos, false)
+  | args -> Ismerr.err_args_mismatch pos 1 (List.length args)
+
 let mathop name op_kind =
   let char i32 a b =
     let rawval =
@@ -431,42 +436,29 @@ let construct_if eval bindings pos args =
        | IsmDefStmts stmts -> stmts
        | _ -> Ismerr.err_construct_if_bad_arg pos
      in
-     let expr_stmt_pair is_last_branch = function
+     let expr_stmt_pair = function
        | IsmSexpr (_, [IsmDefExpr (tok, _) as cond; IsmDefStmts _ as stmts]) ->
           let cond =
             match eval bindings cond with
             | IsmDefExpr (_, e) -> e
             | e -> PTE_IsmExpr (tok, e)
           in
-          Some cond, get_stmts stmts
-       | IsmSexpr (_, [IsmDefStmts _ as stmts]) ->
-          if is_last_branch then
-            None, get_stmts stmts
-          else
-            Ismerr.err_construct_if_bad_arg pos
+          cond, get_stmts stmts
        | _ ->
           Ismerr.err_construct_if_bad_arg pos
      in
-     let cond, body = expr_stmt_pair false branch_1 in
+     let cond, body = expr_stmt_pair branch_1 in
      let rec build_if accum = function
-       | [] ->
-          [], None
-       | [ arg ] ->
-          let cond, body = expr_stmt_pair true arg in
-          if cond = None then
-            List.rev accum, Some (faux_tok, body)
-          else
-            List.rev ((faux_tok, Util.the cond, faux_tok, body) :: accum),
-            None
+       | [] -> List.rev accum
        | arg :: rest ->
-          let cond, body = expr_stmt_pair false arg in
-          let accum = (faux_tok, Util.the cond, faux_tok, body) :: accum in
+          let cond, body = expr_stmt_pair arg in
+          let accum = (faux_tok, cond, faux_tok, body) :: accum in
           build_if accum rest
      in
-     let elifs, else_clause = build_if [] rest in
+     let elifs = build_if [] rest in
      IsmDefStmts
-       [ PTS_IfStmt (faux_tok, Util.the cond, faux_tok, body,
-                     elifs, else_clause, faux_tok)
+       [ PTS_IfStmt (faux_tok, cond, faux_tok, body,
+                     elifs, None, faux_tok)
        ]
   | _ ->
      Ismerr.err_construct_if_bad_arg pos
@@ -475,7 +467,10 @@ let precompute f eval bindings pos args =
   f pos (List.map (eval bindings) args)
 
 let ism_builtins =
-  [ (*-- Math Operations --*)
+  [ (*-- Types --*)
+    ("boolean?", precompute boolean_p);
+
+    (*-- Math Operations --*)
     ("+", precompute add); ("-", precompute sub);
     ("*", precompute mul); ("/", precompute div);
     ("%", precompute modulo);
