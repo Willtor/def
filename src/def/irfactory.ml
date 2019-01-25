@@ -560,14 +560,21 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     llval
   in
 
-  let rec declare_var scope lltype init_maybe vname =
+  let rec make_variable scope lltype init_maybe vname do_assign =
     position_at_end entry data.bldr;
     let alloc = build_alloca lltype vname data.bldr in
     add_symbol scope vname alloc;
     position_at_end (Util.the data.curr_bb) data.bldr;
-    if init_maybe <> None then
-      ignore(expr_gen scope true (Util.the init_maybe));
-    alloc
+    if init_maybe = None then
+      alloc
+    else
+      let rhs = expr_gen scope true (Util.the init_maybe) in
+      if do_assign then
+        ignore(build_store rhs alloc data.bldr);
+      alloc
+
+  and declare_var scope lltype init_maybe vname =
+    make_variable scope lltype init_maybe vname false
 
   and builtin_gen scope name args =
 
@@ -1169,7 +1176,9 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
         *)
        let tmp_var_name = "unpack." ^ (Util.unique_id ()) in
        let tmp_type = get_or_make_type data rhs.expr_tp in
-       let tmp_var = declare_var scope tmp_type (Some rhs) tmp_var_name in
+       let tmp_var =
+         make_variable scope tmp_type (Some rhs) tmp_var_name true
+       in
        List.iteri
          (fun n (_, name, deftype) ->
            let lltype = get_or_make_type data deftype in
