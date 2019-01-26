@@ -436,12 +436,8 @@ let get_or_make_val data scope name =
                  names
                  inits
              else if vis <> Types.VisExternal then
-               match deftype.bare with
-               | DefTypePrimitive _ ->
-                  let init = const_null (get_or_make_type data deftype) in
-                  set_initializer init v
-               | _ ->
-                  set_externally_initialized false v
+               let init = const_null (get_or_make_type data deftype) in
+               set_initializer init v
            in
            v
         | DeclFcn (_, vis, _, deftype, _)
