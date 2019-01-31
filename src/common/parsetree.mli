@@ -14,7 +14,9 @@ type pt_field =
 
 (** ISM meta program. *)
 type ism =
-  | IsmSexpr of Lexing.position * ism list
+    (* IsmNode (object, next) *)
+  | IsmNode of ism * ism
+  | IsmTerm of Lexing.position
   | IsmString of Lexing.position * string
   | IsmBool of Lexing.position * bool
   | IsmChar of Lexing.position * char
@@ -40,7 +42,7 @@ and binding =
   | BBNative of
       ((binding Util.symtab -> ism -> ism)
        -> binding Util.symtab
-       -> Lexing.position -> ism list -> ism)
+       -> Lexing.position -> ism -> ism)
   (* BBLambda of variables * environment * body *)
   | BBLambda of tokendata list * binding Util.symtab * ism
 

@@ -29,25 +29,24 @@ let ident_token_of = function
      Error.fatal_error "FIXME: Need suitable error. ident_token_of"
 
 let define ismbindings = function
-  | [(IsmIdent id); value] ->
+  | IsmNode (IsmIdent id, IsmNode (value, IsmTerm _)) ->
      let resolved_value = eval_ism ismbindings value in
      let binding = BBIsm resolved_value in
      add_symbol ismbindings id.td_text binding
-  | [(IsmSexpr (_, fname :: profile)); body] ->
-     let get_variables = function
-       | IsmIdent tok -> tok
-       | _ ->
-          Error.fatal_error "FIXME: Need suitable error.  Bad profile"
+  | IsmNode (IsmNode (_, _) as profile, IsmNode (body, IsmTerm _)) ->
+     let rec get_variables accum = function
+       | IsmNode (IsmIdent tok, next) ->
+          get_variables (tok :: accum) next
+       | IsmTerm _ ->
+          List.rev accum
+       | ism ->
+          Ismerr.err_malformed_function_profile (pos_of_ism ism)
      in
-     let variables = List.map get_variables (fname :: profile) in
+     let variables = get_variables [] profile in
      let lambda = BBLambda (List.tl variables, ismbindings, body) in
      add_symbol ismbindings (List.hd variables).td_text lambda
-  | [(IsmInt32 _) ; _] ->
-     let () = prerr_endline "hey now int32" in
-     Error.fatal_error "FIXME: Need suitable error."
-  | _ ->
-     let () = prerr_endline "hey now" in
-     Error.fatal_error "FIXME: Need suitable error."
+  | tail ->
+     Ismerr.err_malformed_sexpr (pos_of_ism tail)
 
 let rec master_lexer preseed ismbindings lexbuf =
   let store_expr at sexpr = Some (ISM_EXPR (at, sexpr)) in
@@ -60,26 +59,21 @@ let rec master_lexer preseed ismbindings lexbuf =
 
   let store_or_stash at sexpr =
     match sexpr with
-    | IsmSexpr (pos, (IsmIdent fcn) :: rest) ->
-       let extract_single_arg fcn =
-         match rest with
-         | [ arg ] -> arg
-         | _ -> Error.fatal_error ("expected single arg for " ^ fcn)
-       in
+    | IsmNode (IsmIdent fcn, args) ->
        begin
          match fcn.td_text with
          (* Special forms:
             FIXME: Identifying special forms should be handled by the lexer. *)
          | "define" ->
-            (define ismbindings rest; None)
+            (define ismbindings args; None)
          | "emit-expr" ->
-            store_expr at (extract_single_arg "emit-expr")
+            store_expr at (ism_extract_single_arg "emit-expr" args)
          | "emit-num" ->
-            store_expr at (extract_single_arg "emit-num")
+            store_expr at (ism_extract_single_arg "emit-num" args)
          | "emit-ident" ->
-            store_ident at (extract_single_arg "emit-ident")
+            store_ident at (ism_extract_single_arg "emit-ident" args)
          | "emit-stmts" ->
-            store_delayed_stmts at (extract_single_arg "emit-stmts")
+            store_delayed_stmts at (ism_extract_single_arg "emit-stmts" args)
          | _ ->
             match eval_ism ismbindings sexpr with
             | IsmDefStmts stmts ->
@@ -104,6 +98,11 @@ let rec master_lexer preseed ismbindings lexbuf =
        Error.fatal_error "FIXME: Need suitable error.  Malformed s-expr."
   in
 
+  let rec sexpr_of_rev_list tail = function
+    | a :: rest -> sexpr_of_rev_list (IsmNode (a, tail)) rest
+    | [] -> tail
+  in
+
   let rec base_deflex () =
     try deflex lexbuf
     with BeginIsm at ->
@@ -117,8 +116,8 @@ let rec master_lexer preseed ismbindings lexbuf =
       match ismlex lexbuf with
       | IsmLexOpen tok ->
          continue @@ ismparse tok.td_pos []
-      | IsmLexClose _ ->
-         IsmSexpr (pos, List.rev accum)
+      | IsmLexClose tok ->
+         sexpr_of_rev_list (IsmTerm tok.td_pos) accum
       | IsmLexQuote tok ->
          let rec get_quoted_value = function
            | IsmLexOpen tok -> ismparse tok.td_pos []
@@ -145,7 +144,7 @@ let rec master_lexer preseed ismbindings lexbuf =
                td_noncode = tok.td_noncode
              }
            in
-           IsmSexpr (tok.td_pos, [ IsmIdent fcn; expr ])
+           IsmNode (IsmIdent fcn, IsmNode (expr, IsmTerm tok.td_pos))
          in
          continue @@
            return_quoted_value tok @@ get_quoted_value (ismlex lexbuf)

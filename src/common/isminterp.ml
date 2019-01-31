@@ -28,6 +28,56 @@ type op_kind =
               * (float -> float -> float)
   | Unary of (int32 -> int32) * (int64 -> int64) * (float -> float)
 
+(** Return the length of an S-expression.  If the arg isn't an S-expr, an
+    error is generated. *)
+let sexpr_length =
+  let rec count_nodes n = function
+    | IsmNode (_, next) -> count_nodes (n + 1) next
+    | IsmTerm _ -> n
+    | ism ->
+       Ismerr.err_malformed_sexpr (pos_of_ism ism)
+  in
+  count_nodes 0
+
+(** From the given fcn-name's parameters return the single argument (or
+    report an error otherwise). *)
+let ism_extract_single_arg fcn = function
+  | IsmNode (arg, IsmTerm _) -> arg
+  | args ->
+     Ismerr.err_args_mismatch (pos_of_ism args) 1 (sexpr_length args)
+
+(** From the given fcn-name's parameters return two arguments (or
+    report an error otherwise). *)
+let ism_extract_two_args fcn = function
+  | IsmNode (arg1, IsmNode (arg2, IsmTerm _)) -> arg1, arg2
+  | args ->
+     Ismerr.err_args_mismatch (pos_of_ism args) 2 (sexpr_length args)
+
+let split_list = function
+  | IsmNode (obj, rest) -> obj, rest
+  | _ ->
+     Ismerr.internal "Tried to split non-list."
+
+let iter f args =
+  let rec it = function
+    | IsmTerm _ -> ()
+    | IsmNode (obj, rest) ->
+       (f obj; it rest)
+    | _ ->
+       Ismerr.internal "FIXME: Need suitable error."
+  in
+  it args
+
+let fold_left f start args =
+  let rec fold accum = function
+    | IsmTerm _ -> accum
+    | IsmNode (obj, rest) ->
+       fold (f accum obj) rest
+    | _ ->
+       Ismerr.internal "FIXME: Need suitable error."
+  in
+  fold start args
+
 let is_num ism =
   match ism with
   | IsmChar _ | IsmUChar _
@@ -201,10 +251,10 @@ let debind = function
   | IsmBinding (BBIsm ism) -> ism
   | ism -> ism
 
-let boolean_p pos = function
-  | [ IsmBool _ ] -> IsmBool (pos, true)
-  | [ _ ] -> IsmBool (pos, false)
-  | args -> Ismerr.err_args_mismatch pos 1 (List.length args)
+let boolean_p pos args =
+  match ism_extract_single_arg "boolean?" args with
+  | IsmBool _ -> IsmBool (pos, true)
+  | _ -> IsmBool (pos, false)
 
 let mathop name op_kind =
   let char i32 a b =
@@ -231,23 +281,34 @@ let mathop name op_kind =
     with ExNoFloatPermitted ->
       Ismerr.err_no_float_permitted pos name
   in
-  if args = [] then
-    Ismerr.err_args_mismatch pos 2 0
-  else
-    match op_kind with
-    | Multi (i32, i64, float) ->
-       let first = is_num (debind (List.hd args)) in
-       List.fold_left (binop i32 i64 float) first (List.tl args)
-    | Binary (i32, i64, float) ->
-       if List.length args <> 2 then
-         Ismerr.err_binary_fcn pos name (List.length args)
-       else
-         let first = is_num (debind (List.hd args)) in
-         let second = is_num (debind (List.hd (List.tl args))) in
-         binop i32 i64 float first second
-    | Unary _ ->
-       (* FIXME! *)
-       Ismerr.internal "unary not implemented, yet."
+  match args with
+  | IsmTerm _ ->
+     Ismerr.err_args_mismatch pos 2 0
+  | _ ->
+     match op_kind with
+     | Multi (i32, i64, float) ->
+        let rec proc accum = function
+          | IsmNode (obj, rest) ->
+             let num = is_num (debind obj) in
+             let accum = binop i32 i64 float accum num in
+             proc accum rest
+          | IsmTerm _ -> accum
+          | _ -> Ismerr.internal "processing a non-list."
+        in
+        let first, rest = split_list args in
+        proc (is_num (debind first)) rest
+     | Binary (i32, i64, float) ->
+        let len = sexpr_length args in
+        if len <> 2 then
+          Ismerr.err_binary_fcn pos name len
+        else
+          let p1, p2 = ism_extract_two_args name args in
+          let first = is_num (debind p1) in
+          let second = is_num (debind p2) in
+          binop i32 i64 float first second
+     | Unary _ ->
+        (* FIXME! *)
+        Ismerr.internal "unary not implemented, yet."
 
 let add = mathop "+" @@ Multi (Int32.add, Int64.add, (+.))
 let sub = mathop "-" @@ Multi (Int32.sub, Int64.sub, (-.))
@@ -257,28 +318,32 @@ let modulo = mathop "%" @@
                Binary (Int32.rem, Int64.rem,
                        (fun _ -> raise ExNoFloatPermitted))
 
-let string_append pos = function
-  | [] -> Ismerr.err_args_mismatch pos 2 0;
-  | args ->
-     let concatenate left right =
-       match left, right with
-       | IsmString (_, l), IsmString (_, r) ->
-          IsmString (pos, l ^ r)
-       | _, arg ->
-          Ismerr.err_string_append_expected_string (pos_of_ism arg)
-     in
-     List.fold_left concatenate (IsmString (pos, "")) args
+let string_append pos args =
+  let append accum arg =
+    match accum, arg with
+    | IsmString (p1, s1), IsmString (_, s2) ->
+       IsmString (p1, s1 ^ s2)
+    | _ ->
+       Ismerr.err_string_append_expected_string (pos_of_ism arg)
+  in
+  fold_left append (IsmString (pos, "")) args
 
-let generic_conv name pos bool char i32 i64 float = function
-  | [IsmBool (p, v)] -> p, bool v
-  | [IsmChar (p, v)]    | [IsmUChar (p, v)] -> p, char v
-  | [IsmInt16 (p, v)]   | [IsmUInt16 (p, v)] -> p, i32 v
-  | [IsmInt32 (p, v)]   | [IsmUInt32 (p, v)] -> p, i32 v
-  | [IsmInt64 (p, v)]   | [IsmUInt64 (p, v)] -> p, i64 v
-  | [IsmFloat32 (p, v)] | [IsmFloat64 (p, v)] -> p, float v
-  | [] -> Ismerr.err_args_mismatch pos 1 0
-  | (_ :: _ :: _) as args -> Ismerr.err_args_mismatch pos 1 (List.length args)
-  | _ -> Ismerr.err_nan pos
+let generic_conv name pos bool char i32 i64 float args =
+  let head, tail = split_list args in
+  match tail with
+  | IsmTerm _ ->
+     begin
+       match head with
+       | IsmBool (p, v) -> p, bool v
+       | IsmChar (p, v)    | IsmUChar (p, v) -> p, char v
+       | IsmInt16 (p, v)   | IsmUInt16 (p, v) -> p, i32 v
+       | IsmInt32 (p, v)   | IsmUInt32 (p, v) -> p, i32 v
+       | IsmInt64 (p, v)   | IsmUInt64 (p, v) -> p, i64 v
+       | IsmFloat32 (p, v) | IsmFloat64 (p, v) -> p, float v
+       | _ -> Ismerr.err_nan pos
+     end
+  | _ ->
+     Ismerr.err_args_mismatch pos 1 (1 + (sexpr_length tail))
 
 let ident x = x
 
@@ -328,143 +393,149 @@ let float_conv name pos =
     ident
 
 let ident_of pos = function
-  | [ IsmString (pos, str) ] ->
+  | IsmNode (IsmString (pos, str), IsmTerm _) ->
      IsmDefIdent (pos, str)
-  | _ :: [] ->
-     Ismerr.err_ident_from_non_string pos
-  | args ->
-     Ismerr.err_args_mismatch pos 1 (List.length args)
+  | IsmNode (_, IsmNode _) as node ->
+     Ismerr.err_args_mismatch pos 1 (sexpr_length node)
+  | IsmNode (ism, _) ->
+     Ismerr.err_ident_from_non_string (pos_of_ism ism)
+  | ism ->
+     Ismerr.err_malformed_sexpr (pos_of_ism ism)
 
 let if_form eval bindings pos = function
-  | [ cond; t; f ] ->
+  | IsmNode (cond, IsmNode (t, IsmNode (f, IsmTerm _))) ->
      begin
        match eval bindings cond with
        | IsmBool (_, false) -> eval bindings f
        | _ -> eval bindings t
      end
   | args ->
-     Ismerr.err_args_mismatch pos 3 (List.length args)
+     Ismerr.err_args_mismatch pos 3 (sexpr_length args)
 
 let let_form is_star eval bindings pos = function
-  | [ IsmSexpr (_, list); expr ] ->
+  | IsmNode (list, IsmNode (expr, IsmTerm _)) ->
      let subscope = push_symtab_scope bindings in
      let bscope = if is_star then subscope
                   else bindings
      in
      let bind = function
-       | IsmSexpr (_, [IsmIdent id; e]) ->
+       | IsmNode (IsmIdent id, IsmNode (e, IsmTerm _)) ->
           let binding = eval bscope e in
           add_symbol subscope id.td_text (BBIsm binding)
        | _ ->
           Ismerr.err_let_need_bindings pos is_star
      in
-     let () = List.iter bind list in
+     let () = iter bind list in
      eval subscope expr
-  | [ _ ; _ ] ->
-     Ismerr.err_let_need_bindings pos is_star
   | args ->
-     Ismerr.err_args_mismatch pos 2 (List.length args)
+     Ismerr.err_args_mismatch pos 2 (sexpr_length args)
 
-let list pos args = IsmSexpr (pos, args)
+let quote_form _ _ pos = function
+  | IsmNode (obj, IsmTerm _) -> obj
+  | ism ->
+     Ismerr.err_args_mismatch (pos_of_ism ism) 1 (sexpr_length ism)
 
-let list_op name op pos = function
-  | [ IsmSexpr (_, list) ] ->
-     begin
-       try op list
-       with _ -> Ismerr.err_list_op_failed pos name
-     end
-  | _ :: [] ->
-     Ismerr.err_list_op_on_non_list pos name
-  | args ->
-     Ismerr.err_args_mismatch pos 1 (List.length args)
+let list pos args = args
 
-let car = function
-  | el :: _ -> el
-  | [] -> raise (Invalid_argument "")
+let car_op pos = function
+  | IsmNode (list, IsmTerm _) ->
+     let head, _ = split_list list in
+     head
+  | ism ->
+     Ismerr.err_args_mismatch (pos_of_ism ism) 1 (sexpr_length ism)
 
-let cdr = function
-  | _ :: rest -> IsmSexpr (faux_pos, rest)
-  | [] -> raise (Invalid_argument "")
+let cdr_op pos = function
+  | IsmNode (list, IsmTerm _) ->
+     let _, tail = split_list list in
+     tail
+  | ism ->
+     Ismerr.err_args_mismatch (pos_of_ism ism) 1 (sexpr_length ism)
 
-let map eval bindings pos raw_args =
-  let n_args = List.length raw_args in
+let precompute f eval bindings pos args =
+  let proc accum ism = (eval bindings ism) :: accum in
+  let make_list accum ism = IsmNode (ism, accum) in
+  f pos @@ List.fold_left make_list (IsmTerm pos) @@ fold_left proc [] args
+
+let map_op eval bindings pos raw_args =
+  let n_args = sexpr_length raw_args in
   if n_args <> 2 then
     Ismerr.err_args_mismatch pos 2 n_args;
-  match List.map (eval bindings) raw_args with
-  | [ IsmBinding (BBLambda (params, env, body)); IsmSexpr (_, list) ] ->
-     let n_params = List.length params in
-     if n_params <> 1 then
-       Ismerr.err_map_lambda_needs_one_param pos
-     else
-       let param = List.hd params in
-       let apply_lambda arg =
-         let subscope = push_symtab_scope env in
-         add_symbol subscope param.td_text (BBIsm arg);
-         eval subscope body
-       in
-       IsmSexpr (pos, List.map apply_lambda list)
-  | [ IsmBinding (BBNative native_f); IsmSexpr (p, list) ] ->
-     Error.fatal_error "good arguments to map: Native"
-  | [ IsmBinding _; _ ] ->
-     Ismerr.err_map_needs_list pos
-  | [ _; _ ] ->
-     Ismerr.err_map_needs_fcn pos
-  | _ ->
-     Ismerr.internal "not two args to map?"
+
+  let fcn, rest = split_list raw_args in
+  let params, env, body =
+    match eval bindings fcn with
+    | IsmBinding (BBLambda (params, env, body)) -> params, env, body
+    | ism -> Ismerr.err_map_needs_fcn (pos_of_ism ism)
+  in
+  if List.length params <> 1 then
+    Ismerr.err_map_lambda_needs_one_param pos;
+  let raw_list, _ = split_list rest in
+  let list =
+    match eval bindings raw_list with
+    | IsmNode _ as list -> list
+    | _ -> Ismerr.err_map_needs_list (pos_of_ism raw_list)
+  in
+  let param = List.hd params in
+  let apply_lambda accum obj =
+    let subscope = push_symtab_scope env in
+    add_symbol subscope param.td_text (BBIsm obj);
+    (eval subscope body) :: accum
+  in
+  let make_list accum obj = IsmNode (obj, accum) in
+  List.fold_left make_list (IsmTerm pos) @@ fold_left apply_lambda [] list
 
 let concat_stmts pos = function
-  | [ IsmSexpr (_, list) ] ->
-     let get_stmts = function
-       | IsmDefStmts stmts -> stmts
-       | _ -> Ismerr.err_concat_stmts_bad_arg pos
+  | IsmNode (IsmNode (IsmDefStmts stmts, rest), IsmTerm _) ->
+     let proc accum = function
+       | IsmDefStmts stmts -> stmts :: accum
+       | ism -> Ismerr.err_concat_stmts_bad_arg (pos_of_ism ism)
      in
-     IsmDefStmts (List.flatten (List.map get_stmts list))
+     IsmDefStmts (List.flatten (fold_left proc [stmts] rest))
   | _ ->
      Ismerr.err_concat_stmts_bad_arg pos
 
-let construct_if eval bindings pos args =
-  match List.map (eval bindings) args with
-  | [ IsmSexpr (_, branch_1 :: rest) ] ->
-     let faux_tok =
-       { td_text = "faux";
-         td_pos = pos;
-         td_noncode = []
-       }
-     in
-     let get_stmts ism =
-       match eval bindings ism with
-       | IsmDefStmts stmts -> stmts
-       | _ -> Ismerr.err_construct_if_bad_arg pos
-     in
-     let expr_stmt_pair = function
-       | IsmSexpr (_, [IsmDefExpr (tok, _) as cond; IsmDefStmts _ as stmts]) ->
-          let cond =
-            match eval bindings cond with
-            | IsmDefExpr (_, e) -> e
-            | e -> PTE_IsmExpr (tok, e)
-          in
-          cond, get_stmts stmts
-       | _ ->
-          Ismerr.err_construct_if_bad_arg pos
-     in
-     let cond, body = expr_stmt_pair branch_1 in
-     let rec build_if accum = function
-       | [] -> List.rev accum
-       | arg :: rest ->
-          let cond, body = expr_stmt_pair arg in
-          let accum = (faux_tok, cond, faux_tok, body) :: accum in
-          build_if accum rest
-     in
-     let elifs = build_if [] rest in
-     IsmDefStmts
-       [ PTS_IfStmt (faux_tok, cond, faux_tok, body,
-                     elifs, None, faux_tok)
-       ]
-  | _ ->
-     Ismerr.err_construct_if_bad_arg pos
-
-let precompute f eval bindings pos args =
-  f pos (List.map (eval bindings) args)
+let construct_if eval bindings pos raw_args =
+  let construct _ = function
+    | IsmNode (list, IsmTerm _) ->
+       let get_stmts ism =
+         match eval bindings ism with
+         | IsmDefStmts stmts -> stmts
+         | _ -> Ismerr.err_construct_if_bad_arg (pos_of_ism ism)
+       in
+       let expr_stmt_pair = function
+         | IsmNode (IsmDefExpr (tok, _) as cond,
+                    IsmNode (IsmDefStmts _ as stmts,
+                             IsmTerm _)) ->
+            let cond =
+              match eval bindings cond with
+              | IsmDefExpr (_, e) -> e
+              | e -> PTE_IsmExpr (tok, e)
+            in
+            cond, get_stmts stmts
+         | ism ->
+            Ismerr.err_construct_if_bad_arg (pos_of_ism ism)
+       in
+       let head, tail = split_list list in
+       let cond, body = expr_stmt_pair head in
+       let faux_tok =
+         { td_text = "faux";
+           td_pos = pos;
+           td_noncode = []
+         }
+       in
+       let get_clauses accum obj =
+         let cond, body = expr_stmt_pair obj in
+         (faux_tok, cond, faux_tok, body) :: accum
+       in
+       let elifs = List.rev (fold_left get_clauses [] tail) in
+       IsmDefStmts
+         [ PTS_IfStmt (faux_tok, cond, faux_tok, body,
+                       elifs, None, faux_tok)
+         ]
+    | _ ->
+       Ismerr.err_construct_if_bad_arg pos
+  in
+  precompute construct eval bindings pos raw_args
 
 let ism_builtins =
   [ (*-- Types --*)
@@ -529,12 +600,13 @@ let ism_builtins =
     ("if", if_form);
     ("let", let_form false);
     ("let*", let_form true);
+    ("quote", quote_form);
 
     (*-- List Operations --*)
     ("list", precompute list);
-    ("car", precompute (list_op "car" car));
-    ("cdr", precompute (list_op "cdr" cdr));
-    ("map", map);
+    ("car", precompute car_op);
+    ("cdr", precompute cdr_op);
+    ("map", map_op);
 
     (*-- Statement Operations --*)
     ("concat-stmts", precompute concat_stmts);
@@ -547,41 +619,42 @@ let bindings_create () =
   List.iter (fun (k, v) -> add_symbol bindings k (BBNative v)) ism_builtins;
   bindings
 
-let verify_one_param pos = function
-  | [ param ] -> param
-  | params -> Ismerr.err_args_mismatch pos 1 (List.length params)
-
 (** Interpret a ISM expression and return the result. *)
 let rec eval_ism bindings = function
-  | IsmSexpr (pos, []) ->
-     Ismerr.err_eval_empty_sexpr pos
-  | IsmSexpr (pos, (IsmIdent { td_text = "quote" }) :: rest) ->
-     verify_one_param pos rest
-  | IsmSexpr (pos, sexpr) ->
+  | IsmNode (obj, args) ->
+     let pos = pos_of_ism obj in
      begin
-       match eval_ism bindings (List.hd sexpr) with
+       match eval_ism bindings obj with
        | IsmBinding (BBNative native_f) ->
-          native_f eval_ism bindings pos (List.tl sexpr)
+          native_f eval_ism bindings pos args
        | IsmBinding (BBLambda (params, env, body)) ->
           let n_params = List.length params
-          and n_profile = List.length (List.tl sexpr) in
+          and n_profile = sexpr_length args in
           if n_params <> n_profile then
             Ismerr.err_args_mismatch pos n_params n_profile
           else
             let subscope = push_symtab_scope env in
-            let bind a b =
-              let binding =
-                match eval_ism bindings b with
-                | IsmBinding (BBIsm v) -> v
-                | v -> v
-              in
-              add_symbol subscope a.td_text (BBIsm binding)
+            let rec bind params = function
+              | IsmTerm _ -> ()
+              | IsmNode (arg, rest) ->
+                 let binding =
+                   match eval_ism bindings arg with
+                   | IsmBinding (BBIsm v) -> v
+                   | v -> v
+                 in
+                 let param = List.hd params in
+                 add_symbol subscope param.td_text (BBIsm binding);
+                 bind (List.tl params) rest
+              | ism ->
+                 Ismerr.err_malformed_sexpr (pos_of_ism ism)
             in
-            let () = List.iter2 bind params (List.tl sexpr) in
+            bind params args;
             eval_ism subscope body
        | _ ->
           Ismerr.err_called_non_fcn pos
      end
+  | IsmTerm pos ->
+     Ismerr.err_eval_empty_sexpr pos
   | (IsmString _) as v -> v
   | (IsmBool _) as v -> v
   | (IsmChar _) as v -> v

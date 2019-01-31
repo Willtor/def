@@ -35,6 +35,15 @@ let err_unknown_symbol pos sym =
 let err_nan pos =
   err_pos "Value is not a number." pos
 
+(** Found an ISM that was not an S-expression but was treated as one. *)
+let err_malformed_sexpr pos =
+  err_pos "Malformed S-expression." pos
+
+(** The function profile was malformed (with a list or a number or something).
+ *)
+let err_malformed_function_profile pos =
+  err_pos "Function profile should be only identifiers." pos
+
 (** Called a non-function *)
 let err_called_non_fcn pos =
   err_pos "Tried to call a non-function." pos
@@ -56,14 +65,6 @@ let err_binary_fcn pos fcn num_args =
 (** The function doesn't allow floating point arguments (modulo, for ex.). *)
 let err_no_float_permitted pos fcn =
   err_pos (fcn ^ " does not apply to floating point values.") pos
-
-(** A list operation failed. *)
-let err_list_op_failed pos fcn =
-  err_pos ("Operation " ^ fcn ^ " failed on the list.") pos
-
-(** Tried to perform a list operation on a non-list. *)
-let err_list_op_on_non_list pos fcn =
-  err_pos ("Can't perform " ^ fcn ^ " on a non-list") pos
 
 (** E.g., @[] *)
 let err_eval_empty_sexpr pos =

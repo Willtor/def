@@ -31,7 +31,9 @@ type pt_field =
 
 (** ISM meta program. *)
 type ism =
-  | IsmSexpr of Lexing.position * ism list
+    (* IsmNode (object, next) *)
+  | IsmNode of ism * ism
+  | IsmTerm of Lexing.position
   | IsmString of Lexing.position * string
   | IsmBool of Lexing.position * bool
   | IsmChar of Lexing.position * char
@@ -57,7 +59,7 @@ and binding =
   | BBNative of
       ((binding Util.symtab -> ism -> ism)
        -> binding Util.symtab
-       -> Lexing.position -> ism list -> ism)
+       -> Lexing.position -> ism -> ism)
   (* BBLambda of variables * environment * body *)
   | BBLambda of tokendata list * binding Util.symtab * ism
 
@@ -203,33 +205,42 @@ and pt_expr =
   | PTE_TernaryCond of pt_expr * tokendata * pt_expr * tokendata * pt_expr
 
 (** Return a string representation of the ISM. *)
-let rec string_of_ism = function
-  | IsmSexpr (_, sexpr) ->
-     let strs = List.map string_of_ism sexpr in
-     "[" ^ (String.concat " " strs) ^ "]"
-  | IsmString (_, str) -> "\"" ^ str ^ "\""
-  | IsmBool (_, true) -> "true"
-  | IsmBool (_, false) -> "false"
-  | IsmChar (_, c) -> (string_of_int (Char.code c)) ^ "I8"
-  | IsmUChar (_, c) -> (string_of_int (Char.code c)) ^ "U8"
-  | IsmInt16 (_, n) -> (Int32.to_string n) ^ "I16"
-  | IsmUInt16 (_, n) -> (Int32.to_string n) ^ "U16"
-  | IsmInt32 (_, n) -> Int32.to_string n
-  | IsmUInt32 (_, n) ->( Int32.to_string n) ^ "U32"
-  | IsmInt64 (_, n) -> (Int64.to_string n) ^ "I64"
-  | IsmUInt64 (_, n) -> (Int64.to_string n) ^ "U64"
-  | IsmFloat32 (_, n) -> (string_of_float n) ^ "f"
-  | IsmFloat64 (_, n) -> string_of_float n
-  | IsmIdent tok -> tok.td_text
-  | IsmDefStmts _ -> "defism-statements"
-  | IsmDefExpr _ -> "defism-expression"
-  | IsmDefIdent _ -> "defism-identifier"
-  | IsmBinding _ ->
-     Error.fatal_error "string_of_ism found binding."
+let string_of_ism ism =
+  let rec convert is_first = function
+    | IsmNode (obj, next) ->
+       let pre = if is_first then "[" else "" in
+       let obj_str = convert true obj in
+       let next_str = convert false next in
+       pre ^ obj_str ^ " " ^ next_str
+    | IsmTerm _ ->
+       if is_first then "[]"
+       else "]"
+    | IsmString (_, str) -> "\"" ^ str ^ "\""
+    | IsmBool (_, true) -> "true"
+    | IsmBool (_, false) -> "false"
+    | IsmChar (_, c) -> (string_of_int (Char.code c)) ^ "I8"
+    | IsmUChar (_, c) -> (string_of_int (Char.code c)) ^ "U8"
+    | IsmInt16 (_, n) -> (Int32.to_string n) ^ "I16"
+    | IsmUInt16 (_, n) -> (Int32.to_string n) ^ "U16"
+    | IsmInt32 (_, n) -> Int32.to_string n
+    | IsmUInt32 (_, n) ->( Int32.to_string n) ^ "U32"
+    | IsmInt64 (_, n) -> (Int64.to_string n) ^ "I64"
+    | IsmUInt64 (_, n) -> (Int64.to_string n) ^ "U64"
+    | IsmFloat32 (_, n) -> (string_of_float n) ^ "f"
+    | IsmFloat64 (_, n) -> string_of_float n
+    | IsmIdent tok -> tok.td_text
+    | IsmDefStmts _ -> "defism-statements"
+    | IsmDefExpr _ -> "defism-expression"
+    | IsmDefIdent _ -> "defism-identifier"
+    | IsmBinding _ ->
+       Error.fatal_error "string_of_ism found binding."
+  in
+  convert true ism
 
 (** Return the position of an ISM. *)
-let pos_of_ism = function
-  | IsmSexpr (pos, _)
+let rec pos_of_ism = function
+  | IsmNode (obj, _) -> pos_of_ism obj
+  | IsmTerm pos
   | IsmString (pos, _)
   | IsmBool (pos, _)
   | IsmChar (pos, _)    | IsmUChar (pos, _)
