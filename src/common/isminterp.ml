@@ -58,6 +58,19 @@ let split_list = function
   | _ ->
      Ismerr.internal "Tried to split non-list."
 
+let extract_int64 = function
+  | IsmBool (_, true) -> 1L
+  | IsmBool (_, false) -> 0L
+  | IsmChar (_, n) | IsmUChar (_, n) ->
+     Int64.of_int (Char.code n)
+  | IsmInt16 (_, n) | IsmUInt16 (_, n)
+  | IsmInt32 (_, n) | IsmUInt32 (_, n) ->
+     Int64.of_int32 n
+  | IsmInt64 (_, n) | IsmUInt64 (_, n) ->
+     n
+  | ism ->
+     Ismerr.err_non_int (pos_of_ism ism)
+
 let iter f args =
   let rec it = function
     | IsmTerm _ -> ()
@@ -451,6 +464,19 @@ let cdr_op pos = function
   | ism ->
      Ismerr.err_args_mismatch (pos_of_ism ism) 1 (sexpr_length ism)
 
+let list_ref pos = function
+  | IsmNode (IsmNode _ as list, IsmNode (nobj, IsmTerm _)) ->
+     let rec proc n = function
+       | IsmNode (obj, rest) ->
+          if (Int64.compare n 1L) > 0 then proc (Int64.sub n 1L) rest
+          else obj
+       | ism ->
+          Ismerr.err_malformed_sexpr (pos_of_ism ism)
+     in
+     proc (extract_int64 nobj) list
+  | _ ->
+     Ismerr.err_list_ref pos
+
 let precompute f eval bindings pos args =
   let proc accum ism = (eval bindings ism) :: accum in
   let make_list accum ism = IsmNode (ism, accum) in
@@ -606,6 +632,7 @@ let ism_builtins =
     ("list", precompute list);
     ("car", precompute car_op);
     ("cdr", precompute cdr_op);
+    ("list-ref", precompute list_ref);
     ("map", map_op);
 
     (*-- Statement Operations --*)

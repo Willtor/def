@@ -35,6 +35,10 @@ let err_unknown_symbol pos sym =
 let err_nan pos =
   err_pos "Value is not a number." pos
 
+(** Tried to interpret a non-integer as an integer. *)
+let err_non_int pos =
+  err_pos "Expected an integer value." pos
+
 (** Found an ISM that was not an S-expression but was treated as one. *)
 let err_malformed_sexpr pos =
   err_pos "Malformed S-expression." pos
@@ -81,6 +85,10 @@ let err_non_ident_tok pos =
 (** string-append was supplied a non-string argument. *)
 let err_string_append_expected_string pos =
   err_pos "strcat expected a string." pos
+
+(** list-ref got something other than a list and an index. *)
+let err_list_ref pos =
+  err_pos "list-ref expected a list followed by an integer index." pos
 
 (** map's second argument was not a list. *)
 let err_map_needs_list pos =
