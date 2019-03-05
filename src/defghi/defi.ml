@@ -109,7 +109,9 @@ let the = function
   | Some v -> v
   | None -> Error.fatal_error "internal error: defi.ml's 'the' function."
 
-let output_exported_type oc = function
+let rec output_exported_type oc = function
+  | PTS_ISM_Stmts stmts ->
+     List.iter (output_exported_type oc) stmts
   | PTS_Type (Some (export, opacity),
               _,
               typename,
@@ -128,7 +130,9 @@ let output_exported_type oc = function
      end
   | _ -> ()
 
-let output_exported_func bindings oc = function
+let rec output_exported_func bindings oc = function
+  | PTS_ISM_Stmts stmts ->
+     List.iter (output_exported_func bindings oc) stmts
   | PTS_FcnDefExpr ((Some export, _, id, tp), _, _, _)
   | PTS_FcnDefBlock ((Some export, _, id, tp), _) ->
      let name = tok_of_ident bindings id in

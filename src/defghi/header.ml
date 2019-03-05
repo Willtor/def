@@ -94,7 +94,9 @@ let rec output_deftype oc name depth tp =
   let str = build_string name depth tp in
   output_string oc str
 
-let output_exported_typedef oc = function
+let rec output_exported_typedef oc = function
+  | PTS_ISM_Stmts stmts ->
+     List.iter (output_exported_typedef oc) stmts
   | PTS_Type (Some (export, opacity),
               _,
               typename,
@@ -121,7 +123,9 @@ let output_exported_typedef oc = function
        end
   | _ -> ()
 
-let output_exported_type oc = function
+let rec output_exported_type oc = function
+  | PTS_ISM_Stmts stmts ->
+     List.iter (output_exported_type oc) stmts
   | PTS_Type (Some (export, None),
               _,
               typename,
@@ -134,7 +138,9 @@ let output_exported_type oc = function
      end
   | _ -> ()
 
-let output_exported_function bindings oc = function
+let rec output_exported_function bindings oc = function
+  | PTS_ISM_Stmts stmts ->
+     List.iter (output_exported_function bindings oc) stmts
   | PTS_FcnDefExpr ((Some export, _, id, deftype), _, _, _)
   | PTS_FcnDefBlock ((Some export, _, id, deftype), _) ->
      let name = tok_of_ident bindings id in
