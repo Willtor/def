@@ -100,10 +100,11 @@ let rec output_exported_typedef bindings oc = function
      List.iter (output_exported_typedef bindings oc) stmts
   | PTS_Type (Some (export, opacity),
               _,
-              typename,
+              id,
               Some (_, PTT_Struct _),
               _) ->
      begin
+       let typename = tok_of_ident bindings id in
        if opacity <> None then
          dump_doc oc export;
        output_string oc ("typedef struct "
@@ -112,16 +113,17 @@ let rec output_exported_typedef bindings oc = function
      end
   | PTS_Type (Some (export, opacity),
               _,
-              typename,
+              id,
               Some (_, deftype),
               _) ->
-       if opacity <> None then
-         dump_doc oc export;
-       begin
-         output_string oc "typedef ";
-         output_deftype bindings oc typename.td_text "" deftype;
-         output_string oc ";\n\n"
-       end
+     let typename = tok_of_ident bindings id in
+     if opacity <> None then
+       dump_doc oc export;
+     begin
+       output_string oc "typedef ";
+       output_deftype bindings oc typename.td_text "" deftype;
+       output_string oc ";\n\n"
+     end
   | _ -> ()
 
 let rec output_exported_type bindings oc = function
@@ -129,10 +131,11 @@ let rec output_exported_type bindings oc = function
      List.iter (output_exported_type bindings oc) stmts
   | PTS_Type (Some (export, None),
               _,
-              typename,
+              id,
               Some (_, (PTT_Struct (_, _, members, _) as tp)),
               _) ->
      begin
+       let typename = tok_of_ident bindings id in
        dump_doc oc export;
        output_deftype bindings oc typename.td_text "" tp;
        output_string oc "\n"

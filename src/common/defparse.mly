@@ -153,7 +153,7 @@ statement:
 | SWITCH expr WITH case+ ESAC { PTS_SwitchStmt ($1, $2, $3, $4, $5) }
 | RETURN expr SEMICOLON { PTS_ReturnExpr ($1, $2, $3) }
 | RETURN SEMICOLON { PTS_Return ($1, $2) }
-| pair(EXPORT, option(OPAQUE))? TYPEDEF IDENT pair(EQUALS, deftype)? SEMICOLON
+| pair(EXPORT, option(OPAQUE))? TYPEDEF ident pair(EQUALS, deftype)? SEMICOLON
     { PTS_Type ($1, $2, $3, $4, $5) }
 | GOTO IDENT SEMICOLON { PTS_Goto ($1, $2, $3) }
 | BREAK SEMICOLON { PTS_Break ($1, $2) }

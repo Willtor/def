@@ -826,7 +826,7 @@ and resolve_stmt bindings stmt =
      PTS_Type
        (exp,
         typetok,
-        name,
+        IdentTok (tok_of_ident bindings name),
         option_map (fun (eq, tp) -> eq, resolve_type bindings tp) eqtype_opt,
         semi)
   | PTS_Return _ -> stmt

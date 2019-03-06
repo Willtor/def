@@ -371,11 +371,12 @@ let of_parsetree bindings =
          | Some (exp, None) -> VisExported exp.td_pos, false
          | Some (exp, Some _) -> VisExported exp.td_pos, true
        in
+       let name = tok_of_ident bindings id in
        let tp = match tp_opt with
-         | None -> maketype (Some id.td_pos) (DefTypeOpaque id.td_text)
+         | None -> maketype (Some name.td_pos) (DefTypeOpaque name.td_text)
          | Some (_, t) -> deftype_of t
        in
-       TypeDecl (typedef.td_pos, id.td_text, tp, vis, opaque)
+       TypeDecl (typedef.td_pos, name.td_text, tp, vis, opaque)
     | PTS_Goto (goto, id, _) -> Goto (goto.td_pos, id.td_text)
     | PTS_Break (break, _) -> Break break.td_pos
     | PTS_Label (id, _) -> Label (id.td_pos, id.td_text)

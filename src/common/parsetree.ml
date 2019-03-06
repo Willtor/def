@@ -123,7 +123,7 @@ and pt_stmt =
   | PTS_ReturnExpr of tokendata * pt_expr * tokendata
   | PTS_Return of tokendata * tokendata
   | PTS_Type of
-      (tokendata * tokendata option) option * tokendata * tokendata
+      (tokendata * tokendata option) option * tokendata * ident
       * (tokendata * pt_type) option * tokendata
   | PTS_Goto of tokendata * tokendata * tokendata
   | PTS_Break of tokendata * tokendata

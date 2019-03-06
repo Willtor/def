@@ -115,10 +115,11 @@ let rec output_exported_type bindings oc = function
      List.iter (output_exported_type bindings oc) stmts
   | PTS_Type (Some (export, opacity),
               _,
-              typename,
+              id,
               tp_opt,
               _) ->
      begin
+       let typename = tok_of_ident bindings id in
        dump_doc oc export;
        output_string oc ("typedef " ^ typename.td_text);
        if opacity = None && tp_opt <> None then
