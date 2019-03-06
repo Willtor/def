@@ -850,7 +850,8 @@ and resolve_expr bindings expr =
        let process_filist (oc, filist, cc) =
          oc, List.map process_fi filist, oc
        in
-       PTE_New (newtok, tp, option_map process_filist field_inits)
+       let rtp = resolve_type bindings tp in
+       PTE_New (newtok, rtp, option_map process_filist field_inits)
     | PTE_Nil _ -> e
     | PTE_Type _ -> e
     | PTE_I64 _ -> e | PTE_U64 _ -> e
@@ -870,7 +871,7 @@ and resolve_expr bindings expr =
            ptfc_rparen = fcn.ptfc_rparen
          }
     | PTE_Cast (cast, tp, lp, expr, rp) ->
-       PTE_Cast (cast, tp, lp, resolve expr, rp)
+       PTE_Cast (cast, resolve_type bindings tp, lp, resolve expr, rp)
     | PTE_Var var ->
        PTE_Var (IdentTok (tok_of_ident bindings var))
     | PTE_StaticStruct (name, oc, exprs, cc) ->
