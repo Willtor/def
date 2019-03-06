@@ -196,7 +196,7 @@ fcntype:
 
 deftype:
 | VOLATILE deftype { PTT_Volatile ($1, $2) }
-| IDENT { PTT_Name $1 }
+| ident { PTT_Name $1 }
 | STAR deftype { PTT_Ptr ($1, $2) }
 | LSQUARE expr? RSQUARE deftype { PTT_Array ($1, $2, $3, $4) }
 | LCURLY structcontents RCURLY { PTT_Struct (None, $1, $2, $3) }

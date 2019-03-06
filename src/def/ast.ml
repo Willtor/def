@@ -222,7 +222,10 @@ let of_parsetree bindings =
        VisExported exported.td_pos, get_documentation exported.td_noncode
   in
   let void_rettp_p = function
-    | PTT_Name { td_text = "void" } -> true
+    | PTT_Name id ->
+       let name = tok_of_ident bindings id in
+       if name.td_text = "void" then true
+       else false
     | _ -> false
   in
   let rec stmt_of = function
@@ -409,7 +412,8 @@ let of_parsetree bindings =
        maketype (Some lparen.td_pos) base
     | PTT_Volatile (vol, tp) -> volatile_of @@ deftype_of tp
     | PTT_Name id ->
-       lookup_builtin_type id.td_pos id.td_text
+       let name = tok_of_ident bindings id in
+       lookup_builtin_type name.td_pos name.td_text
     | PTT_Ptr (star, tp) ->
        maketype (Some star.td_pos) (DefTypePtr (deftype_of tp))
     | PTT_Array (lsquare, size_expr_opt, _, tp) ->

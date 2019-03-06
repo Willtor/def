@@ -22,7 +22,7 @@ open Parsetree
 open Lexing
 open Util
 
-let rec output_deftype oc =
+let rec output_deftype bindings oc =
   let rec print_type width = function
     | PTT_Fcn (_, params, _, _, ret) ->
        let print_params init = function
@@ -49,7 +49,8 @@ let rec output_deftype oc =
          output_string oc "volatile ";
          print_type width tp
        end
-    | PTT_Name name ->
+    | PTT_Name id ->
+       let name = tok_of_ident bindings id in
        output_string oc name.td_text
     | PTT_Ptr (_, tp) ->
        begin
@@ -109,9 +110,9 @@ let the = function
   | Some v -> v
   | None -> Error.fatal_error "internal error: defi.ml's 'the' function."
 
-let rec output_exported_type oc = function
+let rec output_exported_type bindings oc = function
   | PTS_ISM_Stmts stmts ->
-     List.iter (output_exported_type oc) stmts
+     List.iter (output_exported_type bindings oc) stmts
   | PTS_Type (Some (export, opacity),
               _,
               typename,
@@ -124,7 +125,7 @@ let rec output_exported_type oc = function
          begin
            let _, deftype = the tp_opt in
            output_string oc " = ";
-           output_deftype oc "  " deftype
+           output_deftype bindings oc "  " deftype
          end;
        output_string oc ";\n\n"
      end
@@ -139,7 +140,7 @@ let rec output_exported_func bindings oc = function
      begin
        dump_doc oc export;
        output_string oc ("decl " ^ name.td_text ^ " ");
-       output_deftype oc "  " tp;
+       output_deftype bindings oc "  " tp;
        output_string oc ";\n\n"
      end
   | _ -> ()
@@ -147,6 +148,6 @@ let rec output_exported_func bindings oc = function
 let make_defi bindings stmts outfile =
   let oc = open_out outfile in
   output_autogen oc outfile;
-  List.iter (output_exported_type oc) stmts;
+  List.iter (output_exported_type bindings oc) stmts;
   List.iter (output_exported_func bindings oc) stmts;
   close_out oc

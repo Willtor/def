@@ -145,7 +145,7 @@ and pt_forinit =
 and pt_type =
   | PTT_Fcn of tokendata * pt_param list * tokendata * tokendata * pt_type
   | PTT_Volatile of tokendata * pt_type
-  | PTT_Name of tokendata
+  | PTT_Name of ident
   | PTT_Ptr of tokendata * pt_type
   | PTT_Array of tokendata * pt_expr option * tokendata * pt_type
   | PTT_Struct of tokendata option * tokendata * (tokendata * pt_type) list
@@ -258,9 +258,10 @@ let rec pos_of_ism = function
      Util.faux_pos
 
 let pt_type_pos = function
+  | PTT_Name (IdentTok tok) -> tok.td_pos
+  | PTT_Name (IdentIsm (pos, _)) -> pos
   | PTT_Fcn (tok, _, _, _, _)
   | PTT_Volatile (tok, _)
-  | PTT_Name tok
   | PTT_Ptr (tok, _)
   | PTT_Array (tok, _, _, _)
   | PTT_Struct (Some tok, _, _, _)

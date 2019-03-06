@@ -717,14 +717,15 @@ let rec eval_ism bindings = function
 and resolve_stmt bindings stmt =
   let map_apply = List.map (resolve_stmt bindings) in
   let process_for_init = function
-    | PTForInit_Var (v, id, tp, eq, expr) ->
-       PTForInit_Var (v, id, tp, eq, resolve_expr bindings expr)
+    | PTForInit_Var (v, id, tp_opt, eq, expr) ->
+       let rtp = option_map (resolve_type bindings) tp_opt in
+       PTForInit_Var (v, id, rtp, eq, resolve_expr bindings expr)
     | PTForInit_Expr expr ->
        PTForInit_Expr (resolve_expr bindings expr)
   in
   let resolve_decl decl =
     let ex, def, ident, tp = decl in
-    ex, def, IdentTok (tok_of_ident bindings ident), tp
+    ex, def, IdentTok (tok_of_ident bindings ident), resolve_type bindings tp
   in
   match stmt with
   | PTS_ISM_Stmts stmts -> PTS_ISM_Stmts (map_apply stmts)
@@ -746,14 +747,29 @@ and resolve_stmt bindings stmt =
      PTS_FcnDefExpr (resolve_decl decl, eq, resolve_expr bindings expr, semi)
   | PTS_FcnDefBlock (decl, stmt) ->
      PTS_FcnDefBlock (resolve_decl decl, resolve_stmt bindings stmt)
-  | PTS_FcnDecl _ -> stmt
+  | PTS_FcnDecl (decl, nm, tp, semi) ->
+     PTS_FcnDecl (decl, nm, resolve_type bindings tp, semi)
   | PTS_Expr (expr, semi) -> PTS_Expr (resolve_expr bindings expr, semi)
-  | PTS_Var _ -> stmt
+  | PTS_Var (var, nms, tp, semi) ->
+     PTS_Var (var, nms, resolve_type bindings tp, semi)
   | PTS_VarInit (v, ids, tp, eq, exprs, semi) ->
-     PTS_VarInit (v, ids, tp, eq, List.map (resolve_expr bindings) exprs, semi)
+     PTS_VarInit
+       (v,
+        ids,
+        option_map (resolve_type bindings) tp,
+        eq,
+        List.map (resolve_expr bindings) exprs,
+        semi)
   | PTS_VarInlineStruct (v, oc, vars, cc, eq, expr, semi) ->
+     let resolve_member (nm, tp) = nm, resolve_type bindings tp in
      PTS_VarInlineStruct
-       (v, oc, vars, cc, eq, resolve_expr bindings expr, semi)
+       (v,
+        oc,
+        List.map resolve_member vars,
+        cc,
+        eq,
+        resolve_expr bindings expr,
+        semi)
   | PTS_VarInlineStructInferred (v, oc, vars, cc, eq, expr, semi) ->
      PTS_VarInlineStructInferred
        (v, oc, vars, cc, eq, resolve_expr bindings expr, semi)
@@ -806,7 +822,13 @@ and resolve_stmt bindings stmt =
                      withtok, List.map process_case cases, esac)
   | PTS_ReturnExpr (ret, expr, semi) ->
      PTS_ReturnExpr (ret, resolve_expr bindings expr, semi)
-  | PTS_Type _ -> stmt
+  | PTS_Type (exp, typetok, name, eqtype_opt, semi) ->
+     PTS_Type
+       (exp,
+        typetok,
+        name,
+        option_map (fun (eq, tp) -> eq, resolve_type bindings tp) eqtype_opt,
+        semi)
   | PTS_Return _ -> stmt
   | PTS_Goto _ -> stmt
   | PTS_Break _ -> stmt
@@ -868,6 +890,49 @@ and resolve_expr bindings expr =
          (resolve cond, qmark, resolve texpr, colon, resolve fexpr)
   in
   resolve expr
+
+and resolve_type bindings = function
+  | PTT_Fcn (lp, params, rp, arrow, rettp) ->
+     let resolve_param = function
+       | PTP_Var (nm, tp) ->
+          PTP_Var (nm, resolve_type bindings tp)
+       | PTP_Type tp ->
+          PTP_Type (resolve_type bindings tp)
+       | PTP_Ellipsis ellipsis ->
+          PTP_Ellipsis ellipsis
+     in
+     PTT_Fcn
+       (lp,
+        List.map resolve_param params,
+        rp,
+        arrow,
+        resolve_type bindings rettp)
+  | PTT_Volatile (volatile, tp) ->
+     PTT_Volatile (volatile, resolve_type bindings tp)
+  | PTT_Name nm ->
+     let tok = tok_of_ident bindings nm in
+     PTT_Name (IdentTok tok)
+  | PTT_Ptr (ptr, tp) ->
+     PTT_Ptr (ptr, resolve_type bindings tp)
+  | PTT_Array (ls, dim_opt, rs, tp) ->
+     PTT_Array
+       (ls,
+        option_map (resolve_expr bindings) dim_opt,
+        rs,
+        resolve_type bindings tp)
+  | PTT_Struct (packed_opt, lc, members, rc) ->
+     PTT_Struct
+       (packed_opt,
+        lc,
+        List.map (fun (nm, tp) -> nm, resolve_type bindings tp) members,
+        rc)
+  | PTT_StructUnnamed (packed_opt, lc, members, rc) ->
+     PTT_StructUnnamed
+       (packed_opt,
+        lc,
+        List.map (resolve_type bindings) members,
+        rc)
+  | PTT_Enum _ as tp -> tp
 
 (** Return a token from an ident.  This will generate an internal error
     if the ident is still an unevaluated ISM. *)

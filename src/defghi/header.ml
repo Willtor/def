@@ -45,7 +45,7 @@ let builtin_map =
   List.iter (fun (a, b) -> Hashtbl.add map a b) type_pairs;
   map
 
-let rec output_deftype oc name depth tp =
+let rec output_deftype bindings oc name depth tp =
   let rec build_string accum depth = function
     | PTT_Fcn (_, params, _, _, ret) ->
        let param2string = function
@@ -59,7 +59,8 @@ let rec output_deftype oc name depth tp =
     | PTT_Volatile (_, tp) ->
        (* FIXME: Pretty sure this is wrong.  Fix it later.  Other stuff to do. *)
        build_string ("volatile " ^ accum) depth tp
-    | PTT_Name nm ->
+    | PTT_Name id ->
+       let nm = tok_of_ident bindings id in
        let converted_name = try Hashtbl.find builtin_map nm.td_text
                             with _ -> nm.td_text
        in
@@ -94,9 +95,9 @@ let rec output_deftype oc name depth tp =
   let str = build_string name depth tp in
   output_string oc str
 
-let rec output_exported_typedef oc = function
+let rec output_exported_typedef bindings oc = function
   | PTS_ISM_Stmts stmts ->
-     List.iter (output_exported_typedef oc) stmts
+     List.iter (output_exported_typedef bindings oc) stmts
   | PTS_Type (Some (export, opacity),
               _,
               typename,
@@ -118,14 +119,14 @@ let rec output_exported_typedef oc = function
          dump_doc oc export;
        begin
          output_string oc "typedef ";
-         output_deftype oc typename.td_text "" deftype;
+         output_deftype bindings oc typename.td_text "" deftype;
          output_string oc ";\n\n"
        end
   | _ -> ()
 
-let rec output_exported_type oc = function
+let rec output_exported_type bindings oc = function
   | PTS_ISM_Stmts stmts ->
-     List.iter (output_exported_type oc) stmts
+     List.iter (output_exported_type bindings oc) stmts
   | PTS_Type (Some (export, None),
               _,
               typename,
@@ -133,7 +134,7 @@ let rec output_exported_type oc = function
               _) ->
      begin
        dump_doc oc export;
-       output_deftype oc typename.td_text "" tp;
+       output_deftype bindings oc typename.td_text "" tp;
        output_string oc "\n"
      end
   | _ -> ()
@@ -146,7 +147,7 @@ let rec output_exported_function bindings oc = function
      let name = tok_of_ident bindings id in
      begin
        dump_doc oc export;
-       output_deftype oc name.td_text "" deftype;
+       output_deftype bindings oc name.td_text "" deftype;
        output_string oc ";\n\n"
      end
   | _ -> ()
@@ -158,8 +159,8 @@ let make_header bindings stmts outfile =
   output_string oc "#ifdef __cplusplus\n";
   output_string oc "extern \"C\" {\n";
   output_string oc "#endif\n\n";
-  List.iter (output_exported_typedef oc) stmts;
-  List.iter (output_exported_type oc) stmts;
+  List.iter (output_exported_typedef bindings oc) stmts;
+  List.iter (output_exported_type bindings oc) stmts;
   List.iter (output_exported_function bindings oc) stmts;
   output_string oc "#ifdef __cplusplus\n";
   output_string oc "} // extern \"C\"\n";
