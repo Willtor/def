@@ -390,6 +390,24 @@ let of_parsetree bindings =
     | PTE_I8  (_, c) | PTE_U8  (_, c) -> Int64.of_int @@ Char.code c
     | PTE_F32 (tok, _) | PTE_F64 (tok, _) ->
        Report.err_float_array_dim tok.td_pos
+
+    | PTE_IsmExpr (_, ism) ->
+       begin
+         match eval_ism bindings ism with
+         | IsmBool (_, true) -> 1L  | IsmBool (_, false) -> 0L
+         | IsmChar (_, c)           | IsmUChar (_, c) ->
+            Int64.of_int (Char.code c)
+         | IsmInt16 (_, n)          | IsmUInt16 (_, n)
+         | IsmInt32 (_, n)          | IsmUInt32 (_, n) ->
+            Int64.of_int32 n
+         | IsmInt64 (_, n)          | IsmUInt64 (_, n) ->
+            n
+         | IsmDefExpr (_, expr) ->
+            eval_array_dim expr
+         | IsmFloat32 (p, _)        | IsmFloat64 (p, _) ->
+            Report.err_float_array_dim p
+         | _ -> -1L
+       end
     | expr ->
        (* The dimension is too complex to resolve, here.  It may, in fact,
           be determined at runtime, if this is a "new" statement. *)
