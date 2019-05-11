@@ -448,6 +448,20 @@ let quote_form _ _ pos = function
   | ism ->
      Ismerr.err_args_mismatch (pos_of_ism ism) 1 (sexpr_length ism)
 
+let lambda_form eval bindings pos = function
+  | IsmNode (args, IsmNode (body, IsmTerm _)) ->
+     let rec get_variables accum = function
+       | IsmNode (IsmIdent tok, next) ->
+          get_variables (tok :: accum) next
+       | IsmTerm _ ->
+          List.rev accum
+       | ism ->
+          Ismerr.err_malformed_function_profile (pos_of_ism ism)
+     in
+     IsmBinding (BBLambda (get_variables [] args, bindings, body))
+  | _ ->
+     Ismerr.err_malformed_lambda pos
+
 let list pos args = args
 
 let car_op pos = function
@@ -627,6 +641,7 @@ let ism_builtins =
     ("let", let_form false);
     ("let*", let_form true);
     ("quote", quote_form);
+    ("lambda", lambda_form);
 
     (*-- List Operations --*)
     ("list", precompute list);

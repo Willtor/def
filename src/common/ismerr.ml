@@ -120,3 +120,9 @@ let err_emit_stmts_did_not_emit_stmts pos =
 let err_let_need_bindings pos is_star =
   let name = if is_star then "let*" else "let" in
   err_pos (name ^ ": first argument should be a list of bindings.") pos
+
+(** Lambda didn't have the form: lambda [<params>] <body> *)
+let err_malformed_lambda pos =
+  err_pos
+    "Malformed lambda.  Lambdas should have the form: lambda [<params>] <body>"
+    pos
