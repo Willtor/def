@@ -74,6 +74,10 @@ let err_no_float_permitted pos fcn =
 let err_eval_empty_sexpr pos =
   err_pos "Tried to evaluate an empty s-expression." pos
 
+(** Invalid string conversion. *)
+let err_string_of_unconvertable pos =
+  err_pos "Can't convert this type to a string." pos
+
 (** Tried to convert a non-string type to an identifier. *)
 let err_ident_from_non_string pos =
   err_pos "Can't convert a non-string to an identifier." pos

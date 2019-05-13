@@ -405,6 +405,27 @@ let float_conv name pos =
     Int64.to_float
     ident
 
+let string_of pos = function
+  | IsmNode (IsmString _ as str, IsmTerm _) -> str
+  | IsmNode (IsmBool (_, true), IsmTerm _) -> IsmString (pos, "true")
+  | IsmNode (IsmBool (_, false), IsmTerm _) -> IsmString (pos, "false")
+  | IsmNode (IsmChar (_, c), IsmTerm _)
+  | IsmNode (IsmUChar (_, c), IsmTerm _) ->
+     IsmString (pos, String.make 1 c)
+  | IsmNode (IsmInt16 (_, n), IsmTerm _)
+  | IsmNode (IsmUInt16 (_, n), IsmTerm _)  (* FIXME! *)
+  | IsmNode (IsmInt32 (_, n), IsmTerm _)
+  | IsmNode (IsmUInt32 (_, n), IsmTerm _) -> (* FIXME! *)
+     IsmString (pos, Int32.to_string n)
+  | IsmNode (IsmFloat32 (_, f), IsmTerm _)
+  | IsmNode (IsmFloat64 (_, f), IsmTerm _) ->
+     IsmString (pos, string_of_float f)
+  | IsmNode (IsmDefIdent (_, str), IsmTerm _) -> IsmString (pos, str)
+  | IsmNode (ism, _) ->
+     Ismerr.err_string_of_unconvertable (pos_of_ism ism)
+  | ism ->
+     Ismerr.err_malformed_sexpr (pos_of_ism ism)
+
 let ident_of pos = function
   | IsmNode (IsmString (pos, str), IsmTerm _) ->
      IsmDefIdent (pos, str)
@@ -634,6 +655,7 @@ let ism_builtins =
      precompute
        (fun pos args ->
          let p, v = float_conv "float64" pos args in IsmFloat64 (p, v)));
+    ("string", precompute string_of);
     ("ident", precompute ident_of);
 
     (*-- Special Forms --*)
