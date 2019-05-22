@@ -94,6 +94,10 @@ let err_string_append_expected_string pos =
 let err_list_ref pos =
   err_pos "list-ref expected a list followed by an integer index." pos
 
+(** append got something other than a pair of lists. *)
+let err_list_append pos =
+  err_pos "The first argument to append must be a list." pos
+
 (** map's second argument was not a list. *)
 let err_map_needs_list pos =
   err_pos "map expected a list for its second argument." pos

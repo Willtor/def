@@ -512,6 +512,18 @@ let list_ref pos = function
   | _ ->
      Ismerr.err_list_ref pos
 
+let list_append pos = function
+  | IsmNode (IsmNode _ as list1, IsmNode (list2, IsmTerm _)) ->
+     let rec gather accum = function
+       | IsmNode (obj, next) -> gather (obj :: accum) next
+       | IsmTerm _ -> List.rev accum
+       | _ -> Ismerr.err_list_append pos
+     in
+     let objs = gather [] list1 in
+     List.fold_left (fun rest obj -> IsmNode (obj, rest)) list2 objs
+  | _ ->
+     Ismerr.err_list_append pos
+
 let precompute f eval bindings pos args =
   let proc accum ism = (eval bindings ism) :: accum in
   let make_list accum ism = IsmNode (ism, accum) in
@@ -545,13 +557,16 @@ let map_op eval bindings pos raw_args =
   let make_list accum obj = IsmNode (obj, accum) in
   List.fold_left make_list (IsmTerm pos) @@ fold_left apply_lambda [] list
 
-let concat_stmts pos = function
-  | IsmNode (IsmNode (IsmDefStmts stmts, rest), IsmTerm _) ->
-     let proc accum = function
+let concat_stmts eval bindings pos = function
+  | IsmNode (raw_list, IsmTerm _) ->
+     let list = eval bindings raw_list in
+     let rec proc accum = function
+       | IsmIdent _ as ism ->
+          proc accum (eval bindings ism)
        | IsmDefStmts stmts -> stmts :: accum
        | ism -> Ismerr.err_concat_stmts_bad_arg (pos_of_ism ism)
      in
-     IsmDefStmts (List.flatten (fold_left proc [stmts] rest))
+     IsmDefStmts (List.flatten (fold_left proc [] list))
   | _ ->
      Ismerr.err_concat_stmts_bad_arg pos
 
@@ -670,10 +685,11 @@ let ism_builtins =
     ("car", precompute car_op);
     ("cdr", precompute cdr_op);
     ("list-ref", precompute list_ref);
+    ("append", precompute list_append);
     ("map", map_op);
 
     (*-- Statement Operations --*)
-    ("concat-stmts", precompute concat_stmts);
+    ("concat-stmts", concat_stmts);
     ("construct-if", construct_if);
   ]
 
