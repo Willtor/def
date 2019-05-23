@@ -513,14 +513,25 @@ let list_ref pos = function
      Ismerr.err_list_ref pos
 
 let list_append pos = function
-  | IsmNode (IsmNode _ as list1, IsmNode (list2, IsmTerm _)) ->
-     let rec gather accum = function
-       | IsmNode (obj, next) -> gather (obj :: accum) next
-       | IsmTerm _ -> List.rev accum
-       | _ -> Ismerr.err_list_append pos
+  | IsmNode _ as args ->
+     let rec gather_lists accum = function
+       | IsmNode (a, rest) -> gather_lists (a :: accum) rest
+       | IsmTerm _ -> accum
+       | ism -> Ismerr.err_list_append (pos_of_ism ism)
      in
-     let objs = gather [] list1 in
-     List.fold_left (fun rest obj -> IsmNode (obj, rest)) list2 objs
+     let build_big_list accum = function
+       | IsmNode (a, rest) ->
+          let rec gather elements = function
+            | IsmNode (obj, next) -> gather (obj :: elements) next
+            | IsmTerm _ -> elements
+            | ism -> Ismerr.err_list_append (pos_of_ism ism)
+          in
+          let objs = gather [a] rest in
+          List.fold_left (fun rest obj -> IsmNode (obj, rest)) accum objs
+       | IsmTerm _ -> accum
+       | ism -> Ismerr.err_list_append (pos_of_ism ism)
+     in
+     List.fold_left build_big_list (IsmTerm pos) @@ gather_lists [] args
   | _ ->
      Ismerr.err_list_append pos
 
@@ -556,6 +567,29 @@ let map_op eval bindings pos raw_args =
   in
   let make_list accum obj = IsmNode (obj, accum) in
   List.fold_left make_list (IsmTerm pos) @@ fold_left apply_lambda [] list
+
+let apply_op eval bindings pos = function
+  | IsmNode (lambda, IsmNode (applicant, IsmTerm _)) ->
+     begin
+       match eval bindings applicant with
+       | IsmNode _ as list ->
+          let ocaml_list = fold_left (fun accum obj -> obj :: accum) [] list in
+          let qtok = { td_pos = pos;
+                       td_text = "quote";
+                       td_noncode = []
+                     }
+          in
+          let quote accum obj =
+            let qobj = IsmNode (IsmIdent qtok, IsmNode (obj, IsmTerm pos)) in
+            IsmNode (qobj, accum)
+          in
+          let qlist = List.fold_left quote (IsmTerm pos) ocaml_list in
+          eval bindings (IsmNode (lambda, qlist))
+       | _ ->
+          Ismerr.err_apply_fmt pos
+     end
+  | _ ->
+     Ismerr.err_apply_fmt pos
 
 let concat_stmts eval bindings pos = function
   | IsmNode (raw_list, IsmTerm _) ->
@@ -612,6 +646,13 @@ let construct_if eval bindings pos raw_args =
        Ismerr.err_construct_if_bad_arg pos
   in
   precompute construct eval bindings pos raw_args
+
+let dbg_dump pos = function
+  | IsmNode (ism, IsmTerm _) ->
+     prerr_endline ("debug: " ^ (string_of_ism ism));
+     ism
+  | _ ->
+     Ismerr.err_dbg_dump pos
 
 let ism_builtins =
   [ (*-- Types --*)
@@ -687,10 +728,14 @@ let ism_builtins =
     ("list-ref", precompute list_ref);
     ("append", precompute list_append);
     ("map", map_op);
+    ("apply", apply_op);
 
     (*-- Statement Operations --*)
     ("concat-stmts", concat_stmts);
     ("construct-if", construct_if);
+
+    (*-- Debug Operations --*)
+    ("dbg-dump", precompute dbg_dump);
   ]
 
 (** Return the default set of bindings. *)

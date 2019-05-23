@@ -94,9 +94,9 @@ let err_string_append_expected_string pos =
 let err_list_ref pos =
   err_pos "list-ref expected a list followed by an integer index." pos
 
-(** append got something other than a pair of lists. *)
+(** append got something other than a list as one of its arguments. *)
 let err_list_append pos =
-  err_pos "The first argument to append must be a list." pos
+  err_pos "Arguments to append must be lists." pos
 
 (** map's second argument was not a list. *)
 let err_map_needs_list pos =
@@ -110,6 +110,10 @@ let err_map_needs_fcn pos =
 let err_map_lambda_needs_one_param pos =
   err_pos "map requires its function to take one parameter." pos
 
+(** apply got bad arguments. *)
+let err_apply_fmt pos =
+  err_pos "apply requires a function and a list." pos
+
 (** concat-stmts was given something other than a list of DEF statements. *)
 let err_concat_stmts_bad_arg pos =
   err_pos "concat-stmts requires a list of DEF statements as an argument." pos
@@ -119,6 +123,10 @@ let err_construct_if_bad_arg pos =
   let msg = "construct-if requires a list of pairs as an argument."
   in
   err_pos msg pos
+
+(** dbg-dump was given something other than a single argument. *)
+let err_dbg_dump pos =
+  err_pos "dbg-dump takes one argument." pos
 
 (** The emit-stmts function generated something other than statements. *)
 let err_emit_stmts_did_not_emit_stmts pos =
