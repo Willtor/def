@@ -1,3 +1,5 @@
+import "stdio.h";
+
 /** Repeatedly tries to set m_locked to 1,
  *  and takes the lock when m_locked is set to 1.
  */

@@ -90,7 +90,7 @@ type stmt =
   | ReturnVoid of position
   | TypeDecl of position * string * Types.deftype * Types.visibility * bool
   | Label of position * string
-  | Goto of position * string
+  | Goto of position * string * bool
   | Break of position
   | Continue of position
   | Sync of position

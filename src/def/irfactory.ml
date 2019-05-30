@@ -1352,7 +1352,10 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
        let bb = get_or_make_bb label in
        let () = ignore(build_br bb data.bldr) in
        set_curr_bb bb
-    | Goto (_, str) ->
+    | Goto (_, str, leaving_transaction) ->
+       let () = if leaving_transaction then
+                  end_transaction scope
+       in
        let label = "label." ^ str in
        let bb = get_or_make_bb label in
        ignore(build_br bb data.bldr)

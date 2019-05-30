@@ -67,7 +67,7 @@ let rec position_of_stmt = function
   | ReturnVoid pos
   | TypeDecl (pos, _, _, _, _)
   | Label (pos, _)
-  | Goto (pos, _)
+  | Goto (pos, _, _)
   | Break pos
   | Continue pos
   | Sync pos
@@ -858,53 +858,109 @@ let resolve_types ast =
   }
 
 (** Verify that all goto's actually go somewhere.  Along the way, warn the
-    programmer if there are any unreferenced labels. *)
+    programmer if there are any unreferenced labels.
+
+    This also determines whether a transaction needs to be ended for each
+    goto.
+ *)
 let legit_gotos prog =
   let verify name stmts =
     let labels = make_symtab () in
     let gotos = make_symtab () in
-    let rec find_labels_n_gotos = function
-      | MultiStmt stmts -> List.iter find_labels_n_gotos stmts
-      | Block (_, stmts) -> List.iter find_labels_n_gotos stmts
+    let rec find_labels_n_gotos xact = function
+      | MultiStmt stmts -> List.iter (find_labels_n_gotos xact) stmts
+      | Block (_, stmts) -> List.iter (find_labels_n_gotos xact) stmts
       | TransactionBlock (_, body, fclauses) ->
-         let () = List.iter find_labels_n_gotos body in
+         let () = List.iter (find_labels_n_gotos true) body in
          List.iter
            (fun (_, _, fbody) ->
-             List.iter find_labels_n_gotos fbody)
+             List.iter (find_labels_n_gotos xact) fbody)
            fclauses
-      | IfStmt (_, _, body, None) -> List.iter find_labels_n_gotos body
+      | IfStmt (_, _, body, None) -> List.iter (find_labels_n_gotos xact) body
       | IfStmt (_, _, body, Some (_, ebody)) ->
-         let () = List.iter find_labels_n_gotos body in
-         List.iter find_labels_n_gotos ebody
-      | ForLoop (_, _, _, _, _, _, body) -> List.iter find_labels_n_gotos body
-      | WhileLoop (_, _, _, body) -> List.iter find_labels_n_gotos body
+         let () = List.iter (find_labels_n_gotos xact) body in
+         List.iter (find_labels_n_gotos xact) ebody
+      | ForLoop (_, _, _, _, _, _, body) ->
+         List.iter (find_labels_n_gotos xact) body
+      | WhileLoop (_, _, _, body) ->
+         List.iter (find_labels_n_gotos xact) body
       | SwitchStmt (_, _, cases) ->
          List.iter
-           (fun (_, _, _, body) -> List.iter find_labels_n_gotos body)
+           (fun (_, _, _, body) -> List.iter (find_labels_n_gotos xact) body)
            cases
-      | Label (pos, label) -> add_symbol labels label pos
-      | Goto (pos, label) -> add_symbol gotos label pos
+      | Label (pos, label) -> add_symbol labels label (pos, xact)
+      | Goto (pos, label, _) -> add_symbol gotos label pos
       | _ -> ()
     in
-    List.iter find_labels_n_gotos stmts;
+    List.iter (find_labels_n_gotos false) stmts;
     symtab_iter
       (fun label pos ->
         if None = lookup_symbol labels label then
           Report.err_goto_no_dest pos name label)
       gotos;
     symtab_iter
-      (fun label pos ->
+      (fun label (pos, _) ->
         if None = lookup_symbol gotos label then
           Report.warn_unreferenced_label pos name label)
-      labels
+      labels;
+    let rec determine_preemies xact = function
+      | MultiStmt stmts -> MultiStmt (List.map (determine_preemies xact) stmts)
+      | Block (p, stmts) -> Block (p, List.map (determine_preemies xact) stmts)
+      | TransactionBlock (p, body, fclauses) ->
+         let pbody = List.map (determine_preemies true) body in
+         let pfclauses =
+           List.map
+             (fun (p, c, fbody) -> p, c,
+                                   List.map (determine_preemies xact) fbody)
+             fclauses
+         in
+         TransactionBlock (p, pbody, pfclauses)
+      | IfStmt (p, cond, body, None) ->
+         IfStmt (p, cond, List.map (determine_preemies xact) body, None)
+      | IfStmt (p, cond, body, Some (ep, ebody)) ->
+         IfStmt (p, cond, List.map (determine_preemies xact) body,
+                 Some (ep, List.map (determine_preemies xact) ebody))
+      | ForLoop (p, par, init, cond, iter, p2, body) ->
+         ForLoop (p, par, init, cond, iter, p2,
+                  List.map (determine_preemies xact) body)
+      | WhileLoop (p, pre, cond, body) ->
+         WhileLoop (p, pre, cond,
+                  List.map (determine_preemies xact) body)
+      | SwitchStmt (p, pattern, cases) ->
+         let pcases =
+           List.map
+             (fun (pos, ft, expr, body) ->
+               pos, ft, expr, List.map (determine_preemies xact) body)
+             cases
+         in
+         SwitchStmt (p, pattern, pcases)
+      | Goto (pos, label, _) ->
+         begin
+           match lookup_symbol labels label with
+           | Some (_, in_transaction) ->
+              if xact && (not in_transaction) then
+                Goto (pos, label, true)
+              else if (not xact) && in_transaction then
+                Report.err_goto_into_transaction pos
+              else
+                Goto (pos, label, false)
+           | None ->
+              Report.err_internal __FILE__ __LINE__
+                "No label for goto, even after verifying it was so."
+         end
+      | stmt -> stmt
+    in
+    List.map (determine_preemies false) stmts
   in
   let rec toplevel = function
-    | MultiStmt stmts -> List.iter toplevel stmts
-    | DefFcn (_, _, _, name, _, _, body) -> verify name body
-    | _ -> ()
+    | MultiStmt stmts -> MultiStmt (List.map toplevel stmts)
+    | DefFcn (p, doc, vis, name, tp, params, body) ->
+       DefFcn(p, doc, vis, name, tp, params, verify name body)
+    | stmt -> stmt
   in
-  List.iter toplevel prog.prog_ast;
-  prog
+  { prog_typemap = prog.prog_typemap;
+    prog_ast = List.map toplevel prog.prog_ast
+  }
 
 (** Verify the legitimacy of breaks and continues in functions. *)
 let legit_breaks prog =

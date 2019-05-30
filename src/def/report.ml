@@ -120,6 +120,10 @@ let err_goto_no_dest pos fcn label =
     ("In function " ^ fcn ^ " there is no label " ^ label ^ ".")
     pos
 
+(** Tried to jump into a transaction. *)
+let err_goto_into_transaction pos =
+  err_pos "Cannot goto from outside of a transaction into one." pos
+
 (** A break was provided outside of any relevant scope. *)
 let err_bad_break pos fcn =
   err_pos

@@ -116,7 +116,7 @@ type stmt =
   | ReturnVoid of position
   | TypeDecl of position * string * Types.deftype * Types.visibility * bool
   | Label of position * string
-  | Goto of position * string
+  | Goto of position * string * bool
   | Break of position
   | Continue of position
   | Sync of position
@@ -377,7 +377,7 @@ let of_parsetree bindings =
          | Some (_, t) -> deftype_of t
        in
        TypeDecl (typedef.td_pos, name.td_text, tp, vis, opaque)
-    | PTS_Goto (goto, id, _) -> Goto (goto.td_pos, id.td_text)
+    | PTS_Goto (goto, id, _) -> Goto (goto.td_pos, id.td_text, false)
     | PTS_Break (break, _) -> Break break.td_pos
     | PTS_Label (id, _) -> Label (id.td_pos, id.td_text)
     | PTS_Continue (continue, _) -> Continue continue.td_pos
