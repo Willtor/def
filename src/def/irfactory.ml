@@ -66,6 +66,8 @@ let hwtm_abort = "llvm.x86.xabort"
 let hytm_begin = "__defrts_hybrid_xbegin"
 let hytm_end = "__defrts_hybrid_xend"
 
+let hytm_counter = "hytm.counter"
+
 let maybe_apply f = function
   | None -> ()
   | Some x -> f x
@@ -1186,8 +1188,8 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     | TransactionBlock (pos, body, fclauses) ->
        begin
          match !xact_kind with
-         | XACT_HARDWARE -> hardware_transaction scope pos body fclauses
-         | XACT_HYBRID -> hybrid_transaction scope pos body fclauses
+         | XACT_HARDWARE -> make_transaction false scope pos body fclauses
+         | XACT_HYBRID -> make_transaction true scope pos body fclauses
          | XACT_SOFTWARE ->
             Report.err_internal __FILE__ __LINE__
               "software transactions not implemented"
@@ -1514,9 +1516,17 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     if !follow <> None then
       set_curr_bb (Util.the !follow)
 
-  and hardware_transaction scope pos body fclauses =
+  and make_transaction hytm scope pos body fclauses =
     let label = label_of_pos pos in
     let begin_bb = append_block data.ctx (label ^ ".xact_begin") llfcn in
+    let counter =
+      if !xact_kind == XACT_HYBRID then
+        let var = get_or_make_val data scope hytm_counter in
+        ignore(build_store (const_null (i32_type data.ctx)) var data.bldr);
+        Some var
+      else
+        None
+    in
     ignore(build_br begin_bb data.bldr);
 
     let body_bb = append_block data.ctx (label ^ ".xact_body") llfcn in
@@ -1528,13 +1538,37 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
     let body_end_bb = Util.the data.curr_bb in
     if bb_needs_exit body_end_bb then
       begin
-        let end_f = get_or_make_val data scope hwtm_end in
+        let end_f =
+          match !xact_kind with
+          | XACT_HARDWARE -> get_or_make_val data scope hwtm_end
+          | XACT_HYBRID -> get_or_make_val data scope hytm_end
+          | XACT_SOFTWARE ->
+             Report.err_internal __FILE__ __LINE__
+               "Got a software transaction even though they aren't supported."
+        in
         ignore(build_call end_f [| |] "" data.bldr)
       end;
 
     set_curr_bb begin_bb;
-    let begin_f = get_or_make_val data scope hwtm_begin in
-    let tx_result = build_call begin_f [| |] "" data.bldr in
+    let tx_result =
+      match !xact_kind with
+      | XACT_HARDWARE ->
+         let begin_f = get_or_make_val data scope hwtm_begin in
+         build_call begin_f [| |] "" data.bldr
+      | XACT_HYBRID ->
+         let cntr_addr = Util.the counter in
+         let begin_f = get_or_make_val data scope hytm_begin in
+
+         let cntr_val = build_load cntr_addr "" data.bldr in
+         let ret = build_call begin_f [| cntr_val |] "" data.bldr in
+         let new_counter = build_extractvalue ret 0 "" data.bldr in
+         let () = ignore(build_store new_counter cntr_addr data.bldr) in
+         build_extractvalue ret 1 "" data.bldr
+      | XACT_SOFTWARE ->
+         Report.err_internal __FILE__ __LINE__
+           "Got a software transaction even though they aren't supported."
+    in
+
     let neg_one = const_int (i32_type data.ctx) (-1) in
     let cond = build_icmp Icmp.Eq tx_result neg_one "" data.bldr in
 
@@ -1608,22 +1642,6 @@ let ir_gen data llfcn fcn_scope entry fcn_body =
 
     set_curr_bb body_end_bb
 
-  and hybrid_transaction scope pos body fclauses =
-    if fclauses <> [] then
-      Report.err_internal __FILE__ __LINE__
-        "fail transaction blocks in hybrid transactions not yet implemented.";
-
-    let begin_f = get_or_make_val data scope hytm_begin in
-    ignore(build_call begin_f [| |] "" data.bldr);
-    let body_scope = push_symtab_scope scope in
-    in_transaction_block := true;
-    List.iter (stmt_gen body_scope) body;
-    in_transaction_block := false;
-
-    if bb_needs_exit (Util.the data.curr_bb) then
-      let end_f = get_or_make_val data scope hytm_end in
-      ignore(build_call end_f [| |] "" data.bldr)
-
   and make_block label scope stmts =
     let begin_bb = append_block data.ctx label llfcn in
     set_curr_bb begin_bb;
@@ -1657,6 +1675,20 @@ let rec build_function data = function
                   ignore(build_store llparams.(n) llval data.bldr))
                 (List.combine ptypes defparams)
      in
+     begin
+       match !xact_kind with
+       | XACT_HYBRID ->
+          (* Add a counter for hybrid transactions, if they exist.  This will
+             be optimized away if there is none.
+
+             FIXME: We should simply check whether there's a transaction and
+             not output this if there is.
+           *)
+          let lltp = i32_type data.ctx in
+          let llval = build_alloca lltp hytm_counter data.bldr in
+          add_symbol local hytm_counter llval
+       | _ -> ()
+     end;
      let init_bb = append_block data.ctx (name ^ ".init") llfcn in
      begin
        data.curr_bb <- Some init_bb;

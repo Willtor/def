@@ -96,6 +96,9 @@ let add_builtin_fcns stmts =
   let i32_type = typify @@ DefTypePrimitive PrimI32 in
   let u64_type = typify @@ DefTypePrimitive PrimU64 in
   let token_type = typify @@ DefTypeLLVMToken in
+  let i32_i32_type =
+    typify @@ DefTypeLiteralStruct (false, [i32_type; i32_type], [])
+  in
 
   let builtins =
     [ DeclFcn (pos, Types.VisExternal, "forkscan_malloc",
@@ -130,7 +133,7 @@ let add_builtin_fcns stmts =
 
       DeclFcn (pos, Types.VisExternal, "__defrts_hybrid_xbegin",
                typify
-               @@ DefTypeFcn ([], void_type, false),
+               @@ DefTypeFcn ([i32_type], i32_i32_type, false),
                []);
 
       DeclFcn (pos, Types.VisExternal, "__defrts_hybrid_xend",
