@@ -100,17 +100,21 @@ DEF_SRC = $(addprefix $(DEF_BUILD_DIR)/,$(DEFFILES))
 DEFGHI_SRC = $(addprefix $(DEFGHI_BUILD_DIR)/,$(DEFGHIFILES))
 LIBHYTM_SRC = $(addprefix $(LIBHYTM_BUILD_DIR)/,$(LIBHYTMFILES))
 
+.PHONY: all
 all: $(BUILDDIR) $(BUILDDIR)/version.t $(BINDIR)/$(DEF) $(BINDIR)/$(DEFGHI) \
 	$(LIBDIR)/$(LIBHYTM)
 
+.PHONY: clean
 install: $(addprefix $(INSTALL_DIR)/,$(INCLUDEFILES))	\
 	$(INSTALL_DIR)/bin/$(DEF)	\
 	$(INSTALL_DIR)/bin/$(DEFGHI)	\
 	$(INSTALL_DIR)/lib/$(LIBHYTM)
 
+.PHONY: test
 test: $(BUILDDIR)/bin/$(DEF)
 	make -C $(TESTDIR)
 
+.PHONY: testclean
 testclean:
 	make -C $(TESTDIR) clean
 
@@ -180,6 +184,7 @@ $(DEFGHI_BUILD_DIR)/$(DEFGHI): $(COMMON_BUILD_DIR) $(DEFGHI_BUILD_DIR) $(COMMON_
 $(LIBHYTM_BUILD_DIR)/$(LIBHYTM): $(LIBHYTM_BUILD_DIR) $(LIBHYTM_SRC)
 	make -C $(LIBHYTM_BUILD_DIR) DEF=../../$(BINDIR)/$(DEF)
 
+.PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)
 
