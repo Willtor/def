@@ -43,6 +43,15 @@ Build the `def` compiler binary and `defghi` utility with:
 
 If you choose not to install it, the built binaries are in the repo at `build/bin/`.
 
+### Extras
+
+A simple `def-mode` for emacs is provided in the `tools` directory that will color keywords. To add it to your installation, either leave it in its directory in the repo or copy it to a subdirectory under `~/.emacs.d`. Then modify the `~/.emacs` file (or whatever your emacs initialization file is) to add the following lines:
+
+```
+(add-to-list 'load-path "/path/to/def-mode-directory/")
+(require 'def-mode)
+```
+
 ## Contributions
 
 Contributions are extremely welcome.  Clone the repository and create pull requests.
