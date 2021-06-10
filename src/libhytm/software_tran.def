@@ -1,7 +1,8 @@
 /** Repeatedly tries to set m_locked to 1,
  *  and takes the lock when m_locked is set to 1.
+ *  TODO: FIXME: This should really be a test-and-test-and-set.
  */
-def TAS_lock(m_locked * i32)-> void
+def TAS_lock(m_locked * i32) -> void
 begin
     while __builtin_swap(&(m_locked[0]), 1) == 1 do
     od
