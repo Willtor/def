@@ -7,6 +7,7 @@ FILES2 = $(FILES1:.mll=.ml)
 COMMON_OBJS = $(FILES2:.ml=.cmx)
 COMMON_INTERFACES = $(FILES2:.ml=.cmi)
 
+.PHONY: all
 all: $(COMMON_INTERFACES) $(COMMON_OBJS)
 
 %.cmx: %.ml

@@ -5,6 +5,7 @@ TARGET = libhytm.a
 SRC = software_tran.def rhnorec.def
 OBJ = $(SRC:.def=.o)
 
+.PHONY: all
 all: $(TARGET)
 
 %.o: %.def
@@ -13,5 +14,6 @@ all: $(TARGET)
 $(TARGET): $(OBJ)
 	$(AR) cr $@ $^
 
+.PHONY: clean
 clean:
 	rm -f $(TARGET) $(OBJ)

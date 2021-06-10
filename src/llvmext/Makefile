@@ -24,6 +24,7 @@ CPPFLAGS = -fPIC -std=c++11 -fno-exceptions -D__STDC_LIMIT_MACROS -D__STDC_CONST
 SRC = llvmext.ml
 OBJ = cmpxchg.o cilky.o metadata.o $(SRC:.ml=.cmx)
 
+.PHONY: all
 all:	$(SRC:.ml=.mli) $(SRC:.ml=.cmi) $(OBJ)
 
 %.o:	%.cpp
